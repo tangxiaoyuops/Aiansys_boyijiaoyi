@@ -1,0 +1,7 @@
+每日买入候选（生成时间：2025-12-23 23:48:03）
+
+今日无符合条件的标的。
+
+== 失败/跳过 ==
+300470: 'NoneType' object has no attribute 'get'
+000001: 'NoneType' object has no attribute 'get'
