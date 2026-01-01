@@ -11,11 +11,9 @@
     </header>
 
     <main class="app-main">
-      <nav class="app-nav">
-        <router-link to="/stock" class="nav-link">股票分析</router-link>
-        <router-link to="/futures" class="nav-link">期货分析</router-link>
-      </nav>
-      <router-view />
+
+      <ChatView />
+
     </main>
 
   </div>
@@ -25,7 +23,9 @@
 
 
 <script setup lang="ts">
-// 使用路由，不再直接导入 ChatView
+
+import ChatView from './views/ChatView.vue';
+
 </script>
 
 
@@ -83,37 +83,15 @@
 }
 
 .app-main {
+
   flex: 1;
+
   display: flex;
+
   flex-direction: column;
+
   overflow: hidden;
-}
 
-.app-nav {
-  display: flex;
-  gap: 8px;
-  padding: 8px 20px;
-  border-bottom: 1px solid #e5e7eb33;
-  background: #1f2937;
-}
-
-.nav-link {
-  padding: 8px 16px;
-  color: #9ca3af;
-  text-decoration: none;
-  border-radius: 6px;
-  transition: all 0.2s;
-  font-size: 14px;
-}
-
-.nav-link:hover {
-  background: #374151;
-  color: #e5e7eb;
-}
-
-.nav-link.router-link-active {
-  background: #3b82f6;
-  color: #ffffff;
 }
 
 </style>

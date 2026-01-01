@@ -4,12 +4,15 @@ FastAPI服务
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import json
 import asyncio
 import uuid
+import os
+from pathlib import Path
 from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
@@ -28,6 +31,11 @@ app.add_middleware(
 
 # 简单的内存会话存储（需要持久化时可替换为 Redis/数据库）
 SESSIONS: Dict[str, Dict[str, Any]] = {}
+
+# 配置静态文件服务路径
+# 获取前端构建目录的绝对路径
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 
 def get_or_create_session(session_id: Optional[str]) -> (str, Dict[str, Any]):
@@ -63,7 +71,11 @@ class IntentRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    """根路径"""
+    """根路径 - 如果前端已构建则返回前端页面，否则返回API信息"""
+    if FRONTEND_DIST.exists():
+        index_path = FRONTEND_DIST / "index.html"
+        if index_path.exists():
+            return FileResponse(str(index_path))
     return {"message": "博弈交易法分析系统 API", "version": "1.0.0"}
 
 
@@ -613,6 +625,35 @@ async def futures_analyze(request: FuturesAnalysisRequest):
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# 如果前端构建目录存在，挂载静态文件
+if FRONTEND_DIST.exists():
+    # 挂载静态资源（assets目录）
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+    
+    # SPA路由处理：所有非API路由都返回index.html
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """
+        处理前端SPA路由
+        如果请求的不是API路径且文件不存在，返回index.html
+        """
+        # 如果是API路径，返回404（让FastAPI处理）
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+        
+        # 尝试返回请求的文件
+        file_path = FRONTEND_DIST / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(str(file_path))
+        
+        # 否则返回index.html（SPA路由回退）
+        index_path = FRONTEND_DIST / "index.html"
+        if index_path.exists():
+            return FileResponse(str(index_path))
+        
+        raise HTTPException(status_code=404, detail="File not found")
 
 
 if __name__ == "__main__":

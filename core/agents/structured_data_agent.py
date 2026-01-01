@@ -56,41 +56,6 @@ def structured_data_node(state: AnalysisState) -> AnalysisState:
     df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
     df = df.dropna(subset=['日期', '收盘']).sort_values('日期').reset_index(drop=True)
     
-    # 数据验证和清洗
-    if not df.empty:
-        # 确保最高 >= 最低
-        invalid_high_low = df['最高'] < df['最低']
-        if invalid_high_low.any():
-            print(f"[结构化数据] 警告：发现 {invalid_high_low.sum()} 条数据最高 < 最低，正在修复...")
-            # 交换最高和最低
-            df.loc[invalid_high_low, ['最高', '最低']] = df.loc[invalid_high_low, ['最低', '最高']].values
-        
-        # 确保收盘在最高和最低之间
-        invalid_close = (df['收盘'] > df['最高']) | (df['收盘'] < df['最低'])
-        if invalid_close.any():
-            print(f"[结构化数据] 警告：发现 {invalid_close.sum()} 条数据收盘不在最高最低之间，正在修复...")
-            # 将收盘价限制在最高和最低之间
-            df.loc[invalid_close, '收盘'] = df.loc[invalid_close, ['最高', '最低', '收盘']].apply(
-                lambda x: max(min(x['收盘'], x['最高']), x['最低']), axis=1
-            )
-        
-        # 确保开盘在最高和最低之间
-        invalid_open = (df['开盘'] > df['最高']) | (df['开盘'] < df['最低'])
-        if invalid_open.any():
-            print(f"[结构化数据] 警告：发现 {invalid_open.sum()} 条数据开盘不在最高最低之间，正在修复...")
-            # 将开盘价限制在最高和最低之间
-            df.loc[invalid_open, '开盘'] = df.loc[invalid_open, ['最高', '最低', '开盘']].apply(
-                lambda x: max(min(x['开盘'], x['最高']), x['最低']), axis=1
-            )
-        
-        # 移除明显异常的数据（价格 <= 0）
-        invalid_price = (df['收盘'] <= 0) | (df['开盘'] <= 0) | (df['最高'] <= 0) | (df['最低'] <= 0)
-        if invalid_price.any():
-            print(f"[结构化数据] 警告：发现 {invalid_price.sum()} 条数据价格 <= 0，正在移除...")
-            df = df[~invalid_price].copy()
-        
-        df = df.reset_index(drop=True)
-    
     if df.empty or len(df) < 60:
         state['structured_data'] = {
             'error': '数据不足，无法进行结构化分析',

@@ -52,14 +52,10 @@
 import { onMounted, onUpdated, ref } from 'vue';
 import MarkdownIt from 'markdown-it';
 import type { ChatMessage } from '../stores/chat';
-import type { FuturesMessage } from '../stores/futures';
 import BacktestChart from './BacktestChart.vue';
 
-// 通用消息类型
-type Message = ChatMessage | FuturesMessage;
-
 const props = defineProps<{
-  messages: Message[];
+  messages: ChatMessage[];
 }>();
 
 const md = new MarkdownIt({ linkify: true, breaks: true });

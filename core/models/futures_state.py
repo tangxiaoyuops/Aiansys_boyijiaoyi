@@ -20,10 +20,10 @@ class FuturesAnalysisState(TypedDict):
     product_code: Optional[str]  # 品种代码
     
     # 数据
-    futures_data: Optional[pd.DataFrame]  # 期货数据
+    futures_data: Optional[pd.DataFrame]  # 期货价格数据
     open_interest: Optional[pd.DataFrame]  # 持仓量数据
     basis_data: Optional[pd.DataFrame]  # 基差数据
-    related_contracts: Optional[Dict[str, Any]]  # 相关合约信息
+    related_contracts: Optional[List[str]]  # 相关合约列表
     spread_data: Optional[pd.DataFrame]  # 价差数据
     
     # 结构化数据
@@ -49,4 +49,3 @@ class FuturesAnalysisState(TypedDict):
     # 会话管理（多轮对话）
     conversation_id: Optional[str]  # 会话ID
     chat_history: Optional[List[Dict[str, str]]]  # [{'role': 'user'/'assistant', 'content': '...'}]
-
