@@ -4,15 +4,12 @@ FastAPI服务
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import json
 import asyncio
 import uuid
-import os
-from pathlib import Path
 from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
@@ -31,11 +28,6 @@ app.add_middleware(
 
 # 简单的内存会话存储（需要持久化时可替换为 Redis/数据库）
 SESSIONS: Dict[str, Dict[str, Any]] = {}
-
-# 配置静态文件服务路径
-# 获取前端构建目录的绝对路径
-BASE_DIR = Path(__file__).resolve().parent.parent
-FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 
 def get_or_create_session(session_id: Optional[str]) -> (str, Dict[str, Any]):
@@ -71,11 +63,7 @@ class IntentRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    """根路径 - 如果前端已构建则返回前端页面，否则返回API信息"""
-    if FRONTEND_DIST.exists():
-        index_path = FRONTEND_DIST / "index.html"
-        if index_path.exists():
-            return FileResponse(str(index_path))
+    """根路径"""
     return {"message": "博弈交易法分析系统 API", "version": "1.0.0"}
 
 
@@ -627,33 +615,313 @@ async def futures_analyze(request: FuturesAnalysisRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 如果前端构建目录存在，挂载静态文件
-if FRONTEND_DIST.exists():
-    # 挂载静态资源（assets目录）
-    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+# ==================== 紫微斗数API ====================
+
+class ZiweiPanRequest(BaseModel):
+    """紫微斗数排盘请求模型"""
+    year: int
+    month: int
+    day: int
+    hour: int  # 时辰（0-23）
+    gender: str = '男'  # 性别：'男' 或 '女'
+    include_daxian: bool = True  # 是否包含大限分析
+    include_liunian: bool = False  # 是否包含流年分析
+    include_liuyue: bool = False  # 是否包含流月分析
+    include_shensha: bool = True  # 是否包含神煞分析
+    include_geju: bool = True  # 是否包含格局分析
+    include_llm: bool = False  # 是否包含LLM深度分析（默认关闭，需要用户明确勾选）
+    target_year: Optional[int] = None  # 目标年份（用于流年流月分析）
+    target_month: Optional[int] = None  # 目标月份（用于流月分析）
+
+
+@app.post("/api/ziwei/pan")
+async def ziwei_pan(request: ZiweiPanRequest):
+    """
+    紫微斗数排盘接口
+    """
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # SPA路由处理：所有非API路由都返回index.html
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """
-        处理前端SPA路由
-        如果请求的不是API路径且文件不存在，返回index.html
-        """
-        # 如果是API路径，返回404（让FastAPI处理）
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404, detail="API endpoint not found")
+    try:
+        print(f"[紫微斗数API] ========== 收到排盘请求 ==========")
+        print(f"[紫微斗数API] 年份: {request.year}")
+        print(f"[紫微斗数API] 月份: {request.month}")
+        print(f"[紫微斗数API] 日期: {request.day}")
+        print(f"[紫微斗数API] 时辰: {request.hour}")
+        print(f"[紫微斗数API] 性别: {request.gender}")
         
-        # 尝试返回请求的文件
-        file_path = FRONTEND_DIST / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(str(file_path))
+        logger.info(f"收到紫微斗数排盘请求: {request.year}年{request.month}月{request.day}日{request.hour}时, 性别={request.gender}")
         
-        # 否则返回index.html（SPA路由回退）
-        index_path = FRONTEND_DIST / "index.html"
-        if index_path.exists():
-            return FileResponse(str(index_path))
+        # 参数验证
+        if not (1900 <= request.year <= 2100):
+            raise HTTPException(status_code=400, detail="年份必须在1900-2100之间")
+        if not (1 <= request.month <= 12):
+            raise HTTPException(status_code=400, detail="月份必须在1-12之间")
+        if not (1 <= request.day <= 31):
+            raise HTTPException(status_code=400, detail="日期必须在1-31之间")
+        if not (0 <= request.hour <= 23):
+            raise HTTPException(status_code=400, detail="时辰必须在0-23之间")
+        if request.gender not in ['男', '女']:
+            raise HTTPException(status_code=400, detail="性别必须是'男'或'女'")
         
-        raise HTTPException(status_code=404, detail="File not found")
+        print(f"[紫微斗数API] 参数验证通过，开始调用完整分析函数...")
+        print(f"[紫微斗数API] 分析选项: 大限={request.include_daxian}, 神煞={request.include_shensha}, 格局={request.include_geju}, LLM={request.include_llm}")
+        
+        # 调用完整分析函数
+        from core.agents.ziwei_analysis_agent import ziwei_complete_analysis
+        
+        print(f"[紫微斗数API] 正在调用 ziwei_complete_analysis...")
+        result = ziwei_complete_analysis(
+            year=request.year,
+            month=request.month,
+            day=request.day,
+            hour=request.hour,
+            gender=request.gender,
+            include_daxian=request.include_daxian,
+            include_liunian=request.include_liunian,
+            include_liuyue=request.include_liuyue,
+            include_shensha=request.include_shensha,
+            include_geju=request.include_geju,
+            include_llm=request.include_llm,
+            target_year=request.target_year,
+            target_month=request.target_month,
+        )
+        
+        print(f"[紫微斗数API] 分析函数返回结果: success={result.get('success')}")
+        
+        if not result.get('success'):
+            error_msg = result.get('error', '未知错误')
+            print(f"[紫微斗数API] 分析失败: {error_msg}")
+            logger.error(f"分析失败: {error_msg}")
+            raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
+        
+        print(f"[紫微斗数API] 分析成功，返回结果")
+        print(f"[紫微斗数API] 包含的分析模块:")
+        print(f"  - 命盘数据: {result.get('pan_data') is not None}")
+        print(f"  - 四化分析: {result.get('si_hua_analysis') is not None}")
+        print(f"  - 大限分析: {result.get('daxian_analysis') is not None}")
+        print(f"  - 神煞分析: {result.get('shensha_analysis') is not None}")
+        print(f"  - 格局分析: {result.get('geju_analysis') is not None}")
+        print(f"  - LLM分析: {result.get('llm_analysis') is not None}")
+        logger.info("完整分析成功")
+        
+        return {
+            "success": True,
+            "pan_data": result.get('pan_data'),
+            "si_hua_analysis": result.get('si_hua_analysis', {}),
+            "daxian_analysis": result.get('daxian_analysis'),
+            "liunian_analysis": result.get('liunian_analysis'),
+            "liuyue_analysis": result.get('liuyue_analysis'),
+            "shensha_analysis": result.get('shensha_analysis'),
+            "geju_analysis": result.get('geju_analysis'),
+            "llm_analysis": result.get('llm_analysis'),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[紫微斗数API] 发生异常: {error_msg}")
+        import traceback
+        print(f"[紫微斗数API] 异常堆栈:\n{traceback.format_exc()}")
+        logger.error(f"排盘异常: {error_msg}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
+
+
+# ==================== 八字排盘API ====================
+
+class BaziPanRequest(BaseModel):
+    """八字排盘请求模型"""
+    year: int
+    month: int
+    day: int
+    hour: int  # 时辰（0-23）
+    gender: str = '男'  # 性别：'男' 或 '女'
+    include_wuxing: bool = True  # 是否包含五行分析
+    include_shishen: bool = True  # 是否包含十神分析
+    include_dayun: bool = True  # 是否包含大运分析
+    include_liunian: bool = False  # 是否包含流年分析
+    include_shensha: bool = True  # 是否包含神煞分析
+    include_llm: bool = False  # 是否包含LLM深度分析（默认关闭，需要用户明确勾选）
+    target_year: Optional[int] = None  # 目标年份（用于流年分析）
+
+
+@app.post("/api/bazi/pan")
+async def bazi_pan(request: BaziPanRequest):
+    """
+    八字排盘接口
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        print(f"[八字排盘API] ========== 收到排盘请求 ==========")
+        print(f"[八字排盘API] 年份: {request.year}")
+        print(f"[八字排盘API] 月份: {request.month}")
+        print(f"[八字排盘API] 日期: {request.day}")
+        print(f"[八字排盘API] 时辰: {request.hour}")
+        print(f"[八字排盘API] 性别: {request.gender}")
+        
+        logger.info(f"收到八字排盘请求: {request.year}年{request.month}月{request.day}日{request.hour}时, 性别={request.gender}")
+        
+        # 参数验证
+        if not (1900 <= request.year <= 2100):
+            raise HTTPException(status_code=400, detail="年份必须在1900-2100之间")
+        if not (1 <= request.month <= 12):
+            raise HTTPException(status_code=400, detail="月份必须在1-12之间")
+        if not (1 <= request.day <= 31):
+            raise HTTPException(status_code=400, detail="日期必须在1-31之间")
+        if not (0 <= request.hour <= 23):
+            raise HTTPException(status_code=400, detail="时辰必须在0-23之间")
+        if request.gender not in ['男', '女']:
+            raise HTTPException(status_code=400, detail="性别必须是'男'或'女'")
+        
+        print(f"[八字排盘API] 参数验证通过，开始调用完整分析函数...")
+        print(f"[八字排盘API] 分析选项: 五行={request.include_wuxing}, 十神={request.include_shishen}, 大运={request.include_dayun}, 流年={request.include_liunian}, 神煞={request.include_shensha}, LLM={request.include_llm}")
+        
+        # 调用完整分析函数
+        from core.agents.bazi_analysis_agent import bazi_complete_analysis
+        
+        print(f"[八字排盘API] 正在调用 bazi_complete_analysis...")
+        result = bazi_complete_analysis(
+            year=request.year,
+            month=request.month,
+            day=request.day,
+            hour=request.hour,
+            gender=request.gender,
+            include_wuxing=request.include_wuxing,
+            include_shishen=request.include_shishen,
+            include_dayun=request.include_dayun,
+            include_liunian=request.include_liunian,
+            include_shensha=request.include_shensha,
+            include_llm=request.include_llm,
+            target_year=request.target_year,
+        )
+        
+        print(f"[八字排盘API] 分析函数返回结果: success={result.get('success')}")
+        
+        if not result.get('success'):
+            error_msg = result.get('error', '未知错误')
+            print(f"[八字排盘API] 分析失败: {error_msg}")
+            logger.error(f"分析失败: {error_msg}")
+            raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
+        
+        print(f"[八字排盘API] 分析成功，返回结果")
+        print(f"[八字排盘API] 包含的分析模块:")
+        print(f"  - 四柱数据: {result.get('sizhu') is not None}")
+        print(f"  - 五行分析: {result.get('wuxing_analysis') is not None}")
+        print(f"  - 十神分析: {result.get('shishen_analysis') is not None}")
+        print(f"  - 大运分析: {result.get('dayun_analysis') is not None}")
+        print(f"  - 流年分析: {result.get('liunian_analysis') is not None}")
+        print(f"  - 神煞分析: {result.get('shensha_analysis') is not None}")
+        print(f"  - LLM分析: {result.get('llm_analysis') is not None}")
+        logger.info("完整分析成功")
+        
+        return {
+            "success": True,
+            "sizhu": result.get('sizhu'),
+            "wuxing_analysis": result.get('wuxing_analysis'),
+            "shishen_analysis": result.get('shishen_analysis'),
+            "dayun_analysis": result.get('dayun_analysis'),
+            "liunian_analysis": result.get('liunian_analysis'),
+            "shensha_analysis": result.get('shensha_analysis'),
+            "llm_analysis": result.get('llm_analysis'),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[八字排盘API] 发生异常: {error_msg}")
+        import traceback
+        print(f"[八字排盘API] 异常堆栈:\n{traceback.format_exc()}")
+        logger.error(f"排盘异常: {error_msg}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
+
+
+# ==================== 六爻卜卦API ====================
+
+@app.get("/api/divination/test")
+async def divination_test():
+    """测试六爻卜卦API是否可用"""
+    return {"message": "六爻卜卦API已就绪", "status": "ok"}
+
+
+class DivinationRequest(BaseModel):
+    """六爻卜卦请求模型"""
+    coin_results: List[List[int]]  # 6次摇卦结果，每次3枚铜钱（0=反面，1=正面）
+    question: str  # 用户问题
+    include_llm: bool = True  # 是否调用LLM分析
+
+
+@app.post("/api/divination/analyze")
+async def divination_analyze(request: DivinationRequest):
+    """
+    六爻卜卦分析接口
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        print(f"[六爻卜卦API] ========== 收到卜卦请求 ==========")
+        print(f"[六爻卜卦API] 问题: {request.question}")
+        print(f"[六爻卜卦API] 摇卦结果数量: {len(request.coin_results)}")
+        print(f"[六爻卜卦API] 调用LLM: {request.include_llm}")
+        
+        logger.info(f"收到六爻卜卦请求: 问题={request.question}, 摇卦次数={len(request.coin_results)}")
+        
+        # 参数验证
+        if len(request.coin_results) != 6:
+            raise HTTPException(status_code=400, detail="必须提供6次摇卦结果")
+        
+        for i, coins in enumerate(request.coin_results):
+            if len(coins) != 3:
+                raise HTTPException(status_code=400, detail=f"第{i+1}次摇卦必须提供3枚铜钱的结果")
+            if not all(c in [0, 1] for c in coins):
+                raise HTTPException(status_code=400, detail=f"第{i+1}次摇卦结果无效，必须为0或1")
+        
+        if not request.question or not request.question.strip():
+            raise HTTPException(status_code=400, detail="必须提供问题")
+        
+        print(f"[六爻卜卦API] 参数验证通过，开始调用分析函数...")
+        
+        # 调用分析函数
+        from core.agents.divination_agent import divination_complete_analysis
+        
+        print(f"[六爻卜卦API] 正在调用 divination_complete_analysis...")
+        result = divination_complete_analysis(
+            coin_results=request.coin_results,
+            question=request.question,
+            include_llm=request.include_llm,
+        )
+        
+        print(f"[六爻卜卦API] 分析函数返回结果: success={result.get('success')}")
+        
+        if not result.get('success'):
+            error_msg = result.get('error', '未知错误')
+            print(f"[六爻卜卦API] 分析失败: {error_msg}")
+            logger.error(f"分析失败: {error_msg}")
+            raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
+        
+        print(f"[六爻卜卦API] 分析成功，返回结果")
+        logger.info("六爻卜卦分析成功")
+        
+        return {
+            "success": True,
+            "hexagram": result.get('hexagram'),
+            "question": result.get('question'),
+            "llm_analysis": result.get('llm_analysis'),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[六爻卜卦API] 发生异常: {error_msg}")
+        import traceback
+        print(f"[六爻卜卦API] 异常堆栈:\n{traceback.format_exc()}")
+        logger.error(f"六爻卜卦异常: {error_msg}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"六爻卜卦异常: {error_msg}")
 
 
 if __name__ == "__main__":

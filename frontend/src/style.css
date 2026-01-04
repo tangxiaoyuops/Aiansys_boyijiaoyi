@@ -1,13 +1,11 @@
-body {
-
+html, body, #app {
   margin: 0;
-
+  padding: 0;
+  height: 100%;
+  width: 100%;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-
   background: #e5e7eb; /* 整体背景改成浅灰，提高对比度 */
-
   color: #111827;
-
 }
 
 

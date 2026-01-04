@@ -8,12 +8,27 @@
 
       <div class="sub">基于 FastAPI + LangGraph</div>
 
+      <nav class="app-nav">
+        <router-link to="/stock" class="nav-link">股票分析</router-link>
+        <router-link to="/futures" class="nav-link">期货分析</router-link>
+        <router-link to="/ziwei" class="nav-link">紫微斗数</router-link>
+        <router-link to="/divination" class="nav-link">六爻卜卦</router-link>
+        <router-link to="/bazi" class="nav-link">八字排盘</router-link>
+      </nav>
+
     </header>
 
     <main class="app-main">
-
-      <ChatView />
-
+      <router-view v-slot="{ Component, route }">
+        <Suspense>
+          <component :is="Component" v-if="Component" :key="route.path" />
+          <template #fallback>
+            <div class="loading-container">
+              <div class="loading-text">加载中...</div>
+            </div>
+          </template>
+        </Suspense>
+      </router-view>
     </main>
 
   </div>
@@ -23,9 +38,11 @@
 
 
 <script setup lang="ts">
+import { onMounted } from 'vue';
 
-import ChatView from './views/ChatView.vue';
-
+onMounted(() => {
+  console.log('App组件已挂载');
+});
 </script>
 
 
@@ -34,7 +51,7 @@ import ChatView from './views/ChatView.vue';
 
 .app-shell {
 
-  min-height: 100vh;
+  height: 100vh;
 
   display: flex;
 
@@ -45,6 +62,8 @@ import ChatView from './views/ChatView.vue';
   background: #111827;
 
   color: #e5e7eb;
+
+  overflow: hidden;
 
 }
 
@@ -63,6 +82,46 @@ import ChatView from './views/ChatView.vue';
   background: #f3f4f6;
 
   color: #111827;
+
+  flex-shrink: 0;
+
+}
+
+.app-nav {
+
+  display: flex;
+
+  gap: 16px;
+
+}
+
+.nav-link {
+
+  padding: 6px 12px;
+
+  border-radius: 4px;
+
+  text-decoration: none;
+
+  color: #6b7280;
+
+  transition: all 0.2s;
+
+}
+
+.nav-link:hover {
+
+  background: #e5e7eb;
+
+  color: #111827;
+
+}
+
+.nav-link.router-link-active {
+
+  background: #3b82f6;
+
+  color: white;
 
 }
 
@@ -91,6 +150,28 @@ import ChatView from './views/ChatView.vue';
   flex-direction: column;
 
   overflow: hidden;
+
+  min-height: 0;
+
+}
+
+.loading-container {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  height: 100%;
+
+  color: #6b7280;
+
+}
+
+.loading-text {
+
+  font-size: 16px;
 
 }
 

@@ -71,21 +71,27 @@ const handleSend = (msg: string) => {
 <style scoped>
 .chat-view {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
+  overflow: hidden;
 }
 .sidebar {
   width: 240px;
   padding: 12px;
-  border-right: 1px solid #1f2937;
+  border-right: 1px solid #e5e7eb33;
   flex-shrink: 0;
+  overflow-y: auto;
 }
 .content {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .footer {
-  border-top: 1px solid #1f2937;
+  flex-shrink: 0;
+  padding: 16px;
+  border-top: 1px solid #e5e7eb33;
+  background: #f9fafb;
 }
 </style>
