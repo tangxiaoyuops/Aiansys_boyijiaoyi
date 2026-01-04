@@ -248,7 +248,8 @@ const handleAnalyze = async () => {
   result.value = null;
 
   try {
-    const response = await fetch('http://localhost:8000/api/bazi/pan', {
+    const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+    const response = await fetch(`${baseURL}/api/bazi/pan`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
