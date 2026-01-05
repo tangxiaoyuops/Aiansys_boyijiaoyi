@@ -31,10 +31,33 @@ export function startFuturesStream(params: FuturesStreamParams) {
     }
   };
 
-  eventSource.onerror = (error) => {
+  eventSource.onerror = (error: Event) => {
     console.error('SSE连接错误:', error);
+    
+    // 检查EventSource的状态
+    let errorMessage = '连接错误';
+    if (eventSource.readyState === EventSource.CLOSED) {
+      errorMessage = '连接已关闭，可能是服务器错误或网络问题';
+    } else if (eventSource.readyState === EventSource.CONNECTING) {
+      errorMessage = '连接失败，无法连接到服务器';
+    }
+    
+    // 尝试从错误事件中提取更多信息
+    const target = error.target as EventSource;
+    if (target) {
+      console.error('EventSource状态:', {
+        readyState: target.readyState,
+        url: target.url,
+        withCredentials: target.withCredentials
+      });
+    }
+    
     eventSource.close();
-    onEvent({ type: 'error', message: '连接错误' });
+    onEvent({ 
+      type: 'error', 
+      message: errorMessage,
+      details: `URL: ${url.toString()}, ReadyState: ${eventSource.readyState}`
+    });
   };
 
   return () => {

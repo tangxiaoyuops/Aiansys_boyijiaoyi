@@ -18,8 +18,13 @@ try:
         get_vnpy_status
     )
     VNPY_AVAILABLE = True
-except ImportError:
+    print(f"[期货数据获取] vnPy模块导入成功")
+except ImportError as e:
     VNPY_AVAILABLE = False
+    print(f"[期货数据获取] vnPy模块导入失败: {e}")
+except Exception as e:
+    VNPY_AVAILABLE = False
+    print(f"[期货数据获取] vnPy模块导入异常: {e}")
 
 # 尝试导入akshare
 try:
@@ -63,8 +68,11 @@ def fetch_futures_data(
     
     # 优先使用vnPy
     if VNPY_AVAILABLE:
+        print(f"[期货数据获取] 检测到vnPy可用，检查状态...")
         vnpy_status = get_vnpy_status()
+        print(f"[期货数据获取] vnPy状态: {vnpy_status}")
         if vnpy_status.get('available', False):
+            print(f"[期货数据获取] vnPy可用，尝试获取数据...")
             try:
                 end_date = datetime.now()
                 start_date = end_date - timedelta(days=days + 30)  # 多取一些，防止数据不足
@@ -109,11 +117,49 @@ def fetch_futures_data(
                     print(f"[期货数据获取] vnPy数据获取成功: {len(df)} 条记录")
                     return df
                 else:
-                    print(f"[期货数据获取] vnPy返回空数据")
+                    # vnPy可用但数据库中没有数据，给出明确提示
+                    error_msg = (
+                        f"vnPy数据库中没有找到合约 {futures_code} 的数据。\n"
+                        f"建议：\n"
+                        f"1. 使用vnPy的数据管理功能导入历史数据\n"
+                        f"2. 或使用vnPy的数据下载功能获取数据\n"
+                        f"3. 检查vnPy数据库配置是否正确"
+                    )
+                    print(f"[期货数据获取] {error_msg}")
+                    # 如果vnPy可用，即使数据库没有数据，也不应该尝试akshare
+                    # 因为用户已经安装了vnPy，应该使用vnPy的数据源
+                    raise Exception(error_msg)
             except Exception as e:
-                print(f"[期货数据获取] vnPy获取失败，尝试其他数据源: {e}")
+                error_msg = str(e)
+                print(f"[期货数据获取] vnPy获取失败: {error_msg}")
                 import traceback
                 print(f"[期货数据获取] vnPy错误详情: {traceback.format_exc()}")
+                
+                # 检查是否是数据库驱动缺失的问题
+                if "No module named 'vnpy_sqlite'" in error_msg or "数据库驱动" in error_msg:
+                    print(f"[期货数据获取] vnPy数据库驱动缺失，将尝试使用akshare作为备选数据源")
+                    # 不抛出异常，继续尝试akshare
+                elif "数据库中没有找到" in error_msg or "数据库为空" in error_msg:
+                    # 数据库有数据但找不到该合约，可以尝试akshare
+                    print(f"[期货数据获取] vnPy数据库中没有该合约数据，将尝试使用akshare作为备选数据源")
+                    # 不抛出异常，继续尝试akshare
+                else:
+                    # 其他错误，可能是配置问题，也尝试akshare
+                    print(f"[期货数据获取] vnPy配置可能有问题，将尝试使用akshare作为备选数据源")
+        else:
+            print(f"[期货数据获取] vnPy状态显示不可用: {vnpy_status}")
+            # 如果vnPy模块已导入但状态不可用，说明配置有问题
+            if VNPY_AVAILABLE:
+                error_msg = (
+                    f"vnPy模块已安装但状态不可用: {vnpy_status}\n"
+                    f"建议：\n"
+                    f"1. 检查vnPy数据库配置\n"
+                    f"2. 检查vnPy相关模块是否正确安装\n"
+                    f"3. 查看vnPy状态详情: {vnpy_status}"
+                )
+                raise Exception(error_msg)
+    else:
+        print(f"[期货数据获取] vnPy模块未导入，VNPY_AVAILABLE={VNPY_AVAILABLE}")
     
     # 使用akshare作为备选
     if AKSHARE_AVAILABLE:
@@ -131,10 +177,11 @@ def fetch_futures_data(
                 
                 df = None
                 
-                # 方法1：尝试使用 futures_zh_daily_sina（如果接口存在）
+                # 方法1：尝试使用 futures_zh_daily_sina（新浪期货日线数据）
                 if hasattr(ak, 'futures_zh_daily_sina'):
                     try:
                         print(f"[期货数据获取] 尝试使用 futures_zh_daily_sina 接口...")
+                        # 转换合约代码格式：rb2605 -> rb2605 或需要查询对应的symbol
                         df = ak.futures_zh_daily_sina(symbol=futures_code)
                         if df is not None and not df.empty:
                             print(f"[期货数据获取] futures_zh_daily_sina 获取成功: {len(df)} 条记录")
@@ -142,24 +189,39 @@ def fetch_futures_data(
                         print(f"[期货数据获取] futures_zh_daily_sina 调用失败: {e}")
                         df = None
                 
-                # 方法2：如果方法1失败，尝试获取主力合约数据
-                if df is None or df.empty:
+                # 方法2：尝试使用 futures_main_sina 获取主力合约，然后获取数据
+                if (df is None or df.empty) and hasattr(ak, 'futures_main_sina'):
                     try:
                         print(f"[期货数据获取] 尝试获取主力合约数据...")
-                        # 获取主力合约列表
-                        if hasattr(ak, 'futures_main_sina'):
-                            main_contracts = ak.futures_main_sina()
-                            if main_contracts is not None and not main_contracts.empty:
-                                # 查找匹配的合约
-                                product_code = futures_code[:2].lower()
-                                matching = main_contracts[main_contracts['symbol'].str.contains(product_code, case=False, na=False)]
-                                if not matching.empty:
-                                    main_symbol = matching.iloc[0]['symbol']
-                                    print(f"[期货数据获取] 找到主力合约: {main_symbol}")
-                                    if hasattr(ak, 'futures_zh_daily_sina'):
-                                        df = ak.futures_zh_daily_sina(symbol=main_symbol)
+                        main_contracts = ak.futures_main_sina()
+                        if main_contracts is not None and not main_contracts.empty:
+                            # 查找匹配的合约
+                            product_code = futures_code[:2].lower()
+                            matching = main_contracts[main_contracts['symbol'].str.contains(product_code, case=False, na=False)]
+                            if not matching.empty:
+                                main_symbol = matching.iloc[0]['symbol']
+                                print(f"[期货数据获取] 找到主力合约: {main_symbol}")
+                                if hasattr(ak, 'futures_zh_daily_sina'):
+                                    df = ak.futures_zh_daily_sina(symbol=main_symbol)
+                                    if df is not None and not df.empty:
+                                        print(f"[期货数据获取] 通过主力合约获取成功: {len(df)} 条记录")
                     except Exception as e:
                         print(f"[期货数据获取] 获取主力合约数据失败: {e}")
+                
+                # 方法3：尝试使用其他akshare期货接口
+                if (df is None or df.empty) and hasattr(ak, 'futures_zh_spot'):
+                    try:
+                        print(f"[期货数据获取] 尝试使用 futures_zh_spot 获取实时数据...")
+                        # 这个接口返回实时数据，不是历史数据，但可以作为备选
+                        spot_data = ak.futures_zh_spot()
+                        if spot_data is not None and not spot_data.empty:
+                            # 查找匹配的合约
+                            product_code = futures_code[:2].lower()
+                            matching = spot_data[spot_data['symbol'].str.contains(product_code, case=False, na=False)]
+                            if not matching.empty:
+                                print(f"[期货数据获取] 找到实时数据，但无法获取历史数据")
+                    except Exception as e:
+                        print(f"[期货数据获取] futures_zh_spot 调用失败: {e}")
                 
                 # 如果成功获取到数据，进行数据处理
                 if df is not None and not df.empty:

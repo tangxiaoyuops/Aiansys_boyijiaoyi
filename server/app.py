@@ -469,29 +469,39 @@ async def futures_analyze_stream(
             print(f"[期货分析API] 开始运行工作流: {final_futures_code}, 分析类型: {analysis_type}")
             final_state = None
             node_count = 0
-            async for state in compiled_futures_graph.astream(initial_state):
-                node_count += 1
-                # 获取当前节点名称
-                current_node = list(state.keys())[0] if state else None
-                print(f"[期货分析API] 工作流执行节点 {node_count}: {current_node}")
-                
-                # 发送进度更新
-                if current_node:
-                    node_messages = {
-                        "data_fetch": "获取期货数据...",
-                        "game_theory_analysis": "进行博弈交易法分析...",
-                        "risk_analysis": "进行风险管理分析...",
-                        "spread_analysis": "进行价差分析...",
-                        "fundamental_analysis": "进行基本面分析...",
-                        "strategy_recommendation": "生成交易策略...",
-                        "final_report": "生成最终报告...",
-                    }
+            try:
+                async for state in compiled_futures_graph.astream(initial_state):
+                    node_count += 1
+                    # 获取当前节点名称
+                    current_node = list(state.keys())[0] if state else None
+                    print(f"[期货分析API] 工作流执行节点 {node_count}: {current_node}")
                     
-                    progress_msg = node_messages.get(current_node, f"执行 {current_node}...")
-                    yield f"data: {json.dumps({'type': 'progress', 'message': progress_msg, 'node': current_node}, ensure_ascii=False)}\n\n"
-                
-                # 保存最终状态
-                final_state = state
+                    # 发送进度更新
+                    if current_node:
+                        node_messages = {
+                            "data_fetch": "获取期货数据...",
+                            "game_theory_analysis": "进行博弈交易法分析...",
+                            "risk_analysis": "进行风险管理分析...",
+                            "spread_analysis": "进行价差分析...",
+                            "fundamental_analysis": "进行基本面分析...",
+                            "strategy_recommendation": "生成交易策略...",
+                            "final_report": "生成最终报告...",
+                        }
+                        
+                        progress_msg = node_messages.get(current_node, f"执行 {current_node}...")
+                        yield f"data: {json.dumps({'type': 'progress', 'message': progress_msg, 'node': current_node}, ensure_ascii=False)}\n\n"
+                    
+                    # 保存最终状态
+                    final_state = state
+            except Exception as workflow_error:
+                # 捕获工作流执行中的异常
+                error_msg = str(workflow_error)
+                import traceback
+                print(f"[期货分析API] 工作流执行异常: {error_msg}")
+                print(f"[期货分析API] 工作流错误堆栈:")
+                traceback.print_exc()
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+                return
             
             # 获取最终结果
             if final_state:

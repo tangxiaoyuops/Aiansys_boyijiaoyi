@@ -12,7 +12,7 @@ uvicorn>=0.24.0
 langgraph>=1.0.0
 langchain>=0.1.0
 # vnpy 集成（可选，用于专业回测和实盘交易）
-# vnpy>=3.9.0
+vnpy>=3.9.0
 # vnpy-ctastrategy>=3.9.0
 # vnpy-ctabacktester>=3.9.0
 # vnpy-datamanager>=3.9.0

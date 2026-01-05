@@ -130,9 +130,13 @@
               本卦：{{ result.hexagram.ben_hexagram.full_name }}
             </h3>
             <div class="analysis-content">
-              <div class="info-section">
+              <div v-if="result.hexagram.ben_hexagram.guaci" class="info-section">
                 <div class="info-label">卦辞：</div>
                 <div class="info-value">{{ result.hexagram.ben_hexagram.guaci }}</div>
+              </div>
+              <div v-else class="info-section">
+                <div class="info-label">卦辞：</div>
+                <div class="info-value" style="color: #9ca3af;">（卦辞加载中...）</div>
               </div>
               
               <div class="yao-list">
@@ -161,9 +165,13 @@
               变卦：{{ result.hexagram.bian_hexagram.full_name }}
             </h3>
             <div class="analysis-content">
-              <div class="info-section">
+              <div v-if="result.hexagram.bian_hexagram.guaci" class="info-section">
                 <div class="info-label">变卦卦辞：</div>
                 <div class="info-value">{{ result.hexagram.bian_hexagram.guaci }}</div>
+              </div>
+              <div v-else class="info-section">
+                <div class="info-label">变卦卦辞：</div>
+                <div class="info-value" style="color: #9ca3af;">（卦辞加载中...）</div>
               </div>
             </div>
           </div>
