@@ -214,6 +214,7 @@ import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { MagicStick, Document, Star, Calendar, Sunny, Grid, ChatLineRound } from '@element-plus/icons-vue';
 import BaziChart from '../components/BaziChart.vue';
+import { getBaseURL } from '../api';
 
 const loading = ref(false);
 const result = ref<any>(null);
@@ -248,7 +249,7 @@ const handleAnalyze = async () => {
   result.value = null;
 
   try {
-    const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+    const baseURL = getBaseURL();
     const response = await fetch(`${baseURL}/api/bazi/pan`, {
       method: 'POST',
       headers: {
