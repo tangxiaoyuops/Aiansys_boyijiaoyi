@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 import json
 import asyncio
 import uuid
@@ -65,6 +66,15 @@ class IntentRequest(BaseModel):
 async def root():
     """根路径"""
     return {"message": "博弈交易法分析系统 API", "version": "1.0.0"}
+
+@app.get("/health")
+async def health_check():
+    """健康检查端点"""
+    return {
+        "status": "ok",
+        "message": "服务运行正常",
+        "timestamp": datetime.now().isoformat()
+    }
 
 
 @app.get("/api/vnpy/status")
