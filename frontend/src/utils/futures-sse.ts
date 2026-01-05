@@ -13,13 +13,26 @@ export interface FuturesStreamParams {
 export function startFuturesStream(params: FuturesStreamParams) {
   const { baseURL, message, futures_code, analysis_type, days, session_id, onEvent } = params;
 
-  const url = new URL('/api/futures/analyze/stream', baseURL);
+  // 处理baseURL：如果是开发环境且baseURL为空，使用相对路径（走代理）
+  // 如果baseURL包含协议，确保协议正确（HTTP/HTTPS）
+  let finalBaseURL = baseURL;
+  if (!baseURL || baseURL === '') {
+    // 开发环境，使用相对路径走Vite代理
+    finalBaseURL = '';
+  } else if (baseURL.startsWith('https://') && window.location.protocol === 'http:') {
+    // 如果前端是HTTP但baseURL是HTTPS，改为HTTP
+    console.warn('[SSE] 检测到协议不匹配，将HTTPS改为HTTP:', baseURL);
+    finalBaseURL = baseURL.replace('https://', 'http://');
+  }
+
+  const url = new URL('/api/futures/analyze/stream', finalBaseURL || window.location.origin);
   url.searchParams.set('message', message);
   if (futures_code) url.searchParams.set('futures_code', futures_code);
   if (analysis_type) url.searchParams.set('analysis_type', analysis_type);
   if (days) url.searchParams.set('days', days.toString());
   if (session_id) url.searchParams.set('session_id', session_id);
 
+  console.log('[SSE] 连接URL:', url.toString());
   const eventSource = new EventSource(url.toString());
 
   eventSource.onmessage = (event) => {

@@ -4,17 +4,31 @@ import axios from 'axios';
 // 如果设置了VITE_API_BASE，使用它；否则在开发环境使用代理，生产环境使用相对路径
 const getBaseURL = () => {
   const envBase = import.meta.env.VITE_API_BASE;
-  if (envBase) {
-    // 如果环境变量设置了，直接使用
+  
+  // 开发环境：优先使用代理（通过vite.config.ts配置）
+  if (import.meta.env.DEV) {
+    if (!envBase) {
+      // 没有设置环境变量，使用相对路径走Vite代理
+      return '';
+    }
+    // 如果设置了环境变量，检查协议匹配
+    if (envBase.startsWith('https://') && window.location.protocol === 'http:') {
+      console.warn('[API] 检测到协议不匹配，将HTTPS改为HTTP:', envBase);
+      return envBase.replace('https://', 'http://');
+    }
     return envBase;
   }
   
-  // 开发环境：使用代理（通过vite.config.ts配置）
-  if (import.meta.env.DEV) {
-    return ''; // 空字符串表示使用相对路径，会走Vite代理
+  // 生产环境：使用环境变量或默认值
+  if (envBase) {
+    // 检查协议匹配
+    if (envBase.startsWith('https://') && window.location.protocol === 'http:') {
+      console.warn('[API] 检测到协议不匹配，将HTTPS改为HTTP:', envBase);
+      return envBase.replace('https://', 'http://');
+    }
+    return envBase;
   }
   
-  // 生产环境：使用相对路径或默认值
   return 'http://localhost:8000';
 };
 
