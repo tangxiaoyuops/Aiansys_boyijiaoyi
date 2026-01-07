@@ -80,25 +80,7 @@ def fetch_futures_data_from_vnpy(
         from vnpy.trader.constant import Exchange, Interval
         
         # 获取数据库实例
-        try:
-            database = get_database()
-            print(f"[vnPy] 数据库实例获取成功: {type(database)}")
-        except ModuleNotFoundError as db_error:
-            # 数据库驱动缺失（如vnpy_sqlite）
-            error_msg = str(db_error)
-            if 'vnpy_sqlite' in error_msg or 'vnpy_mysql' in error_msg or 'vnpy_postgresql' in error_msg:
-                print(f"[vnPy] 数据库驱动缺失: {error_msg}")
-                print(f"[vnPy] 提示: 需要安装数据库驱动，例如: pip install vnpy_sqlite")
-                print(f"[vnPy] 将返回None，让系统尝试其他数据源（如akshare）")
-                return None
-            else:
-                raise
-        except Exception as db_error:
-            print(f"[vnPy] 获取数据库实例失败: {db_error}")
-            print(f"[vnPy] 提示: 可能需要先配置vnPy数据库连接")
-            import traceback
-            print(f"[vnPy] 数据库错误详情: {traceback.format_exc()}")
-            return None
+        database = get_database()
         
         # 转换交易所字符串为Exchange枚举
         exchange_map = {
@@ -138,19 +120,9 @@ def fetch_futures_data_from_vnpy(
         )
         
         if not bars:
-            error_msg = (
-                f"[vnPy] 数据库中没有找到合约 {symbol} 的数据\n"
-                f"查询参数: exchange={exchange}, interval={interval}, "
-                f"start={start_date.strftime('%Y-%m-%d')}, end={end_date.strftime('%Y-%m-%d')}\n"
-                f"提示: vnPy需要先配置数据库并导入历史数据才能使用\n"
-                f"建议:\n"
-                f"1. 使用vnPy的数据管理功能导入历史数据\n"
-                f"2. 或使用vnPy的数据下载功能获取数据\n"
-                f"3. 检查vnPy数据库配置和连接"
-            )
-            print(error_msg)
-            # 抛出异常而不是返回None，让调用者知道问题
-            raise Exception(error_msg)
+            print(f"[vnPy] 数据库中没有找到数据，可能数据库为空或需要先导入数据")
+            print(f"[vnPy] 提示: vnPy需要先配置数据库并导入历史数据才能使用")
+            return None
         
         print(f"[vnPy] 成功从数据库加载 {len(bars)} 条K线数据")
         

@@ -524,53 +524,186 @@ const handleAnalyze = async () => {
 
 
 <style scoped>
+/* 优雅明亮主题色彩变量 - 舒适护眼风格 */
+.ziwei-view {
+  --mystical-bg: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #f0f4f8 100%);
+  --mystical-surface: rgba(255, 255, 255, 0.85);
+  --mystical-surface-dark: rgba(248, 250, 252, 0.95);
+  --mystical-primary: #6366f1;
+  --mystical-secondary: #818cf8;
+  --mystical-accent: #f59e0b;
+  --mystical-glow: #a5b4fc;
+  --mystical-text: #1e293b;
+  --mystical-text-light: #64748b;
+  --mystical-border: rgba(99, 102, 241, 0.2);
+  --mystical-border-light: rgba(148, 163, 184, 0.3);
+}
+
 .ziwei-view {
   height: 100%;
   overflow: hidden;
-  background: #111827;
-  color: #e5e7eb;
+  background: var(--mystical-bg);
+  color: var(--mystical-text);
+  position: relative;
+}
+
+/* 柔和光效背景 - 明亮优雅 */
+.ziwei-view::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 80% 70%, rgba(245, 158, 11, 0.06) 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.05) 0%, transparent 70%);
+  animation: backgroundPulse 10s ease-in-out infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes backgroundPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+/* 柔和装饰粒子 */
+.ziwei-view::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    radial-gradient(1px 1px at 30px 40px, rgba(99, 102, 241, 0.3), transparent),
+    radial-gradient(1px 1px at 70px 80px, rgba(245, 158, 11, 0.25), transparent),
+    radial-gradient(0.5px 0.5px at 120px 100px, rgba(129, 140, 248, 0.2), transparent);
+  background-repeat: repeat;
+  background-size: 300px 300px;
+  animation: gentleTwinkle 12s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+@keyframes gentleTwinkle {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.6; }
 }
 
 .main-layout {
   display: flex;
   height: 100%;
-  gap: 20px;
-  padding: 20px;
+  gap: 24px;
+  padding: 24px;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
+  perspective: 2000px;
 }
 
 .left-panel {
-  width: 350px;
+  width: 380px;
   flex-shrink: 0;
   overflow-y: auto;
+  position: relative;
+  z-index: 1;
 }
 
 .right-panel {
   flex: 1;
   overflow-y: auto;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
+/* 明亮玻璃态卡片 - 优雅风格 */
 .input-card {
-  background: #1f2937;
-  border: 1px solid #374151;
-  border-radius: 12px;
-  padding: 24px;
+  background: var(--mystical-surface);
+  border: 1px solid var(--mystical-border-light);
+  border-radius: 24px;
+  padding: 28px;
+  backdrop-filter: blur(20px);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 2px 16px rgba(99, 102, 241, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform-style: preserve-3d;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: cardFloat 8s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.input-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg, transparent, rgba(99, 102, 241, 0.05), transparent);
+  animation: cardShine 4s infinite;
+  pointer-events: none;
+}
+
+@keyframes cardFloat {
+  0%, 100% {
+    transform: translateY(0px) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotateX(2deg);
+  }
+}
+
+@keyframes cardShine {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.input-card:hover {
+  transform: translateY(-6px) rotateX(2deg) rotateY(1deg);
+  box-shadow: 
+    0 16px 48px rgba(0, 0, 0, 0.12),
+    0 4px 24px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(99, 102, 241, 0.4);
 }
 
 .card-title {
-  margin: 0 0 20px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #e5e7eb;
+  margin: 0 0 24px 0;
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--mystical-primary) 0%, var(--mystical-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  text-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+  animation: titleGlow 3s ease-in-out infinite;
+  letter-spacing: 1px;
 }
+
 
 .form-hint {
   font-size: 13px;
-  color: #9ca3af;
+  color: var(--mystical-text-light);
   margin-bottom: 12px;
   padding-left: 4px;
 }
@@ -594,28 +727,129 @@ const handleAnalyze = async () => {
   gap: 20px;
 }
 
+/* 明亮结果卡片 - 优雅玻璃态 */
 .result-card {
-  background: #1f2937;
-  border: 1px solid #374151;
-  border-radius: 12px;
-  padding: 24px;
+  background: var(--mystical-surface);
+  border: 1px solid var(--mystical-border-light);
+  border-radius: 24px;
+  padding: 32px;
+  backdrop-filter: blur(20px);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 2px 16px rgba(99, 102, 241, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform-style: preserve-3d;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  animation: resultCardEnter 0.6s ease-out;
+}
+
+@keyframes resultCardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(30px) rotateX(-10deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg);
+  }
+}
+
+.result-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.08), transparent);
+  transition: left 0.5s;
+}
+
+.result-card:hover {
+  transform: translateY(-8px) rotateX(2deg) rotateY(1deg);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.1),
+    0 4px 24px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.result-card:hover::before {
+  left: 100%;
 }
 
 .llm-card {
-  background: linear-gradient(135deg, #1f2937 0%, #2d3748 100%);
-  border: 1px solid #4a5568;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%);
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 0 30px rgba(99, 102, 241, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.llm-card::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, var(--mystical-primary), var(--mystical-accent), var(--mystical-primary));
+  background-size: 200% 200%;
+  border-radius: 24px;
+  opacity: 0.2;
+  z-index: -1;
+  filter: blur(8px);
+  animation: borderGlow 4s ease-in-out infinite;
+}
+
+@keyframes borderGlow {
+  0%, 100% {
+    opacity: 0.2;
+    background-position: 0% 50%;
+  }
+  50% {
+    opacity: 0.4;
+    background-position: 100% 50%;
+  }
 }
 
 .section-title {
-  margin: 0 0 16px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #e5e7eb;
+  margin: 0 0 20px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--mystical-text);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #374151;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--mystical-border-light);
+  position: relative;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 80px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--mystical-primary), var(--mystical-secondary), var(--mystical-accent));
+  border-radius: 2px;
+  animation: titleUnderline 4s ease-in-out infinite;
+}
+
+@keyframes titleUnderline {
+  0%, 100% {
+    width: 80px;
+    opacity: 1;
+  }
+  50% {
+    width: 150px;
+    opacity: 0.8;
+  }
 }
 
 .pan-basic-info {
@@ -631,48 +865,50 @@ const handleAnalyze = async () => {
 }
 
 .info-item .label {
-  font-weight: 500;
-  color: #9ca3af;
+  font-weight: 600;
+  color: var(--mystical-text-light);
   min-width: 80px;
 }
 
 .info-item .value {
-  color: #e5e7eb;
+  color: var(--mystical-text);
   font-size: 16px;
   line-height: 1.8;
 }
 
 .date-label {
-  color: #9ca3af;
+  color: var(--mystical-text-light);
   font-weight: 500;
   margin-right: 4px;
 }
 
 .gan-zhi {
-  color: #a78bfa;
+  color: var(--mystical-primary);
   font-size: 14px;
+  font-weight: 600;
 }
 
 .analysis-content {
-  color: #d1d5db;
+  color: var(--mystical-text);
   line-height: 1.8;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
 .analysis-content :deep(pre) {
-  background: #111827;
+  background: rgba(241, 245, 249, 0.8);
   padding: 16px;
-  border-radius: 8px;
-  border: 1px solid #374151;
+  border-radius: 12px;
+  border: 1px solid var(--mystical-border-light);
   overflow-x: auto;
-  color: #d1d5db;
+  color: var(--mystical-text);
   font-family: 'Courier New', monospace;
   font-size: 14px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .llm-content {
-  color: #e5e7eb;
+  color: var(--mystical-text);
   line-height: 2;
 }
 
@@ -681,32 +917,55 @@ const handleAnalyze = async () => {
   line-height: 1.8;
   white-space: pre-wrap;
   word-wrap: break-word;
+  color: var(--mystical-text);
 }
 
-/* 滚动条样式 */
+/* 优雅滚动条样式 */
 .left-panel::-webkit-scrollbar,
 .right-panel::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
 .left-panel::-webkit-scrollbar-track,
 .right-panel::-webkit-scrollbar-track {
-  background: #111827;
+  background: rgba(241, 245, 249, 0.8);
+  border-radius: 5px;
 }
 
 .left-panel::-webkit-scrollbar-thumb,
 .right-panel::-webkit-scrollbar-thumb {
-  background: #4a5568;
-  border-radius: 4px;
+  background: linear-gradient(180deg, var(--mystical-primary), var(--mystical-secondary));
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  transition: all 0.3s;
 }
 
 .left-panel::-webkit-scrollbar-thumb:hover,
 .right-panel::-webkit-scrollbar-thumb:hover {
-  background: #5a6578;
+  background: linear-gradient(180deg, var(--mystical-secondary), var(--mystical-primary));
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.4);
 }
 
 .pan-card {
   text-align: center;
+  overflow: visible;
+}
+
+.pan-card .ziwei-pan-wrapper {
+  margin: 20px 0;
+  min-height: 800px;
+  height: auto;
+}
+
+/* 命盘容器特殊样式 */
+.pan-card .result-card {
+  overflow: visible;
+  padding: 0;
+}
+
+.pan-card .section-title {
+  padding: 24px 32px 20px;
+  margin: 0;
 }
 
 .si-hua-stats,
@@ -715,20 +974,21 @@ const handleAnalyze = async () => {
 .si-hua-warning,
 .si-hua-lucky {
   margin: 16px 0;
-  padding: 12px;
-  background: #111827;
-  border-radius: 8px;
-  border-left: 3px solid #4a5568;
+  padding: 16px;
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 12px;
+  border-left: 4px solid var(--mystical-border-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .si-hua-warning {
-  border-left-color: #f87171;
-  background: #7f1d1d20;
+  border-left-color: #ef4444;
+  background: rgba(254, 226, 226, 0.6);
 }
 
 .si-hua-lucky {
-  border-left-color: #fbbf24;
-  background: #78350f20;
+  border-left-color: var(--mystical-accent);
+  background: rgba(254, 243, 199, 0.6);
 }
 
 .si-hua-stats ul,
@@ -744,11 +1004,12 @@ const handleAnalyze = async () => {
 }
 
 .llm-error {
-  color: #f87171;
-  padding: 12px;
-  background: #7f1d1d20;
-  border-radius: 8px;
-  border-left: 3px solid #f87171;
+  color: #dc2626;
+  padding: 16px;
+  background: rgba(254, 226, 226, 0.6);
+  border-radius: 12px;
+  border-left: 4px solid #ef4444;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 /* 大限分析样式 */
@@ -757,38 +1018,42 @@ const handleAnalyze = async () => {
 .daxian-palace,
 .daxian-impact {
   margin: 16px 0;
-  padding: 12px;
-  background: #111827;
-  border-radius: 8px;
-  border-left: 3px solid #4a5568;
+  padding: 16px;
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 12px;
+  border-left: 4px solid var(--mystical-border-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .daxian-table {
   width: 100%;
   border-collapse: collapse;
   margin: 12px 0;
-  background: #111827;
+  background: var(--mystical-surface);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .daxian-table th,
 .daxian-table td {
-  padding: 8px 12px;
+  padding: 12px 16px;
   text-align: left;
-  border: 1px solid #374151;
+  border: 1px solid var(--mystical-border-light);
 }
 
 .daxian-table th {
-  background: #1f2937;
+  background: rgba(99, 102, 241, 0.1);
   font-weight: 600;
-  color: #e5e7eb;
+  color: var(--mystical-text);
 }
 
 .daxian-table td {
-  color: #d1d5db;
+  color: var(--mystical-text);
 }
 
 .daxian-table tr:nth-child(even) {
-  background: #1a1f2e;
+  background: rgba(248, 250, 252, 0.5);
 }
 
 /* 格局分析样式 */
@@ -798,38 +1063,43 @@ const handleAnalyze = async () => {
 .geju-triangular,
 .geju-four-corners {
   margin: 16px 0;
-  padding: 12px;
-  background: #111827;
-  border-radius: 8px;
-  border-left: 3px solid #4a5568;
+  padding: 16px;
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 12px;
+  border-left: 4px solid var(--mystical-border-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .geju-item {
   margin: 12px 0;
-  padding: 12px;
-  background: #1a1f2e;
-  border-radius: 6px;
+  padding: 16px;
+  background: var(--mystical-surface);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .geju-item h4 {
   margin: 0 0 8px 0;
-  color: #facc15;
-  font-size: 16px;
+  color: var(--mystical-accent);
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .geju-item p {
-  margin: 4px 0;
-  color: #d1d5db;
+  margin: 6px 0;
+  color: var(--mystical-text);
+  line-height: 1.6;
 }
 
 /* 神煞分析样式 */
 .shensha-summary,
 .shensha-list {
   margin: 16px 0;
-  padding: 12px;
-  background: #111827;
-  border-radius: 8px;
-  border-left: 3px solid #4a5568;
+  padding: 16px;
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 12px;
+  border-left: 4px solid var(--mystical-border-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .shensha-list ul {
@@ -840,5 +1110,76 @@ const handleAnalyze = async () => {
 .shensha-list li {
   margin: 4px 0;
   line-height: 1.6;
+}
+
+/* Element Plus 组件样式覆盖 - 3D效果 */
+:deep(.el-input-number),
+:deep(.el-input),
+:deep(.el-select),
+:deep(.el-button) {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, var(--mystical-primary) 0%, var(--mystical-accent) 100%);
+  border: none;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+  transform: translateZ(0);
+}
+
+:deep(.el-button--primary:hover) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.4);
+}
+
+:deep(.el-button--primary:active) {
+  transform: translateY(0);
+}
+
+:deep(.el-input__inner),
+:deep(.el-select .el-input__inner) {
+  background: var(--mystical-surface);
+  border-color: var(--mystical-border-light);
+  color: var(--mystical-text);
+  backdrop-filter: blur(10px);
+}
+
+:deep(.el-input__inner:focus),
+:deep(.el-select .el-input__inner:focus) {
+  border-color: var(--mystical-primary);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+:deep(.el-checkbox__input.is-checked .el-checkbox__inner),
+:deep(.el-radio__input.is-checked .el-radio__inner) {
+  background-color: var(--mystical-primary);
+  border-color: var(--mystical-primary);
+}
+
+/* 空状态和加载状态动画 */
+.empty-state,
+.loading-state {
+  position: relative;
+  background: var(--mystical-surface);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--mystical-border-light);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.loading-state :deep(.el-skeleton__item) {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.2) 50%, rgba(99, 102, 241, 0.1) 75%);
+  background-size: 200% 100%;
+  animation: skeletonLoading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeletonLoading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 </style>

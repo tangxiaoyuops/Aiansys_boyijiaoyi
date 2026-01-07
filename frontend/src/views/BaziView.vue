@@ -214,7 +214,6 @@ import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { MagicStick, Document, Star, Calendar, Sunny, Grid, ChatLineRound } from '@element-plus/icons-vue';
 import BaziChart from '../components/BaziChart.vue';
-import { getBaseURL } from '../api';
 
 const loading = ref(false);
 const result = ref<any>(null);
@@ -249,7 +248,7 @@ const handleAnalyze = async () => {
   result.value = null;
 
   try {
-    const baseURL = getBaseURL();
+    const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
     const response = await fetch(`${baseURL}/api/bazi/pan`, {
       method: 'POST',
       headers: {
@@ -293,42 +292,163 @@ const formatLLMResponse = (text: string) => {
 </script>
 
 <style scoped>
+/* 八字优雅明亮主题 */
+.bazi-view {
+  --mystical-bg: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #f0f4f8 100%);
+  --mystical-surface: rgba(255, 255, 255, 0.85);
+  --mystical-surface-dark: rgba(248, 250, 252, 0.95);
+  --mystical-primary: #6366f1;
+  --mystical-secondary: #818cf8;
+  --mystical-accent: #f59e0b;
+  --mystical-glow: #a5b4fc;
+  --mystical-text: #1e293b;
+  --mystical-text-light: #64748b;
+  --mystical-border: rgba(99, 102, 241, 0.2);
+  --mystical-border-light: rgba(148, 163, 184, 0.3);
+}
+
 .bazi-view {
   height: 100%;
   overflow: auto;
-  background: #f5f5f5;
+  background: var(--mystical-bg);
+  color: var(--mystical-text);
+  position: relative;
+}
+
+/* 柔和光效背景 - 明亮优雅 */
+.bazi-view::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 25% 35%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 75% 65%, rgba(245, 158, 11, 0.06) 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.05) 0%, transparent 70%);
+  animation: baziPulse 10s ease-in-out infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes baziPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  33% {
+    opacity: 0.85;
+    transform: scale(1.1) rotate(-3deg);
+  }
+  66% {
+    opacity: 0.85;
+    transform: scale(1.1) rotate(3deg);
+  }
 }
 
 .main-layout {
   display: flex;
-  gap: 20px;
-  padding: 20px;
+  gap: 24px;
+  padding: 24px;
   max-width: 1600px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
+  perspective: 2000px;
 }
 
 .left-panel {
-  width: 350px;
+  width: 380px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .right-panel {
   flex: 1;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
+/* 明亮玻璃态卡片 - 优雅风格 */
 .input-card {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--mystical-surface);
+  border-radius: 24px;
+  padding: 28px;
+  border: 1px solid var(--mystical-border-light);
+  backdrop-filter: blur(25px);
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.08),
+    0 2px 16px rgba(99, 102, 241, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform-style: preserve-3d;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: baziCardFloat 7s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes baziCardFloat {
+  0%, 100% {
+    transform: translateY(0px) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotateX(2deg);
+  }
+}
+
+.input-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(transparent, rgba(99, 102, 241, 0.05), transparent 40%);
+  animation: baziRotate 5s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes baziRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.input-card:hover {
+  transform: translateY(-8px) rotateX(4deg) rotateY(2deg);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.12),
+    0 4px 24px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(99, 102, 241, 0.4);
 }
 
 .card-title {
-  margin: 0 0 16px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
+  margin: 0 0 24px 0;
+  font-size: 26px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--mystical-primary) 0%, var(--mystical-secondary) 50%, var(--mystical-accent) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: baziTitleGlow 4s ease-in-out infinite;
+  letter-spacing: 1.5px;
+}
+
+@keyframes baziTitleGlow {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.4);
+  }
 }
 
 .form-hint {
@@ -351,9 +471,13 @@ const formatLLMResponse = (text: string) => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--mystical-surface);
+  border-radius: 24px;
+  border: 1px solid var(--mystical-border-light);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
 }
 
 .result-container {
@@ -362,21 +486,101 @@ const formatLLMResponse = (text: string) => {
   gap: 20px;
 }
 
+/* 明亮结果卡片 - 优雅玻璃态 */
 .result-card {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--mystical-surface);
+  border-radius: 24px;
+  padding: 32px;
+  border: 1px solid var(--mystical-border-light);
+  backdrop-filter: blur(25px);
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.08),
+    0 2px 16px rgba(99, 102, 241, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform-style: preserve-3d;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  animation: baziResultEnter 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes baziResultEnter {
+  from {
+    opacity: 0;
+    transform: translateY(40px) rotateX(-15deg) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg) scale(1);
+  }
+}
+
+.result-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, transparent 70%);
+  animation: baziGlow 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes baziGlow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.3) rotate(180deg);
+  }
+}
+
+.result-card:hover {
+  transform: translateY(-8px) rotateX(3deg) rotateY(-2deg);
+  box-shadow: 
+    0 24px 80px rgba(0, 0, 0, 0.1),
+    0 4px 24px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(99, 102, 241, 0.4);
 }
 
 .section-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
+  gap: 10px;
+  margin: 0 0 20px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--mystical-text);
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--mystical-border-light);
+  position: relative;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 80px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--mystical-primary), var(--mystical-secondary), var(--mystical-accent));
+  border-radius: 2px;
+  animation: baziUnderline 4s ease-in-out infinite;
+}
+
+@keyframes baziUnderline {
+  0%, 100% {
+    width: 80px;
+    opacity: 1;
+  }
+  50% {
+    width: 150px;
+    opacity: 0.8;
+  }
 }
 
 .sizhu-info {
@@ -544,12 +748,44 @@ const formatLLMResponse = (text: string) => {
 }
 
 .llm-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%);
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.1),
+    0 0 30px rgba(99, 102, 241, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  position: relative;
+}
+
+.llm-card::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, var(--mystical-primary), var(--mystical-accent), var(--mystical-primary));
+  background-size: 200% 200%;
+  border-radius: 24px;
+  opacity: 0.2;
+  z-index: -1;
+  filter: blur(8px);
+  animation: baziBorderFlow 4s ease-in-out infinite;
+}
+
+@keyframes baziBorderFlow {
+  0%, 100% {
+    background-position: 0% 50%;
+    opacity: 0.2;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 0.4;
+  }
 }
 
 .llm-card .section-title {
-  color: white;
+  color: var(--mystical-text);
 }
 
 .llm-content {

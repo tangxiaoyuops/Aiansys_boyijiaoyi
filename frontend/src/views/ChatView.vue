@@ -22,8 +22,7 @@ import { startChatStream } from '../utils/sse';
 const store = useChatStore();
 let stopStream: (() => void) | null = null;
 
-import { getBaseURL } from '../api';
-const baseURL = getBaseURL();
+const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 const handleSend = (msg: string) => {
   // 停止上一条流

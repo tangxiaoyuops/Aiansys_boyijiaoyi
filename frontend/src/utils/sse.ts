@@ -11,7 +11,6 @@ export type ChatStreamParams = {
 };
 
 export function startChatStream(params: ChatStreamParams) {
-  // baseURL应该已经通过getBaseURL()处理过，确保协议正确
   const url = new URL(`${params.baseURL}/api/chat/stream`);
   Object.entries({
     message: params.message,

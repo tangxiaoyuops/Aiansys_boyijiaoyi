@@ -13,7 +13,6 @@ export interface FuturesStreamParams {
 export function startFuturesStream(params: FuturesStreamParams) {
   const { baseURL, message, futures_code, analysis_type, days, session_id, onEvent } = params;
 
-  // baseURL应该已经通过getBaseURL()处理过，确保协议正确
   const url = new URL('/api/futures/analyze/stream', baseURL);
   url.searchParams.set('message', message);
   if (futures_code) url.searchParams.set('futures_code', futures_code);
