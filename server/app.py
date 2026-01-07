@@ -30,6 +30,20 @@ app.add_middleware(
 SESSIONS: Dict[str, Dict[str, Any]] = {}
 
 
+def create_sse_response(generator):
+    """创建 SSE 响应，包含必要的响应头"""
+    return StreamingResponse(
+        generator,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # 禁用 Nginx 缓冲
+            "Content-Type": "text/event-stream; charset=utf-8",
+        }
+    )
+
+
 def get_or_create_session(session_id: Optional[str]) -> (str, Dict[str, Any]):
     """
     获取或创建会话
@@ -242,7 +256,7 @@ async def chat_stream(
             error_msg = str(e)
             yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
     
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return create_sse_response(generate())
 
 
 @app.post("/api/chat")
@@ -529,7 +543,7 @@ async def futures_analyze_stream(
             traceback.print_exc()
             yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
     
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return create_sse_response(generate())
 
 
 @app.post("/api/futures/analyze")
