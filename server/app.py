@@ -2,7 +2,14 @@
 FastAPI服务
 集成LangGraph工作流，提供聊天机器人接口
 """
-from fastapi import FastAPI, HTTPException
+import sys
+import os
+# 添加项目根目录到 Python 路径
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -28,6 +35,31 @@ app.add_middleware(
 
 # 简单的内存会话存储（需要持久化时可替换为 Redis/数据库）
 SESSIONS: Dict[str, Dict[str, Any]] = {}
+
+
+# 健康检查和根路径
+@app.get("/")
+async def root():
+    """根路径，用于健康检查"""
+    return {"status": "ok", "message": "博弈交易法分析系统 API"}
+
+
+@app.get("/health")
+async def health():
+    """健康检查端点"""
+    return {"status": "healthy", "service": "Aiansys_boyijiaoyi"}
+
+
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """处理所有 OPTIONS 预检请求"""
+    return {
+        "status": "ok",
+        "message": "CORS preflight",
+        "allowed_methods": ["GET", "POST", "OPTIONS"],
+        "allowed_headers": ["*"],
+        "allowed_origins": ["*"]
+    }
 
 
 def create_sse_response(generator):
@@ -75,12 +107,6 @@ class IntentRequest(BaseModel):
     message: str
 
 
-@app.get("/")
-async def root():
-    """根路径"""
-    return {"message": "博弈交易法分析系统 API", "version": "1.0.0"}
-
-
 @app.get("/api/vnpy/status")
 async def get_vnpy_status():
     """获取 vnpy 集成状态"""
@@ -121,6 +147,7 @@ async def recognize_intent(request: IntentRequest):
 
 @app.get("/api/chat/stream")
 async def chat_stream(
+    request: Request,
     message: str,
     stock_code: Optional[str] = None,
     analysis_type: Optional[str] = "auto",
@@ -132,7 +159,6 @@ async def chat_stream(
     聊天流式接口
     使用LangGraph工作流进行分析
     """
-    
     async def generate():
         try:
             # 会话管理：获取或创建会话
@@ -408,6 +434,7 @@ async def get_futures_data(
 
 @app.get("/api/futures/analyze/stream")
 async def futures_analyze_stream(
+    request: Request,
     message: str,
     futures_code: Optional[str] = None,
     analysis_type: Optional[str] = "all",
@@ -418,7 +445,6 @@ async def futures_analyze_stream(
     期货分析流式接口
     使用LangGraph工作流进行分析
     """
-    
     async def generate():
         try:
             print(f"[期货分析API] ========== 收到请求 ==========")
@@ -649,22 +675,11 @@ class ZiweiPanRequest(BaseModel):
 
 
 @app.post("/api/ziwei/pan")
-async def ziwei_pan(request: ZiweiPanRequest):
+async def ziwei_pan(http_request: Request, request: ZiweiPanRequest):
     """
     紫微斗数排盘接口
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
-        print(f"[紫微斗数API] ========== 收到排盘请求 ==========")
-        print(f"[紫微斗数API] 年份: {request.year}")
-        print(f"[紫微斗数API] 月份: {request.month}")
-        print(f"[紫微斗数API] 日期: {request.day}")
-        print(f"[紫微斗数API] 时辰: {request.hour}")
-        print(f"[紫微斗数API] 性别: {request.gender}")
-        
-        logger.info(f"收到紫微斗数排盘请求: {request.year}年{request.month}月{request.day}日{request.hour}时, 性别={request.gender}")
         
         # 参数验证
         if not (1900 <= request.year <= 2100):
@@ -705,19 +720,7 @@ async def ziwei_pan(request: ZiweiPanRequest):
         
         if not result.get('success'):
             error_msg = result.get('error', '未知错误')
-            print(f"[紫微斗数API] 分析失败: {error_msg}")
-            logger.error(f"分析失败: {error_msg}")
             raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
-        
-        print(f"[紫微斗数API] 分析成功，返回结果")
-        print(f"[紫微斗数API] 包含的分析模块:")
-        print(f"  - 命盘数据: {result.get('pan_data') is not None}")
-        print(f"  - 四化分析: {result.get('si_hua_analysis') is not None}")
-        print(f"  - 大限分析: {result.get('daxian_analysis') is not None}")
-        print(f"  - 神煞分析: {result.get('shensha_analysis') is not None}")
-        print(f"  - 格局分析: {result.get('geju_analysis') is not None}")
-        print(f"  - LLM分析: {result.get('llm_analysis') is not None}")
-        logger.info("完整分析成功")
         
         return {
             "success": True,
@@ -735,10 +738,6 @@ async def ziwei_pan(request: ZiweiPanRequest):
         raise
     except Exception as e:
         error_msg = str(e)
-        print(f"[紫微斗数API] 发生异常: {error_msg}")
-        import traceback
-        print(f"[紫微斗数API] 异常堆栈:\n{traceback.format_exc()}")
-        logger.error(f"排盘异常: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
 
 
@@ -761,22 +760,11 @@ class BaziPanRequest(BaseModel):
 
 
 @app.post("/api/bazi/pan")
-async def bazi_pan(request: BaziPanRequest):
+async def bazi_pan(http_request: Request, request: BaziPanRequest):
     """
     八字排盘接口
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
-        print(f"[八字排盘API] ========== 收到排盘请求 ==========")
-        print(f"[八字排盘API] 年份: {request.year}")
-        print(f"[八字排盘API] 月份: {request.month}")
-        print(f"[八字排盘API] 日期: {request.day}")
-        print(f"[八字排盘API] 时辰: {request.hour}")
-        print(f"[八字排盘API] 性别: {request.gender}")
-        
-        logger.info(f"收到八字排盘请求: {request.year}年{request.month}月{request.day}日{request.hour}时, 性别={request.gender}")
         
         # 参数验证
         if not (1900 <= request.year <= 2100):
@@ -816,20 +804,7 @@ async def bazi_pan(request: BaziPanRequest):
         
         if not result.get('success'):
             error_msg = result.get('error', '未知错误')
-            print(f"[八字排盘API] 分析失败: {error_msg}")
-            logger.error(f"分析失败: {error_msg}")
             raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
-        
-        print(f"[八字排盘API] 分析成功，返回结果")
-        print(f"[八字排盘API] 包含的分析模块:")
-        print(f"  - 四柱数据: {result.get('sizhu') is not None}")
-        print(f"  - 五行分析: {result.get('wuxing_analysis') is not None}")
-        print(f"  - 十神分析: {result.get('shishen_analysis') is not None}")
-        print(f"  - 大运分析: {result.get('dayun_analysis') is not None}")
-        print(f"  - 流年分析: {result.get('liunian_analysis') is not None}")
-        print(f"  - 神煞分析: {result.get('shensha_analysis') is not None}")
-        print(f"  - LLM分析: {result.get('llm_analysis') is not None}")
-        logger.info("完整分析成功")
         
         return {
             "success": True,
@@ -846,10 +821,6 @@ async def bazi_pan(request: BaziPanRequest):
         raise
     except Exception as e:
         error_msg = str(e)
-        print(f"[八字排盘API] 发生异常: {error_msg}")
-        import traceback
-        print(f"[八字排盘API] 异常堆栈:\n{traceback.format_exc()}")
-        logger.error(f"排盘异常: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
 
 
@@ -861,6 +832,100 @@ async def divination_test():
     return {"message": "六爻卜卦API已就绪", "status": "ok"}
 
 
+# ==================== 黄帝内经API ====================
+
+class HuangdiRequest(BaseModel):
+    """黄帝内经请求模型"""
+    question: str
+    query_type: Optional[str] = None  # query/diagnosis/consultation，如果为None则自动检测
+    include_llm: bool = True
+    context: Optional[Dict[str, Any]] = None  # 额外上下文（如症状、体质、季节、年龄等）
+
+
+@app.post("/api/huangdi/analyze")
+async def huangdi_analyze(http_request: Request, request: HuangdiRequest):
+    """
+    黄帝内经分析接口
+    """
+    try:
+        # 参数验证
+        if not request.question or not request.question.strip():
+            raise HTTPException(status_code=400, detail="必须提供问题")
+        
+        print(f"[黄帝内经API] 参数验证通过，开始调用完整分析函数...")
+        print(f"[黄帝内经API] 问题: {request.question}")
+        print(f"[黄帝内经API] 查询类型: {request.query_type}")
+        print(f"[黄帝内经API] 上下文: {request.context}")
+        
+        # 调用完整分析函数
+        from core.agents.huangdi_analysis_agent import huangdi_complete_analysis
+        
+        print(f"[黄帝内经API] 正在调用 huangdi_complete_analysis...")
+        result = huangdi_complete_analysis(
+            question=request.question,
+            query_type=request.query_type,
+            include_llm=request.include_llm,
+            context=request.context,
+        )
+        
+        print(f"[黄帝内经API] 分析函数返回结果: success={result.get('success')}")
+        
+        if not result.get('success'):
+            error_msg = result.get('error', '未知错误')
+            raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
+        
+        # 根据查询类型返回相应的结果
+        query_type = result.get('query_type', 'query')
+        
+        if query_type == 'diagnosis':
+            diagnosis_result = result.get('diagnosis_result', {})
+            return {
+                "success": True,
+                "query_type": "diagnosis",
+                "question": request.question,
+                "symptoms": diagnosis_result.get('symptoms'),
+                "symptom_keywords": diagnosis_result.get('symptom_keywords', []),
+                "relevant_theories": diagnosis_result.get('relevant_theories', []),
+                "llm_analysis": diagnosis_result.get('llm_analysis'),
+                "disclaimer": diagnosis_result.get('disclaimer'),
+            }
+        elif query_type == 'consultation':
+            consultation_result = result.get('consultation_result', {})
+            return {
+                "success": True,
+                "query_type": "consultation",
+                "question": request.question,
+                "season": consultation_result.get('season'),
+                "age": consultation_result.get('age'),
+                "constitution": consultation_result.get('constitution', []),
+                "relevant_theories": consultation_result.get('relevant_theories', []),
+                "llm_suggestions": consultation_result.get('llm_suggestions'),
+                "disclaimer": consultation_result.get('disclaimer'),
+            }
+        else:
+            query_result = result.get('query_result', {})
+            return {
+                "success": True,
+                "query_type": "query",
+                "question": request.question,
+                "relevant_chapters": query_result.get('relevant_chapters', []),
+                "llm_explanation": query_result.get('llm_explanation'),
+                "total_results": query_result.get('total_results', 0),
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        raise HTTPException(status_code=500, detail=f"黄帝内经分析异常: {error_msg}")
+
+
+@app.get("/api/huangdi/test")
+async def huangdi_test():
+    """测试黄帝内经API是否可用"""
+    return {"message": "黄帝内经API已就绪", "status": "ok"}
+
+
 class DivinationRequest(BaseModel):
     """六爻卜卦请求模型"""
     coin_results: List[List[int]]  # 6次摇卦结果，每次3枚铜钱（0=反面，1=正面）
@@ -869,20 +934,11 @@ class DivinationRequest(BaseModel):
 
 
 @app.post("/api/divination/analyze")
-async def divination_analyze(request: DivinationRequest):
+async def divination_analyze(http_request: Request, request: DivinationRequest):
     """
     六爻卜卦分析接口
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
-        print(f"[六爻卜卦API] ========== 收到卜卦请求 ==========")
-        print(f"[六爻卜卦API] 问题: {request.question}")
-        print(f"[六爻卜卦API] 摇卦结果数量: {len(request.coin_results)}")
-        print(f"[六爻卜卦API] 调用LLM: {request.include_llm}")
-        
-        logger.info(f"收到六爻卜卦请求: 问题={request.question}, 摇卦次数={len(request.coin_results)}")
         
         # 参数验证
         if len(request.coin_results) != 6:
@@ -913,12 +969,7 @@ async def divination_analyze(request: DivinationRequest):
         
         if not result.get('success'):
             error_msg = result.get('error', '未知错误')
-            print(f"[六爻卜卦API] 分析失败: {error_msg}")
-            logger.error(f"分析失败: {error_msg}")
             raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
-        
-        print(f"[六爻卜卦API] 分析成功，返回结果")
-        logger.info("六爻卜卦分析成功")
         
         return {
             "success": True,
@@ -931,10 +982,6 @@ async def divination_analyze(request: DivinationRequest):
         raise
     except Exception as e:
         error_msg = str(e)
-        print(f"[六爻卜卦API] 发生异常: {error_msg}")
-        import traceback
-        print(f"[六爻卜卦API] 异常堆栈:\n{traceback.format_exc()}")
-        logger.error(f"六爻卜卦异常: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"六爻卜卦异常: {error_msg}")
 
 

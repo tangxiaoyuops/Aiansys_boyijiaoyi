@@ -571,7 +571,8 @@ function formatLLMResponse(text: string): string {
 
 .yao-desc {
   font-size: 14px;
-  color: #e5e7eb;
+  color: #374151;
+  font-weight: 500;
 }
 
 .empty-state {
@@ -710,9 +711,9 @@ function formatLLMResponse(text: string): string {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: bold;
-  margin: 0 0 20px 0;
+  margin: 0 0 24px 0;
   color: #3b82f6;
 }
 
@@ -726,14 +727,16 @@ function formatLLMResponse(text: string): string {
 
 .info-label {
   font-weight: bold;
-  color: #9ca3af;
-  margin-bottom: 8px;
+  color: #6b7280;
+  margin-bottom: 12px;
+  font-size: 19px;
 }
 
 .info-value {
-  color: #e5e7eb;
-  font-size: 16px;
-  line-height: 1.8;
+  color: #1e293b;
+  font-size: 20px;
+  line-height: 2.2;
+  font-weight: 500;
 }
 
 .yao-list {
@@ -765,11 +768,11 @@ function formatLLMResponse(text: string): string {
 .yao-name {
   font-weight: bold;
   color: #3b82f6;
-  font-size: 16px;
+  font-size: 20px;
 }
 
 .yao-symbol {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: bold;
 }
 
@@ -783,10 +786,11 @@ function formatLLMResponse(text: string): string {
 }
 
 .yao-text {
-  color: #d1d5db;
-  font-size: 14px;
-  line-height: 1.6;
+  color: #374151;
+  font-size: 19px;
+  line-height: 2.2;
   margin-top: 8px;
+  font-weight: 400;
 }
 
 .llm-card {
@@ -799,13 +803,30 @@ function formatLLMResponse(text: string): string {
 }
 
 .llm-text {
-  color: #e5e7eb;
-  font-size: 15px;
+  color: #1e293b;
+  font-size: 19px;
   white-space: pre-wrap;
+  line-height: 2.4;
+  font-weight: 400;
 }
 
 .llm-text :deep(p) {
   margin: 0 0 12px 0;
+  color: #1e293b;
+}
+
+.llm-text :deep(h1),
+.llm-text :deep(h2),
+.llm-text :deep(h3),
+.llm-text :deep(h4) {
+  color: #1e293b;
+  font-weight: 600;
+  margin: 16px 0 8px 0;
+}
+
+.llm-text :deep(strong) {
+  color: #1e293b;
+  font-weight: 600;
 }
 
 .error-card {
@@ -832,14 +853,15 @@ function formatLLMResponse(text: string): string {
   font-weight: bold;
   color: #fbbf24;
   margin: 0 0 8px 0;
-  font-size: 15px;
+  font-size: 18px;
 }
 
 .reminder-text {
-  color: #d1d5db;
-  font-size: 13px;
-  line-height: 1.8;
+  color: #374151;
+  font-size: 16px;
+  line-height: 2;
   margin: 4px 0;
+  font-weight: 400;
 }
 
 /* 滚动条样式 */

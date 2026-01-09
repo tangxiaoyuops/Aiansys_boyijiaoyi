@@ -11,6 +11,9 @@ fastapi>=0.110.0
 uvicorn>=0.24.0
 langgraph>=1.0.0
 langchain>=0.1.0
+langchain-community>=0.0.20
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
 # vnpy 集成（可选，用于专业回测和实盘交易）
 vnpy>=3.9.0
 # vnpy-ctastrategy>=3.9.0

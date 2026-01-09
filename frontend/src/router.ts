@@ -42,6 +42,12 @@ const routes = [
     component: () => import('./views/BaziView.vue'),
     meta: { title: '八字排盘' },
   },
+  {
+    path: '/huangdi',
+    name: 'huangdi',
+    component: () => import('./views/HuangdiView.vue'),
+    meta: { title: '黄帝内经' },
+  },
 ];
 
 const router = createRouter({
