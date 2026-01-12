@@ -37,6 +37,27 @@ app.add_middleware(
 SESSIONS: Dict[str, Dict[str, Any]] = {}
 
 
+# 应用启动时初始化数据库和预热知识库
+@app.on_event("startup")
+def _startup_init():
+    # 初始化数据库
+    try:
+        from server.models import init_db
+        init_db()
+        print("[启动] 数据库初始化完成")
+    except Exception as e:
+        print(f"[启动] 数据库初始化失败: {e}")
+    
+    # 预热黄帝内经知识库
+    try:
+        from core.tools.huangdi_knowledge_base import get_knowledge_base
+        kb = get_knowledge_base()
+        kb.ensure_initialized()
+        print("[启动] 黄帝内经知识库初始化完成")
+    except Exception as e:
+        print(f"[启动] 知识库初始化失败: {e}")
+
+# 健康检查和根路径
 # 健康检查和根路径
 @app.get("/")
 async def root():
@@ -834,6 +855,11 @@ async def divination_test():
 
 # ==================== 黄帝内经API ====================
 
+@app.get("/api/huangdi/test")
+def huangdi_test():
+    """测试黄帝内经API是否可用"""
+    return {"message": "黄帝内经API已就绪", "status": "ok"}
+
 class HuangdiRequest(BaseModel):
     """黄帝内经请求模型"""
     question: str
@@ -843,7 +869,7 @@ class HuangdiRequest(BaseModel):
 
 
 @app.post("/api/huangdi/analyze")
-async def huangdi_analyze(http_request: Request, request: HuangdiRequest):
+def huangdi_analyze(request: HuangdiRequest):
     """
     黄帝内经分析接口
     """
@@ -852,10 +878,15 @@ async def huangdi_analyze(http_request: Request, request: HuangdiRequest):
         if not request.question or not request.question.strip():
             raise HTTPException(status_code=400, detail="必须提供问题")
         
-        print(f"[黄帝内经API] 参数验证通过，开始调用完整分析函数...")
-        print(f"[黄帝内经API] 问题: {request.question}")
-        print(f"[黄帝内经API] 查询类型: {request.query_type}")
-        print(f"[黄帝内经API] 上下文: {request.context}")
+        print(f"[黄帝内经API] 参数校验通过，准备分析")
+        print(f"[黄帝内经API] 查询类型: {request.query_type or 'auto'}, include_llm={request.include_llm}")
+        try:
+            q_len = len(request.question or "")
+            ctx_keys = list((request.context or {}).keys())
+        except Exception:
+            q_len = 0
+            ctx_keys = []
+        print(f"[黄帝内经API] 输入长度 q={q_len}, ctx_keys={ctx_keys}")
         
         # 调用完整分析函数
         from core.agents.huangdi_analysis_agent import huangdi_complete_analysis
@@ -920,10 +951,7 @@ async def huangdi_analyze(http_request: Request, request: HuangdiRequest):
         raise HTTPException(status_code=500, detail=f"黄帝内经分析异常: {error_msg}")
 
 
-@app.get("/api/huangdi/test")
-async def huangdi_test():
-    """测试黄帝内经API是否可用"""
-    return {"message": "黄帝内经API已就绪", "status": "ok"}
+ 
 
 
 class DivinationRequest(BaseModel):
@@ -983,6 +1011,239 @@ async def divination_analyze(http_request: Request, request: DivinationRequest):
     except Exception as e:
         error_msg = str(e)
         raise HTTPException(status_code=500, detail=f"六爻卜卦异常: {error_msg}")
+
+
+# ==================== 反馈功能API ====================
+
+from server.models import (
+    Requirement, Issue, Reward,
+    RequirementCreate, RequirementResponse,
+    IssueCreate, IssueResponse,
+    RewardCreate, RewardResponse,
+    get_db
+)
+from sqlalchemy.orm import Session
+from fastapi import Depends
+
+
+@app.post("/api/requirements/submit", response_model=RequirementResponse)
+async def submit_requirement(
+    request: RequirementCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    提交需求接口
+    """
+    try:
+        # 创建需求记录
+        requirement = Requirement(
+            title=request.title,
+            content=request.content,
+            contact=request.contact,
+            status="pending"
+        )
+        db.add(requirement)
+        db.commit()
+        db.refresh(requirement)
+        
+        print(f"[需求提交] 成功: id={requirement.id}, title={requirement.title}")
+        
+        return requirement
+        
+    except Exception as e:
+        db.rollback()
+        error_msg = str(e)
+        print(f"[需求提交] 失败: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"提交需求失败: {error_msg}")
+
+
+@app.get("/api/requirements/list")
+async def list_requirements(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    获取需求列表（可选，用于管理）
+    """
+    try:
+        requirements = db.query(Requirement).order_by(Requirement.created_at.desc()).offset(skip).limit(limit).all()
+        total = db.query(Requirement).count()
+        
+        return {
+            "success": True,
+            "total": total,
+            "items": [RequirementResponse.model_validate(req) for req in requirements]
+        }
+    except Exception as e:
+        error_msg = str(e)
+        raise HTTPException(status_code=500, detail=f"获取需求列表失败: {error_msg}")
+
+
+@app.post("/api/issues/submit", response_model=IssueResponse)
+async def submit_issue(
+    request: IssueCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    提交问题接口
+    """
+    try:
+        # 验证严重程度
+        valid_severities = ["low", "medium", "high", "critical"]
+        severity = request.severity if request.severity in valid_severities else "medium"
+        
+        # 创建问题记录
+        issue = Issue(
+            title=request.title,
+            content=request.content,
+            contact=request.contact,
+            severity=severity,
+            status="open"
+        )
+        db.add(issue)
+        db.commit()
+        db.refresh(issue)
+        
+        print(f"[问题提交] 成功: id={issue.id}, title={issue.title}, severity={issue.severity}")
+        
+        return issue
+        
+    except Exception as e:
+        db.rollback()
+        error_msg = str(e)
+        print(f"[问题提交] 失败: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"提交问题失败: {error_msg}")
+
+
+@app.get("/api/issues/list")
+async def list_issues(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    获取问题列表（可选，用于管理）
+    """
+    try:
+        issues = db.query(Issue).order_by(Issue.created_at.desc()).offset(skip).limit(limit).all()
+        total = db.query(Issue).count()
+        
+        return {
+            "success": True,
+            "total": total,
+            "items": [IssueResponse.model_validate(issue) for issue in issues]
+        }
+    except Exception as e:
+        error_msg = str(e)
+        raise HTTPException(status_code=500, detail=f"获取问题列表失败: {error_msg}")
+
+
+@app.post("/api/rewards/create", response_model=RewardResponse)
+async def create_reward_order(
+    request: RewardCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    创建打赏订单接口
+    """
+    try:
+        from server.services.payment_service import create_order
+        
+        # 创建订单
+        order_info = create_order(
+            db=db,
+            amount=request.amount,
+            message=request.message,
+            contact=request.contact
+        )
+        
+        # 查询订单
+        reward = db.query(Reward).filter(Reward.order_id == order_info["order_id"]).first()
+        
+        if not reward:
+            raise HTTPException(status_code=500, detail="订单创建失败")
+        
+        print(f"[打赏API] 订单创建成功: order_id={reward.order_id}, amount={reward.amount}")
+        
+        return reward
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[打赏API] 订单创建失败: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"创建订单失败: {error_msg}")
+
+
+@app.post("/api/rewards/pay/{order_id}")
+async def pay_reward(
+    order_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    执行支付（模拟支付）
+    """
+    try:
+        from server.services.payment_service import simulate_payment
+        
+        # 执行模拟支付
+        payment_result = simulate_payment(db=db, order_id=order_id)
+        
+        return {
+            "success": True,
+            **payment_result
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[打赏API] 支付失败: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"支付失败: {error_msg}")
+
+
+@app.get("/api/rewards/status/{order_id}", response_model=RewardResponse)
+async def get_reward_status(
+    order_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    查询订单状态接口
+    """
+    try:
+        from server.services.payment_service import get_order_status
+        
+        reward = get_order_status(db=db, order_id=order_id)
+        
+        if not reward:
+            raise HTTPException(status_code=404, detail="订单不存在")
+        
+        return reward
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[打赏API] 查询订单状态失败: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"查询订单状态失败: {error_msg}")
+
+
+@app.post("/api/rewards/callback")
+async def reward_callback(
+    request: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    支付回调接口（预留，用于真实支付）
+    当前实现为占位符
+    """
+    try:
+        # 这里是预留的支付回调接口
+        # 当接入真实支付后，可以在这里处理支付回调
+        return {
+            "success": True,
+            "message": "支付回调接口（预留）"
+        }
+    except Exception as e:
+        error_msg = str(e)
+        raise HTTPException(status_code=500, detail=f"处理支付回调失败: {error_msg}")
 
 
 if __name__ == "__main__":

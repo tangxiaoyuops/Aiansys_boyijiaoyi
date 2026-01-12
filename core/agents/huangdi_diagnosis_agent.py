@@ -39,6 +39,7 @@ def extract_symptoms(symptom_text: str) -> List[str]:
     symptoms = []
     symptom_lower = symptom_text.lower()
     
+    # 先进行简单包含匹配（兼容性好）
     for symptom, keywords in SYMPTOM_KEYWORDS.items():
         for keyword in keywords:
             if keyword in symptom_lower:
@@ -46,18 +47,24 @@ def extract_symptoms(symptom_text: str) -> List[str]:
                     symptoms.append(symptom)
                 break
     
-    # 如果没有匹配到，尝试提取常见的中医术语
+    # 使用分组正则匹配多字词，提升准确性
+    # 构建关键字到症状的映射，并按长度降序匹配，避免短词覆盖长词
     if not symptoms:
-        # 提取常见症状词
-        common_patterns = [
-            r'[头痛发热恶寒咳嗽腹痛腹泻失眠乏力胸闷心悸]',
-            r'[痛热冷咳泻闷慌]',
-        ]
-        for pattern in common_patterns:
+        kw_to_symptom = {}
+        all_keywords: List[str] = []
+        for sym, kws in SYMPTOM_KEYWORDS.items():
+            for k in kws:
+                kw_to_symptom[k] = sym
+                all_keywords.append(k)
+        # 去重并按长度降序
+        all_keywords = sorted(set(all_keywords), key=lambda s: len(s), reverse=True)
+        if all_keywords:
+            pattern = r"(" + "|".join(re.escape(k) for k in all_keywords) + r")"
             matches = re.findall(pattern, symptom_text)
-            if matches:
-                symptoms.extend(matches)
-                break
+            for m in matches:
+                sym = kw_to_symptom.get(m)
+                if sym and sym not in symptoms:
+                    symptoms.append(sym)
     
     return symptoms if symptoms else [symptom_text[:20]]  # 如果没有匹配，返回前20个字符
 

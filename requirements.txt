@@ -19,3 +19,5 @@ vnpy>=3.9.0
 # vnpy-ctastrategy>=3.9.0
 # vnpy-ctabacktester>=3.9.0
 # vnpy-datamanager>=3.9.0
+# 数据库支持
+sqlalchemy>=2.0.0

@@ -50,7 +50,7 @@
           AI智能解释
         </h4>
         <div class="llm-content-wrapper">
-          <div class="llm-content" v-html="formatLLMText(result.llm_explanation)"></div>
+          <LLMContent :content="result.llm_explanation" />
         </div>
       </div>
 
@@ -66,16 +66,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onBeforeUnmount } from 'vue';
 import { Search, Document, ChatLineRound } from '@element-plus/icons-vue';
 import { huangdiAnalyze, type HuangdiQueryResponse } from '../api/huangdi';
 import HuangdiChapterCard from './HuangdiChapterCard.vue';
 import { ElMessage } from 'element-plus';
+import LLMContent from './LLMContent.vue';
 
 const question = ref('');
 const includeLLM = ref(true);
 const loading = ref(false);
 const result = ref<HuangdiQueryResponse | null>(null);
+const controller = ref<AbortController | null>(null);
 
 const handleQuery = async () => {
   if (!question.value.trim()) {
@@ -85,13 +87,17 @@ const handleQuery = async () => {
 
   loading.value = true;
   result.value = null;
+  if (controller.value) {
+    controller.value.abort();
+  }
+  controller.value = new AbortController();
 
   try {
     const response = await huangdiAnalyze({
       question: question.value,
       query_type: 'query',
       include_llm: includeLLM.value,
-    });
+    }, { signal: controller.value.signal });
 
     if (response.data.success && response.data.query_type === 'query') {
       result.value = response.data;
@@ -99,25 +105,24 @@ const handleQuery = async () => {
       ElMessage.error('查询失败，请重试');
     }
   } catch (error: any) {
+    if (error?.code === 'ERR_CANCELED') {
+      // 请求已取消，不提示
+      return;
+    }
     console.error('查询失败:', error);
-    ElMessage.error(error.response?.data?.detail || '查询失败，请重试');
+    ElMessage.error(error?.response?.data?.detail || '查询失败，请重试');
   } finally {
     loading.value = false;
+    controller.value = null;
   }
 };
 
-const formatLLMText = (text: string) => {
-  // 简单的文本格式化
-  return text
-    .split('\n')
-    .map((line) => {
-      if (line.trim().startsWith('#')) {
-        return `<h4>${line.replace(/^#+\s*/, '')}</h4>`;
-      }
-      return `<p>${line}</p>`;
-    })
-    .join('');
-};
+// 使用 LLMContent 进行安全渲染
+onBeforeUnmount(() => {
+  if (controller.value) {
+    controller.value.abort();
+  }
+});
 </script>
 
 <style scoped>

@@ -59,7 +59,7 @@ def get_embeddings():
     global _embeddings
     if _embeddings is None:
         # 使用千问的embedding模型（通过OpenAI兼容接口）
-        api_key = os.getenv("OPENAI_API_KEY", "sk-704557ba3af94909ab21294bc4792a6c")
+        api_key = os.getenv("OPENAI_API_KEY")
         base_url = os.getenv("OPENAI_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         
         # 千问的embedding模型名称
@@ -69,8 +69,7 @@ def get_embeddings():
         
         if not api_key:
             raise ValueError(
-                "未找到OPENAI_API_KEY环境变量！\n"
-                "请设置环境变量或在.env文件中配置：\n"
+                "未找到 OPENAI_API_KEY 环境变量，请在系统环境或项目 .env 中设置：\n"
                 "OPENAI_API_KEY=your_qwen_api_key\n"
                 "OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1 (可选)\n"
                 "QWEN_EMBEDDING_MODEL=text-embedding-v2 (可选)"
@@ -78,7 +77,6 @@ def get_embeddings():
         
         logger.info(f"使用千问Embedding模型: {embedding_model}")
         logger.info(f"API Base URL: {base_url}")
-        logger.info(f"API Key: {'*' * 10 + api_key[-4:] if len(api_key) > 4 else '***'}")
         
         # 使用千问Embedding适配器（直接调用API，避免格式问题）
         try:

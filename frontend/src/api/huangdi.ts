@@ -71,8 +71,8 @@ export type HuangdiResponse =
 /**
  * 黄帝内经分析接口
  */
-export function huangdiAnalyze(payload: HuangdiRequest) {
-  return api.post<HuangdiResponse>('/api/huangdi/analyze', payload);
+export function huangdiAnalyze(payload: HuangdiRequest, options?: { signal?: AbortSignal }) {
+  return api.post<HuangdiResponse>('/api/huangdi/analyze', payload, { signal: options?.signal });
 }
 
 /**

@@ -73,7 +73,7 @@
           AI理论分析
         </h4>
         <div class="llm-content-wrapper">
-          <div class="llm-content" v-html="formatLLMText(result.llm_analysis)"></div>
+          <LLMContent :content="result.llm_analysis" />
         </div>
       </div>
 
@@ -89,17 +89,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onBeforeUnmount } from 'vue';
 import { FirstAidKit, Search, CollectionTag, Document, ChatLineRound } from '@element-plus/icons-vue';
 import { huangdiAnalyze, type HuangdiDiagnosisResponse } from '../api/huangdi';
 import HuangdiTheoryCard from './HuangdiTheoryCard.vue';
 import HuangdiDisclaimer from './HuangdiDisclaimer.vue';
 import { ElMessage } from 'element-plus';
+import LLMContent from './LLMContent.vue';
 
 const symptoms = ref('');
 const includeLLM = ref(true);
 const loading = ref(false);
 const result = ref<HuangdiDiagnosisResponse | null>(null);
+const controller = ref<AbortController | null>(null);
 
 const handleDiagnosis = async () => {
   if (!symptoms.value.trim()) {
@@ -109,13 +111,17 @@ const handleDiagnosis = async () => {
 
   loading.value = true;
   result.value = null;
+  if (controller.value) {
+    controller.value.abort();
+  }
+  controller.value = new AbortController();
 
   try {
     const response = await huangdiAnalyze({
       question: symptoms.value,
       query_type: 'diagnosis',
       include_llm: includeLLM.value,
-    });
+    }, { signal: controller.value.signal });
 
     if (response.data.success && response.data.query_type === 'diagnosis') {
       result.value = response.data;
@@ -123,24 +129,21 @@ const handleDiagnosis = async () => {
       ElMessage.error('分析失败，请重试');
     }
   } catch (error: any) {
+    if (error?.code === 'ERR_CANCELED') {
+      return;
+    }
     console.error('分析失败:', error);
     ElMessage.error(error.response?.data?.detail || '分析失败，请重试');
   } finally {
     loading.value = false;
+    controller.value = null;
   }
 };
-
-const formatLLMText = (text: string) => {
-  return text
-    .split('\n')
-    .map((line) => {
-      if (line.trim().startsWith('#')) {
-        return `<h4>${line.replace(/^#+\s*/, '')}</h4>`;
-      }
-      return `<p>${line}</p>`;
-    })
-    .join('');
-};
+onBeforeUnmount(() => {
+  if (controller && controller.value) {
+    controller.value.abort();
+  }
+});
 </script>
 
 <style scoped>

@@ -76,10 +76,22 @@ class HuangdiKnowledgeBase:
             'combined_results': [],
         }
         
-        # 文本搜索（关键词匹配）
+        # 文本搜索（关键词匹配 + 可选主题）
         if search_type in ['text', 'hybrid']:
             try:
                 text_results = text_search_by_keyword(query, self._structured_data)
+                # 如果指定主题，同时合并主题文本搜索结果
+                if theme:
+                    theme_text_results = text_search_by_theme(theme, self._structured_data)
+                    # 去重合并（按 书籍+标题）
+                    seen_keys = set()
+                    merged = []
+                    for r in text_results + theme_text_results:
+                        key = f"{r.get('book', '')}_{r.get('chapter_title', '')}"
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            merged.append(r)
+                    text_results = merged
                 results['text_results'] = text_results[:k]
             except Exception as e:
                 logger.error(f"文本搜索失败: {e}")
@@ -90,13 +102,15 @@ class HuangdiKnowledgeBase:
                 filter_dict = {}
                 if book:
                     filter_dict['book'] = book
+                # 为了提升混合检索的覆盖度，向量侧多取一些候选
+                k_vec = max(k, k * 2)
                 
                 if filter_dict:
-                    vector_results = similarity_search(query, k=k, filter_dict=filter_dict)
+                    vector_results = similarity_search(query, k=k_vec, filter_dict=filter_dict)
                 elif theme:
-                    vector_results = vector_search_by_theme(query, theme, k=k)
+                    vector_results = vector_search_by_theme(query, theme, k=k_vec)
                 else:
-                    vector_results = similarity_search(query, k=k)
+                    vector_results = similarity_search(query, k=k_vec)
                 
                 results['vector_results'] = vector_results
             except Exception as e:
@@ -105,10 +119,15 @@ class HuangdiKnowledgeBase:
         # 合并结果（去重并排序）
         if search_type == 'hybrid':
             combined = {}
-            
-            # 添加文本搜索结果
+            text_raw_scores = {}
+            text_len = len(results['text_results'])
             for i, result in enumerate(results['text_results']):
                 key = f"{result.get('book', '')}_{result.get('chapter_title', '')}"
+                if text_len <= 1:
+                    raw = 1.0
+                else:
+                    raw = 1.0 - (i / (text_len - 1))
+                text_raw_scores[key] = raw
                 if key not in combined:
                     combined[key] = {
                         'type': 'text',
@@ -116,35 +135,76 @@ class HuangdiKnowledgeBase:
                         'chapter_title': result.get('chapter_title', ''),
                         'content': result.get('content', ''),
                         'themes': result.get('themes', []),
-                        'relevance_score': 1.0 - (i * 0.1),  # 文本搜索按顺序给分
                     }
-            
-            # 添加向量搜索结果
+
+            vec_raw_scores = {}
             for result in results['vector_results']:
                 metadata = result.get('metadata', {})
                 key = f"{metadata.get('book', '')}_{metadata.get('chapter_title', '')}"
-                score = result.get('score', 0)
-                
-                if key in combined:
-                    # 如果已存在，更新分数（取更高的）
-                    combined[key]['relevance_score'] = max(
-                        combined[key]['relevance_score'],
-                        1.0 - score
-                    )
-                    combined[key]['type'] = 'hybrid'
-                else:
+                score = float(result.get('score', 0))
+                raw_sim = 1.0 - score
+                vec_raw_scores[key] = raw_sim
+                if key not in combined:
+                    # 向量结果优先回填整章内容
+                    full = self.get_chapter_by_title(metadata.get('chapter_title', ''), metadata.get('book', ''))
+                    full_content = full.get('content', '') if full else result.get('content', '')
                     combined[key] = {
                         'type': 'vector',
                         'book': metadata.get('book', ''),
                         'chapter_title': metadata.get('chapter_title', ''),
-                        'content': result.get('content', ''),
+                        'content': full_content,
                         'themes': metadata.get('themes', '').split(',') if metadata.get('themes') else [],
-                        'relevance_score': 1.0 - score,
                     }
-            
-            # 按相关性排序
+
+            if text_raw_scores:
+                t_min = min(text_raw_scores.values())
+                t_max = max(text_raw_scores.values())
+            else:
+                t_min = 0.0
+                t_max = 0.0
+            if vec_raw_scores:
+                v_min = min(vec_raw_scores.values())
+                v_max = max(vec_raw_scores.values())
+            else:
+                v_min = 0.0
+                v_max = 0.0
+
+            def norm(v: float, lo: float, hi: float) -> float:
+                if hi - lo <= 1e-12:
+                    return 1.0 if hi > 0 else 0.0
+                return (v - lo) / (hi - lo)
+
+            w_text = 0.4
+            w_vec = 0.6
+
+            combined_list = []
+            for key, item in combined.items():
+                t = norm(text_raw_scores.get(key, 0.0), t_min, t_max) if text_raw_scores else 0.0
+                v = norm(vec_raw_scores.get(key, 0.0), v_min, v_max) if vec_raw_scores else 0.0
+                score = w_text * t + w_vec * v
+                # 轻度加权：标题包含查询与主题命中
+                try:
+                    title = item.get('chapter_title', '') or ''
+                    themes_list = item.get('themes', []) or []
+                    if isinstance(themes_list, str):
+                        themes_list = [themes_list]
+                    if title and (str(query) in title):
+                        score += 0.1
+                    if theme and any(theme in th for th in themes_list):
+                        score += 0.05
+                except Exception:
+                    pass
+                if score > 1.0:
+                    score = 1.0
+                item_type = 'hybrid' if key in text_raw_scores and key in vec_raw_scores else item.get('type', 'text' if key in text_raw_scores else 'vector')
+                combined_list.append({
+                    **item,
+                    'type': item_type,
+                    'relevance_score': float(score),
+                })
+
             results['combined_results'] = sorted(
-                combined.values(),
+                combined_list,
                 key=lambda x: x['relevance_score'],
                 reverse=True
             )[:k]

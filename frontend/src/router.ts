@@ -48,6 +48,12 @@ const routes = [
     component: () => import('./views/HuangdiView.vue'),
     meta: { title: '黄帝内经' },
   },
+  {
+    path: '/feedback',
+    name: 'feedback',
+    component: () => import('./views/FeedbackView.vue'),
+    meta: { title: '反馈中心' },
+  },
 ];
 
 const router = createRouter({

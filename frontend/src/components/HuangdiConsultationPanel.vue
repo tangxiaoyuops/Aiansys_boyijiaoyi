@@ -119,7 +119,7 @@
           AI个性化建议
         </h4>
         <div class="llm-content-wrapper">
-          <div class="llm-content" v-html="formatLLMText(result.llm_suggestions)"></div>
+          <LLMContent :content="result.llm_suggestions" />
         </div>
       </div>
 
@@ -135,17 +135,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onBeforeUnmount } from 'vue';
 import { Sunny, Search, InfoFilled, Document, ChatLineRound } from '@element-plus/icons-vue';
 import { huangdiAnalyze, type HuangdiConsultationResponse } from '../api/huangdi';
 import HuangdiTheoryCard from './HuangdiTheoryCard.vue';
 import HuangdiDisclaimer from './HuangdiDisclaimer.vue';
 import { ElMessage } from 'element-plus';
+import LLMContent from './LLMContent.vue';
 
 const userInfo = ref('');
 const includeLLM = ref(true);
 const loading = ref(false);
 const result = ref<HuangdiConsultationResponse | null>(null);
+const controller = ref<AbortController | null>(null);
 
 const context = ref({
   season: '',
@@ -161,6 +163,10 @@ const handleConsultation = async () => {
 
   loading.value = true;
   result.value = null;
+  if (controller.value) {
+    controller.value.abort();
+  }
+  controller.value = new AbortController();
 
   try {
     const response = await huangdiAnalyze({
@@ -172,7 +178,7 @@ const handleConsultation = async () => {
         age: context.value.age,
         constitution: context.value.constitution.length > 0 ? context.value.constitution : undefined,
       },
-    });
+    }, { signal: controller.value.signal });
 
     if (response.data.success && response.data.query_type === 'consultation') {
       result.value = response.data;
@@ -180,24 +186,22 @@ const handleConsultation = async () => {
       ElMessage.error('咨询失败，请重试');
     }
   } catch (error: any) {
+    if (error?.code === 'ERR_CANCELED') {
+      return;
+    }
     console.error('咨询失败:', error);
     ElMessage.error(error.response?.data?.detail || '咨询失败，请重试');
   } finally {
     loading.value = false;
+    controller.value = null;
   }
 };
 
-const formatLLMText = (text: string) => {
-  return text
-    .split('\n')
-    .map((line) => {
-      if (line.trim().startsWith('#')) {
-        return `<h4>${line.replace(/^#+\s*/, '')}</h4>`;
-      }
-      return `<p>${line}</p>`;
-    })
-    .join('');
-};
+onBeforeUnmount(() => {
+  if (controller.value) {
+    controller.value.abort();
+  }
+});
 </script>
 
 <style scoped>

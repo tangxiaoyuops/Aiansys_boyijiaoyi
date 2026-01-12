@@ -15,6 +15,7 @@
         <router-link to="/divination" class="nav-link">六爻卜卦</router-link>
         <router-link to="/bazi" class="nav-link">八字排盘</router-link>
         <router-link to="/huangdi" class="nav-link">黄帝内经</router-link>
+        <router-link to="/feedback" class="nav-link">反馈中心</router-link>
       </nav>
 
     </header>
