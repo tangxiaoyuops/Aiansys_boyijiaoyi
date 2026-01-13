@@ -7,8 +7,11 @@ export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
-  type?: string; // start/progress/result/detail/done/error
+  type?: string; // start/progress/result/detail/done/error/image/ocr_loading/ocr_result
   meta?: Record<string, any>;
+  imageUrl?: string; // 图片URL
+  imageId?: string; // 图片ID
+  ocrText?: string; // OCR识别的文本
 }
 
 export interface ChatState {

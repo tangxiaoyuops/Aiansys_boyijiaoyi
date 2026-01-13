@@ -9,14 +9,17 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import json
 import asyncio
 import uuid
+import shutil
+import os
+from pathlib import Path
 from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
@@ -1244,6 +1247,296 @@ async def reward_callback(
     except Exception as e:
         error_msg = str(e)
         raise HTTPException(status_code=500, detail=f"处理支付回调失败: {error_msg}")
+
+
+# ==================== OCR功能API ====================
+
+# 创建上传目录
+UPLOAD_DIR = os.path.join(project_root, "data", "uploads", "ocr")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+class OCRRecognizeRequest(BaseModel):
+    """OCR识别请求模型"""
+    image_id: Optional[str] = None
+    context: Optional[str] = ""
+
+
+class OCRRecognizeResponse(BaseModel):
+    """OCR识别响应模型"""
+    success: bool
+    text: str
+    image_id: Optional[str] = None
+    model: Optional[str] = None
+    elapsed_time: Optional[float] = None
+    error: Optional[str] = None
+
+
+class OCRUploadResponse(BaseModel):
+    """图片上传响应模型"""
+    success: bool
+    image_id: str
+    filename: str
+    file_size: int
+    preview_url: str
+
+
+@app.post("/api/ocr/upload", response_model=OCRUploadResponse)
+async def upload_image(file: UploadFile = File(...)):
+    """
+    图片上传接口
+    """
+    try:
+        # 验证文件类型
+        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的文件类型: {file.content_type}，仅支持: {', '.join(allowed_types)}"
+            )
+        
+        # 验证文件大小（10MB限制）
+        file_content = await file.read()
+        file_size = len(file_content)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file_size > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件大小超过限制: {file_size / 1024 / 1024:.2f}MB，最大支持10MB"
+            )
+        
+        # 生成唯一文件名
+        import uuid
+        file_ext = os.path.splitext(file.filename)[1] or ".jpg"
+        image_id = str(uuid.uuid4())
+        filename = f"{image_id}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        
+        # 保存文件
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+        
+        print(f"[OCR上传] 成功: image_id={image_id}, filename={file.filename}, size={file_size} bytes")
+        
+        return {
+            "success": True,
+            "image_id": image_id,
+            "filename": filename,
+            "file_size": file_size,
+            "preview_url": f"/api/ocr/preview/{image_id}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[OCR上传] 失败: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"图片上传失败: {error_msg}")
+
+
+@app.get("/api/ocr/preview/{image_id}")
+async def preview_image(image_id: str):
+    """
+    预览上传的图片
+    """
+    try:
+        # 查找文件
+        for ext in [".jpg", ".jpeg", ".png", ".webp"]:
+            file_path = os.path.join(UPLOAD_DIR, f"{image_id}{ext}")
+            if os.path.exists(file_path):
+                return FileResponse(file_path)
+        
+        raise HTTPException(status_code=404, detail="图片不存在")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        raise HTTPException(status_code=500, detail=f"预览图片失败: {error_msg}")
+
+
+@app.post("/api/ocr/recognize", response_model=OCRRecognizeResponse)
+async def recognize_image(
+    request: Request,
+    file: Optional[UploadFile] = File(None),
+    image_id: Optional[str] = None,
+    context: Optional[str] = None
+):
+    """
+    OCR识别接口
+    支持两种方式：
+    1. 通过image_id识别已上传的图片
+    2. 直接上传图片进行识别
+    """
+    try:
+        from core.tools.ocr_processor import extract_text_from_image, analyze_stock_image
+        
+        # 如果content-type是application/json，尝试解析JSON body
+        if request.headers.get("content-type", "").startswith("application/json"):
+            try:
+                body = await request.json()
+                image_id = image_id or body.get("image_id")
+                context = context or body.get("context", "")
+            except:
+                pass
+        
+        image_path = None
+        
+        # 方式1: 通过image_id识别
+        if image_id:
+            # 查找文件
+            for ext in [".jpg", ".jpeg", ".png", ".webp"]:
+                candidate_path = os.path.join(UPLOAD_DIR, f"{image_id}{ext}")
+                if os.path.exists(candidate_path):
+                    image_path = candidate_path
+                    break
+            
+            if not image_path:
+                raise HTTPException(status_code=404, detail=f"图片不存在: {image_id}")
+        
+        # 方式2: 直接上传图片
+        elif file:
+            # 验证文件类型
+            allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
+            if file.content_type not in allowed_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"不支持的文件类型: {file.content_type}"
+                )
+            
+            # 保存临时文件
+            import uuid
+            file_ext = os.path.splitext(file.filename)[1] or ".jpg"
+            temp_id = str(uuid.uuid4())
+            filename = f"{temp_id}{file_ext}"
+            image_path = os.path.join(UPLOAD_DIR, filename)
+            
+            file_content = await file.read()
+            with open(image_path, "wb") as f:
+                f.write(file_content)
+        else:
+            raise HTTPException(status_code=400, detail="请提供image_id或上传图片文件")
+        
+        # 执行OCR识别
+        print(f"[OCR识别] 开始识别: {image_path}")
+        
+        context_str = context or ""
+        if context_str and ("股票" in context_str or "K线" in context_str or "财报" in context_str):
+            # 使用股票分析专用函数
+            result = analyze_stock_image(image_path)
+        else:
+            # 使用通用OCR函数
+            result = extract_text_from_image(image_path, context_str)
+        
+        # 如果使用的是临时文件，可以选择删除
+        # 这里保留文件，方便后续查看
+        
+        return {
+            "success": True,
+            "text": result.get("text", ""),
+            "image_id": image_id,
+            "model": result.get("model"),
+            "elapsed_time": result.get("elapsed_time"),
+            "error": result.get("error")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[OCR识别] 失败: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"OCR识别失败: {error_msg}")
+
+
+@app.post("/api/ocr/analyze", response_model=OCRRecognizeResponse)
+async def analyze_image(
+    request: Request,
+    file: Optional[UploadFile] = File(None),
+    image_id: Optional[str] = None,
+    context: Optional[str] = None
+):
+    """
+    OCR+分析接口
+    识别图片文字后，结合股票分析场景进行智能提取
+    """
+    try:
+        from core.tools.ocr_processor import analyze_stock_image
+        
+        # 如果content-type是application/json，尝试解析JSON body
+        if request.headers.get("content-type", "").startswith("application/json"):
+            try:
+                body = await request.json()
+                image_id = image_id or body.get("image_id")
+                context = context or body.get("context", "")
+            except:
+                pass
+        
+        image_path = None
+        
+        # 方式1: 通过image_id识别
+        if image_id:
+            for ext in [".jpg", ".jpeg", ".png", ".webp"]:
+                candidate_path = os.path.join(UPLOAD_DIR, f"{image_id}{ext}")
+                if os.path.exists(candidate_path):
+                    image_path = candidate_path
+                    break
+            
+            if not image_path:
+                raise HTTPException(status_code=404, detail=f"图片不存在: {image_id}")
+        
+        # 方式2: 直接上传图片
+        elif file:
+            allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
+            if file.content_type not in allowed_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"不支持的文件类型: {file.content_type}"
+                )
+            
+            import uuid
+            file_ext = os.path.splitext(file.filename)[1] or ".jpg"
+            temp_id = str(uuid.uuid4())
+            filename = f"{temp_id}{file_ext}"
+            image_path = os.path.join(UPLOAD_DIR, filename)
+            
+            file_content = await file.read()
+            with open(image_path, "wb") as f:
+                f.write(file_content)
+        else:
+            raise HTTPException(status_code=400, detail="请提供image_id或上传图片文件")
+        
+        # 执行OCR+分析
+        print(f"[OCR分析] 开始分析: {image_path}")
+        import time
+        api_start_time = time.time()
+        
+        result = analyze_stock_image(image_path)
+        
+        api_elapsed_time = time.time() - api_start_time
+        print(f"[OCR分析] 分析完成，总耗时: {api_elapsed_time:.2f}秒")
+        print(f"[OCR分析] 识别结果长度: {len(result.get('text', ''))} 字符")
+        print(f"[OCR分析] 是否有错误: {bool(result.get('error'))}")
+        
+        # 检查识别结果
+        text = result.get("text", "").strip()
+        if not text and not result.get("error"):
+            print(f"[OCR分析] 警告: 识别结果为空，但未报告错误")
+        
+        return {
+            "success": True if text or result.get("error") else False,
+            "text": text,
+            "image_id": image_id,
+            "model": result.get("model"),
+            "elapsed_time": result.get("elapsed_time") or api_elapsed_time,
+            "error": result.get("error")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[OCR分析] 失败: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"OCR分析失败: {error_msg}")
 
 
 if __name__ == "__main__":

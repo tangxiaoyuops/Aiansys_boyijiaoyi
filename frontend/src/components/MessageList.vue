@@ -24,12 +24,40 @@
 
         </div>
 
+        <!-- 图片消息 -->
+        <div v-if="item.type === 'image' && item.imageUrl" class="image-message">
+          <div v-if="item.content" class="image-description">
+            {{ item.content }}
+          </div>
+          <img :src="item.imageUrl" alt="上传的图片" class="message-image" />
+        </div>
+        
+        <!-- OCR加载中 -->
+        <div v-if="item.type === 'ocr_loading'" class="ocr-loading">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>{{ item.content }}</span>
+        </div>
+        
+        <!-- OCR识别结果 -->
+        <div v-if="item.type === 'ocr_result'" class="ocr-result-message">
+          <div class="content" v-html="renderMarkdown(item.content)"></div>
+          <el-button 
+            v-if="item.ocrText" 
+            size="small" 
+            type="primary" 
+            @click="copyOcrText(item.ocrText)"
+            style="margin-top: 8px;"
+          >
+            <el-icon><CopyDocument /></el-icon>
+            复制识别结果
+          </el-button>
+        </div>
+        
+        <!-- 普通文本消息 -->
         <div
-
+          v-if="!item.type || (item.type !== 'image' && item.type !== 'ocr_loading' && item.type !== 'ocr_result')"
           class="content"
-
           v-html="renderMarkdown(item.content)"
-
         />
 
         <!-- 如果是 detail 消息并且包含回测结果，则在文字下方展示K线图 -->
@@ -50,6 +78,8 @@
 
 <script setup lang="ts">
 import { onMounted, onUpdated, ref } from 'vue';
+import { Loading, CopyDocument } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 import MarkdownIt from 'markdown-it';
 import type { ChatMessage } from '../stores/chat';
 import BacktestChart from './BacktestChart.vue';
@@ -62,6 +92,14 @@ const md = new MarkdownIt({ linkify: true, breaks: true });
 const listRef = ref<HTMLDivElement | null>(null);
 
 const renderMarkdown = (text: string) => md.render(text || '');
+
+const copyOcrText = (text: string) => {
+  navigator.clipboard.writeText(text).then(() => {
+    ElMessage.success('已复制到剪贴板');
+  }).catch(() => {
+    ElMessage.error('复制失败');
+  });
+};
 
 const scrollToBottom = () => {
   const el = listRef.value;
@@ -319,6 +357,58 @@ onUpdated(scrollToBottom);
   background: rgba(139, 92, 246, 0.1);
   font-weight: 600;
   color: #C4B5FD;
+}
+
+.image-message {
+  margin: 12px 0;
+}
+
+.image-description {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: rgba(139, 92, 246, 0.1);
+  border-left: 3px solid #8B5CF6;
+  border-radius: 4px;
+  color: #E2E8F0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.message-image {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: 8px;
+  object-fit: contain;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.message-image:hover {
+  transform: scale(1.02);
+}
+
+.ocr-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8B5CF6;
+  padding: 12px 0;
+}
+
+.ocr-loading .el-icon {
+  font-size: 18px;
+}
+
+.ocr-result-message {
+  margin: 12px 0;
+}
+
+.ocr-result-message .content {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
 }
 </style>
 

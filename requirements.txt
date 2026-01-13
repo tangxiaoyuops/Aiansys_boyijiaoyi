@@ -21,3 +21,5 @@ vnpy>=3.9.0
 # vnpy-datamanager>=3.9.0
 # 数据库支持
 sqlalchemy>=2.0.0
+# 图片处理
+pillow>=10.0.0
