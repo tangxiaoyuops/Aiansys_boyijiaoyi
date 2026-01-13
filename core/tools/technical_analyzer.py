@@ -507,18 +507,24 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
     """
     识别恐慌点（买入信号）
     
+    核心原则：持仓的跌了怕继续跌，外面的不敢进
+    
     恐慌点特征：
     1. 5阶段长期阴跌后，突然急剧下跌且放量
     2. 一阶段O点之前的急剧下跌，反弹一小段后又往下跌，出现小短期放量
     3. 1/2阶段，具有上涨趋势，前面有明显洗盘、长时间横盘，突然出现1-2根大大的放巨量的阴线
     4. 小碎步上涨过程中突然的大跌放量阴线
+    5. **连续下跌，跟随的大阴线跌破前低点、重要均线，导致恐慌盘放量，散户被洗出去**
+       - 这是最重要的恐慌点类型：持仓的跌了怕继续跌，外面的不敢进
+       - 特征：前面有连续下跌（至少3-5天），大阴线跌破前低或重要均线（如20日、30日、60日均线）
+       - 放量下跌，但后续继续下跌或横盘，让外面的人不敢进
     
     返回:
         List[Dict]: 恐慌点列表，每个包含：
         {
             'date': datetime,
             'price': float,
-            'type': str,  # 'stage5_panic', 'stage1_panic', 'washout_panic', 'uptrend_panic'
+            'type': str,  # 'stage5_panic', 'stage1_panic', 'washout_panic', 'uptrend_panic', 'breakdown_panic'
             'vol_ratio': float,
             'drop_pct': float,
             'description': str
@@ -668,6 +674,88 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                         'drop_pct': float(drop_pct),
                         'description': f'小碎步上涨过程中的大跌放量阴线，跌幅{drop_pct:.2f}%，放量{vol_ratio_current:.2f}倍'
                     })
+        
+        # 5. 连续下跌，跟随的大阴线跌破前低点、重要均线，导致恐慌盘放量（最重要的恐慌点类型）
+        # 核心：持仓的跌了怕继续跌，外面的不敢进
+        if drop_pct < -4.0 and vol_ratio_current >= vol_ratio and is_bearish:
+            # 检查前面是否有连续下跌（至少3-5天）
+            if i >= 5:
+                # 计算连续下跌天数
+                consecutive_down_days = 0
+                for j in range(i-1, max(0, i-5), -1):
+                    if j > 0:
+                        check_row = recent.iloc[j]
+                        check_prev = recent.iloc[j-1]
+                        check_drop = (check_row['收盘'] - check_prev['收盘']) / check_prev['收盘'] * 100 if check_prev['收盘'] > 0 else 0
+                        if check_drop < 0:
+                            consecutive_down_days += 1
+                        else:
+                            break
+                
+                # 至少连续3天下跌
+                if consecutive_down_days >= 3:
+                    # 计算重要均线（20日、30日、60日）
+                    ma20 = None
+                    ma30 = None
+                    ma60 = None
+                    if i >= 20:
+                        ma20 = recent.iloc[max(0, i-20):i]['收盘'].mean()
+                    if i >= 30:
+                        ma30 = recent.iloc[max(0, i-30):i]['收盘'].mean()
+                    if i >= 60:
+                        ma60 = recent.iloc[max(0, i-60):i]['收盘'].mean()
+                    
+                    # 查找前低点（最近60天内的最低点）
+                    lookback_days = min(60, i)
+                    prev_lows = recent.iloc[max(0, i-lookback_days):i]['最低']
+                    if len(prev_lows) > 0:
+                        prev_low = prev_lows.min()
+                        current_close = row['收盘']
+                        
+                        # 检查是否跌破前低或重要均线
+                        broke_prev_low = current_close < prev_low * 0.98  # 收盘价跌破前低2%以上
+                        broke_ma20 = ma20 is not None and current_close < ma20 * 0.98
+                        broke_ma30 = ma30 is not None and current_close < ma30 * 0.98
+                        broke_ma60 = ma60 is not None and current_close < ma60 * 0.98
+                        
+                        # 检查后续走势：是否继续下跌或横盘（让外面的人不敢进）
+                        # 如果后续3-5天继续下跌或横盘，说明外面的人不敢进
+                        future_continues_down = False
+                        if i < len(recent) - 3:
+                            future_3 = recent.iloc[i+1:min(len(recent), i+4)]
+                            if len(future_3) > 0:
+                                future_max = future_3['收盘'].max()
+                                # 后续3天内最高价不超过当前收盘价的3%，说明继续下跌或横盘
+                                if future_max < current_close * 1.03:
+                                    future_continues_down = True
+                        
+                        # 如果跌破前低或重要均线，且后续继续下跌/横盘，符合"持仓的跌了怕继续跌，外面的不敢进"
+                        if (broke_prev_low or broke_ma20 or broke_ma30 or broke_ma60) and future_continues_down:
+                            # 排除涨停后的调整
+                            prev_open = prev_row['开盘']
+                            prev_close = prev_row['收盘']
+                            prev_body_pct = (prev_close - prev_open) / prev_open if prev_open > 0 else 0
+                            prev_is_limit_up = prev_body_pct > 0.095
+                            
+                            if not prev_is_limit_up:  # 不是涨停后的调整
+                                breakdown_desc = []
+                                if broke_prev_low:
+                                    breakdown_desc.append(f"跌破前低({prev_low:.2f})")
+                                if broke_ma20:
+                                    breakdown_desc.append("跌破20日均线")
+                                if broke_ma30:
+                                    breakdown_desc.append("跌破30日均线")
+                                if broke_ma60:
+                                    breakdown_desc.append("跌破60日均线")
+                                
+                                panic_points.append({
+                                    'date': row['日期'] if '日期' in row else None,
+                                    'price': float(row['收盘']),
+                                    'type': 'breakdown_panic',
+                                    'vol_ratio': float(vol_ratio_current),
+                                    'drop_pct': float(drop_pct),
+                                    'description': f'连续下跌后大阴线跌破{",".join(breakdown_desc)}，恐慌盘放量，跌幅{drop_pct:.2f}%，放量{vol_ratio_current:.2f}倍（持仓的跌了怕继续跌，外面的不敢进）'
+                                })
     
     return panic_points
 
