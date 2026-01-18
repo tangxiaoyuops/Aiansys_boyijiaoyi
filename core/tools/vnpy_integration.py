@@ -80,7 +80,17 @@ def fetch_futures_data_from_vnpy(
         from vnpy.trader.constant import Exchange, Interval
         
         # 获取数据库实例
-        database = get_database()
+        try:
+            database = get_database()
+        except ModuleNotFoundError as db_error:
+            if 'vnpy_sqlite' in str(db_error) or 'sqlite' in str(db_error).lower():
+                print(f"[vnPy] 数据库驱动缺失: {db_error}")
+                print(f"[vnPy] 提示: 需要安装 vnpy_sqlite 模块才能使用vnPy数据库功能")
+                print(f"[vnPy] 安装命令: pip install vnpy_sqlite")
+                print(f"[vnPy] 或者使用其他数据源（如akshare）")
+                return None
+            else:
+                raise
         
         # 转换交易所字符串为Exchange枚举
         exchange_map = {
@@ -93,15 +103,46 @@ def fetch_futures_data_from_vnpy(
         exchange_enum = exchange_map.get(exchange.upper(), Exchange.SHFE)
         
         # 转换周期字符串为Interval枚举
-        interval_map = {
-            'd': Interval.DAILY,
-            '1m': Interval.MINUTE,
-            '5m': Interval.MINUTE_5,
-            '15m': Interval.MINUTE_15,
-            '30m': Interval.MINUTE_30,
-            '1h': Interval.HOUR,
-        }
-        interval_enum = interval_map.get(interval.lower(), Interval.DAILY)
+        # 不同版本的vnPy可能使用不同的枚举值，需要动态检测
+        def get_interval_enum(interval_str: str):
+            """安全地获取Interval枚举值"""
+            interval_lower = interval_str.lower()
+            
+            # 尝试不同的可能枚举值名称
+            candidates = {
+                'd': ['DAILY', 'DAY'],
+                '1m': ['MINUTE', 'MIN'],
+                '5m': ['MINUTE_5', 'MIN_5', 'FIVE_MINUTE', 'FIVE_MIN'],
+                '15m': ['MINUTE_15', 'MIN_15', 'FIFTEEN_MINUTE', 'FIFTEEN_MIN'],
+                '30m': ['MINUTE_30', 'MIN_30', 'THIRTY_MINUTE', 'THIRTY_MIN'],
+                '1h': ['HOUR', 'H', 'HOURLY'],
+            }
+            
+            # 获取候选枚举名称
+            enum_names = candidates.get(interval_lower, ['DAILY', 'DAY'])
+            
+            # 尝试每个候选名称
+            for enum_name in enum_names:
+                if hasattr(Interval, enum_name):
+                    return getattr(Interval, enum_name)
+            
+            # 如果都找不到，返回默认的日线
+            if hasattr(Interval, 'DAILY'):
+                return Interval.DAILY
+            elif hasattr(Interval, 'DAY'):
+                return Interval.DAY
+            else:
+                # 打印所有可用的Interval属性以便调试
+                available_intervals = [attr for attr in dir(Interval) if not attr.startswith('_') and attr.isupper()]
+                print(f"[vnPy] 警告: 无法找到对应的Interval枚举值 '{interval_str}'")
+                print(f"[vnPy] 可用的Interval值: {available_intervals}")
+                # 尝试使用第一个可用的值
+                if available_intervals:
+                    return getattr(Interval, available_intervals[0])
+                else:
+                    raise ValueError(f"无法确定Interval枚举值，interval={interval_str}")
+        
+        interval_enum = get_interval_enum(interval)
         
         # 设置默认日期范围
         if end_date is None:

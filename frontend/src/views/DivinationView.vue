@@ -326,203 +326,48 @@ function formatLLMResponse(text: string): string {
 </script>
 
 <style scoped>
-/* 优雅明亮占卜主题 */
-.divination-view {
-  --mystical-bg: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #f0f4f8 100%);
-  --mystical-surface: rgba(255, 255, 255, 0.85);
-  --mystical-surface-dark: rgba(248, 250, 252, 0.95);
-  --mystical-primary: #6366f1;
-  --mystical-secondary: #818cf8;
-  --mystical-accent: #f59e0b;
-  --mystical-glow: #a5b4fc;
-  --mystical-text: #1e293b;
-  --mystical-text-light: #64748b;
-  --mystical-border: rgba(99, 102, 241, 0.2);
-  --mystical-border-light: rgba(148, 163, 184, 0.3);
-}
-
 .divination-view {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--mystical-bg);
-  color: var(--mystical-text);
+  background: #111827;
+  color: #e5e7eb;
   overflow: hidden;
-  position: relative;
-}
-
-/* 柔和光效背景 - 明亮优雅 */
-.divination-view::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(circle at 30% 40%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
-    radial-gradient(circle at 70% 60%, rgba(245, 158, 11, 0.06) 0%, transparent 60%),
-    radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.05) 0%, transparent 70%);
-  animation: divinationPulse 10s ease-in-out infinite;
-  z-index: 0;
-  pointer-events: none;
-}
-
-@keyframes divinationPulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1) rotate(0deg);
-  }
-  50% {
-    opacity: 0.9;
-    transform: scale(1.15) rotate(5deg);
-  }
-}
-
-/* 柔和装饰粒子 */
-.divination-view::after {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    radial-gradient(1px 1px at 30px 40px, rgba(99, 102, 241, 0.3), transparent),
-    radial-gradient(1px 1px at 80px 60px, rgba(245, 158, 11, 0.25), transparent),
-    radial-gradient(0.5px 0.5px at 120px 80px, rgba(129, 140, 248, 0.2), transparent);
-  background-repeat: repeat;
-  background-size: 300px 300px;
-  animation: symbolFloat 15s linear infinite;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.4;
-}
-
-@keyframes symbolFloat {
-  0% {
-    transform: translateY(0) translateX(0);
-    opacity: 0.5;
-  }
-  50% {
-    transform: translateY(-50px) translateX(30px);
-    opacity: 0.8;
-  }
-  100% {
-    transform: translateY(0) translateX(0);
-    opacity: 0.5;
-  }
 }
 
 .main-layout {
   display: flex;
   flex: 1;
-  gap: 24px;
-  padding: 24px;
+  gap: 20px;
+  padding: 20px;
   overflow: hidden;
   min-height: 0;
-  position: relative;
-  z-index: 1;
-  perspective: 2000px;
 }
 
 .left-panel {
-  width: 420px;
+  width: 400px;
   flex-shrink: 0;
   overflow-y: auto;
-  position: relative;
-  z-index: 1;
 }
 
 .right-panel {
   flex: 1;
   overflow-y: auto;
   min-width: 0;
-  position: relative;
-  z-index: 1;
 }
 
-/* 明亮玻璃态卡片 - 优雅风格 */
 .input-card {
-  background: var(--mystical-surface);
-  border-radius: 24px;
-  padding: 28px;
-  border: 1px solid var(--mystical-border-light);
-  backdrop-filter: blur(25px);
-  box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.08),
-    0 2px 16px rgba(99, 102, 241, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform-style: preserve-3d;
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  animation: divinationCardFloat 8s ease-in-out infinite;
-  position: relative;
-  overflow: hidden;
-}
-
-@keyframes divinationCardFloat {
-  0%, 100% {
-    transform: translateY(0px) rotateX(0deg) rotateZ(0deg);
-  }
-  25% {
-    transform: translateY(-6px) rotateX(1deg) rotateZ(-0.5deg);
-  }
-  75% {
-    transform: translateY(-6px) rotateX(1deg) rotateZ(0.5deg);
-  }
-}
-
-.input-card::before {
-  content: '';
-  position: absolute;
-  top: -100%;
-  left: -100%;
-  width: 300%;
-  height: 300%;
-  background: conic-gradient(transparent, rgba(99, 102, 241, 0.05), transparent 30%);
-  animation: divinationRotate 4s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes divinationRotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.input-card:hover {
-  transform: translateY(-8px) rotateX(4deg) rotateY(2deg);
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.12),
-    0 4px 24px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(31, 41, 55, 0.8);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .card-title {
-  font-size: 28px;
-  font-weight: 800;
-  margin: 0 0 24px 0;
-  background: linear-gradient(135deg, var(--mystical-primary) 0%, var(--mystical-secondary) 50%, var(--mystical-accent) 100%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: titleGradient 4s ease-in-out infinite;
-  letter-spacing: 2px;
-  text-align: center;
-}
-
-@keyframes titleGradient {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0 0 20px 0;
+  color: #3b82f6;
 }
 
 .divination-form {
@@ -571,8 +416,7 @@ function formatLLMResponse(text: string): string {
 
 .yao-desc {
   font-size: 14px;
-  color: #374151;
-  font-weight: 500;
+  color: #e5e7eb;
 }
 
 .empty-state {
@@ -646,74 +490,20 @@ function formatLLMResponse(text: string): string {
   gap: 20px;
 }
 
-/* 明亮结果卡片 - 优雅玻璃态 */
 .result-card {
-  background: var(--mystical-surface);
-  border-radius: 24px;
-  padding: 32px;
-  border: 1px solid var(--mystical-border-light);
-  backdrop-filter: blur(25px);
-  box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.08),
-    0 2px 16px rgba(99, 102, 241, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform-style: preserve-3d;
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  animation: resultCardAppear 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes resultCardAppear {
-  from {
-    opacity: 0;
-    transform: translateY(40px) rotateX(-15deg) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) rotateX(0deg) scale(1);
-  }
-}
-
-.result-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%);
-  animation: resultGlow 8s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes resultGlow {
-  0%, 100% {
-    opacity: 0.3;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.2);
-  }
-}
-
-.result-card:hover {
-  transform: translateY(-8px) rotateX(3deg) rotateY(-2deg);
-  box-shadow: 
-    0 24px 80px rgba(0, 0, 0, 0.1),
-    0 4px 24px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(31, 41, 55, 0.8);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .result-card .section-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: bold;
-  margin: 0 0 24px 0;
+  margin: 0 0 20px 0;
   color: #3b82f6;
 }
 
@@ -727,16 +517,14 @@ function formatLLMResponse(text: string): string {
 
 .info-label {
   font-weight: bold;
-  color: #6b7280;
-  margin-bottom: 12px;
-  font-size: 19px;
+  color: #9ca3af;
+  margin-bottom: 8px;
 }
 
 .info-value {
-  color: #1e293b;
-  font-size: 20px;
-  line-height: 2.2;
-  font-weight: 500;
+  color: #e5e7eb;
+  font-size: 16px;
+  line-height: 1.8;
 }
 
 .yao-list {
@@ -768,11 +556,11 @@ function formatLLMResponse(text: string): string {
 .yao-name {
   font-weight: bold;
   color: #3b82f6;
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .yao-symbol {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: bold;
 }
 
@@ -786,11 +574,10 @@ function formatLLMResponse(text: string): string {
 }
 
 .yao-text {
-  color: #374151;
-  font-size: 19px;
-  line-height: 2.2;
+  color: #d1d5db;
+  font-size: 14px;
+  line-height: 1.6;
   margin-top: 8px;
-  font-weight: 400;
 }
 
 .llm-card {
@@ -803,30 +590,13 @@ function formatLLMResponse(text: string): string {
 }
 
 .llm-text {
-  color: #1e293b;
-  font-size: 19px;
+  color: #e5e7eb;
+  font-size: 15px;
   white-space: pre-wrap;
-  line-height: 2.4;
-  font-weight: 400;
 }
 
 .llm-text :deep(p) {
   margin: 0 0 12px 0;
-  color: #1e293b;
-}
-
-.llm-text :deep(h1),
-.llm-text :deep(h2),
-.llm-text :deep(h3),
-.llm-text :deep(h4) {
-  color: #1e293b;
-  font-weight: 600;
-  margin: 16px 0 8px 0;
-}
-
-.llm-text :deep(strong) {
-  color: #1e293b;
-  font-weight: 600;
 }
 
 .error-card {
@@ -853,15 +623,14 @@ function formatLLMResponse(text: string): string {
   font-weight: bold;
   color: #fbbf24;
   margin: 0 0 8px 0;
-  font-size: 18px;
+  font-size: 15px;
 }
 
 .reminder-text {
-  color: #374151;
-  font-size: 16px;
-  line-height: 2;
+  color: #d1d5db;
+  font-size: 13px;
+  line-height: 1.8;
   margin: 4px 0;
-  font-weight: 400;
 }
 
 /* 滚动条样式 */

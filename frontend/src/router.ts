@@ -43,16 +43,10 @@ const routes = [
     meta: { title: '八字排盘' },
   },
   {
-    path: '/huangdi',
-    name: 'huangdi',
-    component: () => import('./views/HuangdiView.vue'),
-    meta: { title: '黄帝内经' },
-  },
-  {
-    path: '/feedback',
-    name: 'feedback',
-    component: () => import('./views/FeedbackView.vue'),
-    meta: { title: '反馈中心' },
+    path: '/backtest',
+    name: 'backtest',
+    component: () => import('./views/BacktestView.vue'),
+    meta: { title: '量化回测' },
   },
 ];
 

@@ -14,8 +14,6 @@
         <router-link to="/ziwei" class="nav-link">紫微斗数</router-link>
         <router-link to="/divination" class="nav-link">六爻卜卦</router-link>
         <router-link to="/bazi" class="nav-link">八字排盘</router-link>
-        <router-link to="/huangdi" class="nav-link">黄帝内经</router-link>
-        <router-link to="/feedback" class="nav-link">反馈中心</router-link>
       </nav>
 
     </header>
@@ -151,10 +149,32 @@ onMounted(() => {
 
   flex-direction: column;
 
-  overflow: hidden;
+  overflow-y: auto;
+
+  overflow-x: hidden;
 
   min-height: 0;
 
+}
+
+/* 自定义滚动条样式 */
+.app-main::-webkit-scrollbar {
+  width: 12px;
+}
+
+.app-main::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 6px;
+}
+
+.app-main::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 6px;
+  transition: background 0.3s;
+}
+
+.app-main::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 .loading-container {

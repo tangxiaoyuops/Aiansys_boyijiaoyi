@@ -2,28 +2,19 @@
 FastAPI服务
 集成LangGraph工作流，提供聊天机器人接口
 """
-import sys
-import os
-# 添加项目根目录到 Python 路径
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import json
 import asyncio
 import uuid
-import shutil
-import os
-from pathlib import Path
 from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
 from core.models.futures_state import FuturesAnalysisState
+from server.routers import backtest
 
 app = FastAPI(title="博弈交易法分析系统")
 
@@ -36,68 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 注册路由
+app.include_router(backtest.router)
+
 # 简单的内存会话存储（需要持久化时可替换为 Redis/数据库）
 SESSIONS: Dict[str, Dict[str, Any]] = {}
-
-
-# 应用启动时初始化数据库和预热知识库
-@app.on_event("startup")
-def _startup_init():
-    # 初始化数据库
-    try:
-        from server.models import init_db
-        init_db()
-        print("[启动] 数据库初始化完成")
-    except Exception as e:
-        print(f"[启动] 数据库初始化失败: {e}")
-    
-    # 预热黄帝内经知识库
-    try:
-        from core.tools.huangdi_knowledge_base import get_knowledge_base
-        kb = get_knowledge_base()
-        kb.ensure_initialized()
-        print("[启动] 黄帝内经知识库初始化完成")
-    except Exception as e:
-        print(f"[启动] 知识库初始化失败: {e}")
-
-# 健康检查和根路径
-# 健康检查和根路径
-@app.get("/")
-async def root():
-    """根路径，用于健康检查"""
-    return {"status": "ok", "message": "博弈交易法分析系统 API"}
-
-
-@app.get("/health")
-async def health():
-    """健康检查端点"""
-    return {"status": "healthy", "service": "Aiansys_boyijiaoyi"}
-
-
-@app.options("/{full_path:path}")
-async def options_handler(full_path: str):
-    """处理所有 OPTIONS 预检请求"""
-    return {
-        "status": "ok",
-        "message": "CORS preflight",
-        "allowed_methods": ["GET", "POST", "OPTIONS"],
-        "allowed_headers": ["*"],
-        "allowed_origins": ["*"]
-    }
-
-
-def create_sse_response(generator):
-    """创建 SSE 响应，包含必要的响应头"""
-    return StreamingResponse(
-        generator,
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # 禁用 Nginx 缓冲
-            "Content-Type": "text/event-stream; charset=utf-8",
-        }
-    )
 
 
 def get_or_create_session(session_id: Optional[str]) -> (str, Dict[str, Any]):
@@ -129,6 +63,12 @@ class ChatRequest(BaseModel):
 class IntentRequest(BaseModel):
     """意图识别请求模型"""
     message: str
+
+
+@app.get("/")
+async def root():
+    """根路径"""
+    return {"message": "博弈交易法分析系统 API", "version": "1.0.0"}
 
 
 @app.get("/api/vnpy/status")
@@ -171,7 +111,6 @@ async def recognize_intent(request: IntentRequest):
 
 @app.get("/api/chat/stream")
 async def chat_stream(
-    request: Request,
     message: str,
     stock_code: Optional[str] = None,
     analysis_type: Optional[str] = "auto",
@@ -183,6 +122,7 @@ async def chat_stream(
     聊天流式接口
     使用LangGraph工作流进行分析
     """
+    
     async def generate():
         try:
             # 会话管理：获取或创建会话
@@ -306,7 +246,7 @@ async def chat_stream(
             error_msg = str(e)
             yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
     
-    return create_sse_response(generate())
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.post("/api/chat")
@@ -458,7 +398,6 @@ async def get_futures_data(
 
 @app.get("/api/futures/analyze/stream")
 async def futures_analyze_stream(
-    request: Request,
     message: str,
     futures_code: Optional[str] = None,
     analysis_type: Optional[str] = "all",
@@ -469,6 +408,7 @@ async def futures_analyze_stream(
     期货分析流式接口
     使用LangGraph工作流进行分析
     """
+    
     async def generate():
         try:
             print(f"[期货分析API] ========== 收到请求 ==========")
@@ -593,7 +533,7 @@ async def futures_analyze_stream(
             traceback.print_exc()
             yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
     
-    return create_sse_response(generate())
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.post("/api/futures/analyze")
@@ -699,11 +639,22 @@ class ZiweiPanRequest(BaseModel):
 
 
 @app.post("/api/ziwei/pan")
-async def ziwei_pan(http_request: Request, request: ZiweiPanRequest):
+async def ziwei_pan(request: ZiweiPanRequest):
     """
     紫微斗数排盘接口
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        print(f"[紫微斗数API] ========== 收到排盘请求 ==========")
+        print(f"[紫微斗数API] 年份: {request.year}")
+        print(f"[紫微斗数API] 月份: {request.month}")
+        print(f"[紫微斗数API] 日期: {request.day}")
+        print(f"[紫微斗数API] 时辰: {request.hour}")
+        print(f"[紫微斗数API] 性别: {request.gender}")
+        
+        logger.info(f"收到紫微斗数排盘请求: {request.year}年{request.month}月{request.day}日{request.hour}时, 性别={request.gender}")
         
         # 参数验证
         if not (1900 <= request.year <= 2100):
@@ -744,7 +695,19 @@ async def ziwei_pan(http_request: Request, request: ZiweiPanRequest):
         
         if not result.get('success'):
             error_msg = result.get('error', '未知错误')
+            print(f"[紫微斗数API] 分析失败: {error_msg}")
+            logger.error(f"分析失败: {error_msg}")
             raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
+        
+        print(f"[紫微斗数API] 分析成功，返回结果")
+        print(f"[紫微斗数API] 包含的分析模块:")
+        print(f"  - 命盘数据: {result.get('pan_data') is not None}")
+        print(f"  - 四化分析: {result.get('si_hua_analysis') is not None}")
+        print(f"  - 大限分析: {result.get('daxian_analysis') is not None}")
+        print(f"  - 神煞分析: {result.get('shensha_analysis') is not None}")
+        print(f"  - 格局分析: {result.get('geju_analysis') is not None}")
+        print(f"  - LLM分析: {result.get('llm_analysis') is not None}")
+        logger.info("完整分析成功")
         
         return {
             "success": True,
@@ -762,6 +725,10 @@ async def ziwei_pan(http_request: Request, request: ZiweiPanRequest):
         raise
     except Exception as e:
         error_msg = str(e)
+        print(f"[紫微斗数API] 发生异常: {error_msg}")
+        import traceback
+        print(f"[紫微斗数API] 异常堆栈:\n{traceback.format_exc()}")
+        logger.error(f"排盘异常: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
 
 
@@ -784,11 +751,22 @@ class BaziPanRequest(BaseModel):
 
 
 @app.post("/api/bazi/pan")
-async def bazi_pan(http_request: Request, request: BaziPanRequest):
+async def bazi_pan(request: BaziPanRequest):
     """
     八字排盘接口
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        print(f"[八字排盘API] ========== 收到排盘请求 ==========")
+        print(f"[八字排盘API] 年份: {request.year}")
+        print(f"[八字排盘API] 月份: {request.month}")
+        print(f"[八字排盘API] 日期: {request.day}")
+        print(f"[八字排盘API] 时辰: {request.hour}")
+        print(f"[八字排盘API] 性别: {request.gender}")
+        
+        logger.info(f"收到八字排盘请求: {request.year}年{request.month}月{request.day}日{request.hour}时, 性别={request.gender}")
         
         # 参数验证
         if not (1900 <= request.year <= 2100):
@@ -828,7 +806,20 @@ async def bazi_pan(http_request: Request, request: BaziPanRequest):
         
         if not result.get('success'):
             error_msg = result.get('error', '未知错误')
+            print(f"[八字排盘API] 分析失败: {error_msg}")
+            logger.error(f"分析失败: {error_msg}")
             raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
+        
+        print(f"[八字排盘API] 分析成功，返回结果")
+        print(f"[八字排盘API] 包含的分析模块:")
+        print(f"  - 四柱数据: {result.get('sizhu') is not None}")
+        print(f"  - 五行分析: {result.get('wuxing_analysis') is not None}")
+        print(f"  - 十神分析: {result.get('shishen_analysis') is not None}")
+        print(f"  - 大运分析: {result.get('dayun_analysis') is not None}")
+        print(f"  - 流年分析: {result.get('liunian_analysis') is not None}")
+        print(f"  - 神煞分析: {result.get('shensha_analysis') is not None}")
+        print(f"  - LLM分析: {result.get('llm_analysis') is not None}")
+        logger.info("完整分析成功")
         
         return {
             "success": True,
@@ -845,6 +836,10 @@ async def bazi_pan(http_request: Request, request: BaziPanRequest):
         raise
     except Exception as e:
         error_msg = str(e)
+        print(f"[八字排盘API] 发生异常: {error_msg}")
+        import traceback
+        print(f"[八字排盘API] 异常堆栈:\n{traceback.format_exc()}")
+        logger.error(f"排盘异常: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
 
 
@@ -856,107 +851,6 @@ async def divination_test():
     return {"message": "六爻卜卦API已就绪", "status": "ok"}
 
 
-# ==================== 黄帝内经API ====================
-
-@app.get("/api/huangdi/test")
-def huangdi_test():
-    """测试黄帝内经API是否可用"""
-    return {"message": "黄帝内经API已就绪", "status": "ok"}
-
-class HuangdiRequest(BaseModel):
-    """黄帝内经请求模型"""
-    question: str
-    query_type: Optional[str] = None  # query/diagnosis/consultation，如果为None则自动检测
-    include_llm: bool = True
-    context: Optional[Dict[str, Any]] = None  # 额外上下文（如症状、体质、季节、年龄等）
-
-
-@app.post("/api/huangdi/analyze")
-def huangdi_analyze(request: HuangdiRequest):
-    """
-    黄帝内经分析接口
-    """
-    try:
-        # 参数验证
-        if not request.question or not request.question.strip():
-            raise HTTPException(status_code=400, detail="必须提供问题")
-        
-        print(f"[黄帝内经API] 参数校验通过，准备分析")
-        print(f"[黄帝内经API] 查询类型: {request.query_type or 'auto'}, include_llm={request.include_llm}")
-        try:
-            q_len = len(request.question or "")
-            ctx_keys = list((request.context or {}).keys())
-        except Exception:
-            q_len = 0
-            ctx_keys = []
-        print(f"[黄帝内经API] 输入长度 q={q_len}, ctx_keys={ctx_keys}")
-        
-        # 调用完整分析函数
-        from core.agents.huangdi_analysis_agent import huangdi_complete_analysis
-        
-        print(f"[黄帝内经API] 正在调用 huangdi_complete_analysis...")
-        result = huangdi_complete_analysis(
-            question=request.question,
-            query_type=request.query_type,
-            include_llm=request.include_llm,
-            context=request.context,
-        )
-        
-        print(f"[黄帝内经API] 分析函数返回结果: success={result.get('success')}")
-        
-        if not result.get('success'):
-            error_msg = result.get('error', '未知错误')
-            raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
-        
-        # 根据查询类型返回相应的结果
-        query_type = result.get('query_type', 'query')
-        
-        if query_type == 'diagnosis':
-            diagnosis_result = result.get('diagnosis_result', {})
-            return {
-                "success": True,
-                "query_type": "diagnosis",
-                "question": request.question,
-                "symptoms": diagnosis_result.get('symptoms'),
-                "symptom_keywords": diagnosis_result.get('symptom_keywords', []),
-                "relevant_theories": diagnosis_result.get('relevant_theories', []),
-                "llm_analysis": diagnosis_result.get('llm_analysis'),
-                "disclaimer": diagnosis_result.get('disclaimer'),
-            }
-        elif query_type == 'consultation':
-            consultation_result = result.get('consultation_result', {})
-            return {
-                "success": True,
-                "query_type": "consultation",
-                "question": request.question,
-                "season": consultation_result.get('season'),
-                "age": consultation_result.get('age'),
-                "constitution": consultation_result.get('constitution', []),
-                "relevant_theories": consultation_result.get('relevant_theories', []),
-                "llm_suggestions": consultation_result.get('llm_suggestions'),
-                "disclaimer": consultation_result.get('disclaimer'),
-            }
-        else:
-            query_result = result.get('query_result', {})
-            return {
-                "success": True,
-                "query_type": "query",
-                "question": request.question,
-                "relevant_chapters": query_result.get('relevant_chapters', []),
-                "llm_explanation": query_result.get('llm_explanation'),
-                "total_results": query_result.get('total_results', 0),
-            }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = str(e)
-        raise HTTPException(status_code=500, detail=f"黄帝内经分析异常: {error_msg}")
-
-
- 
-
-
 class DivinationRequest(BaseModel):
     """六爻卜卦请求模型"""
     coin_results: List[List[int]]  # 6次摇卦结果，每次3枚铜钱（0=反面，1=正面）
@@ -965,11 +859,20 @@ class DivinationRequest(BaseModel):
 
 
 @app.post("/api/divination/analyze")
-async def divination_analyze(http_request: Request, request: DivinationRequest):
+async def divination_analyze(request: DivinationRequest):
     """
     六爻卜卦分析接口
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
+        print(f"[六爻卜卦API] ========== 收到卜卦请求 ==========")
+        print(f"[六爻卜卦API] 问题: {request.question}")
+        print(f"[六爻卜卦API] 摇卦结果数量: {len(request.coin_results)}")
+        print(f"[六爻卜卦API] 调用LLM: {request.include_llm}")
+        
+        logger.info(f"收到六爻卜卦请求: 问题={request.question}, 摇卦次数={len(request.coin_results)}")
         
         # 参数验证
         if len(request.coin_results) != 6:
@@ -1000,7 +903,12 @@ async def divination_analyze(http_request: Request, request: DivinationRequest):
         
         if not result.get('success'):
             error_msg = result.get('error', '未知错误')
+            print(f"[六爻卜卦API] 分析失败: {error_msg}")
+            logger.error(f"分析失败: {error_msg}")
             raise HTTPException(status_code=500, detail=f"分析失败: {error_msg}")
+        
+        print(f"[六爻卜卦API] 分析成功，返回结果")
+        logger.info("六爻卜卦分析成功")
         
         return {
             "success": True,
@@ -1013,530 +921,11 @@ async def divination_analyze(http_request: Request, request: DivinationRequest):
         raise
     except Exception as e:
         error_msg = str(e)
+        print(f"[六爻卜卦API] 发生异常: {error_msg}")
+        import traceback
+        print(f"[六爻卜卦API] 异常堆栈:\n{traceback.format_exc()}")
+        logger.error(f"六爻卜卦异常: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"六爻卜卦异常: {error_msg}")
-
-
-# ==================== 反馈功能API ====================
-
-from server.models import (
-    Requirement, Issue, Reward,
-    RequirementCreate, RequirementResponse,
-    IssueCreate, IssueResponse,
-    RewardCreate, RewardResponse,
-    get_db
-)
-from sqlalchemy.orm import Session
-from fastapi import Depends
-
-
-@app.post("/api/requirements/submit", response_model=RequirementResponse)
-async def submit_requirement(
-    request: RequirementCreate,
-    db: Session = Depends(get_db)
-):
-    """
-    提交需求接口
-    """
-    try:
-        # 创建需求记录
-        requirement = Requirement(
-            title=request.title,
-            content=request.content,
-            contact=request.contact,
-            status="pending"
-        )
-        db.add(requirement)
-        db.commit()
-        db.refresh(requirement)
-        
-        print(f"[需求提交] 成功: id={requirement.id}, title={requirement.title}")
-        
-        return requirement
-        
-    except Exception as e:
-        db.rollback()
-        error_msg = str(e)
-        print(f"[需求提交] 失败: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"提交需求失败: {error_msg}")
-
-
-@app.get("/api/requirements/list")
-async def list_requirements(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """
-    获取需求列表（可选，用于管理）
-    """
-    try:
-        requirements = db.query(Requirement).order_by(Requirement.created_at.desc()).offset(skip).limit(limit).all()
-        total = db.query(Requirement).count()
-        
-        return {
-            "success": True,
-            "total": total,
-            "items": [RequirementResponse.model_validate(req) for req in requirements]
-        }
-    except Exception as e:
-        error_msg = str(e)
-        raise HTTPException(status_code=500, detail=f"获取需求列表失败: {error_msg}")
-
-
-@app.post("/api/issues/submit", response_model=IssueResponse)
-async def submit_issue(
-    request: IssueCreate,
-    db: Session = Depends(get_db)
-):
-    """
-    提交问题接口
-    """
-    try:
-        # 验证严重程度
-        valid_severities = ["low", "medium", "high", "critical"]
-        severity = request.severity if request.severity in valid_severities else "medium"
-        
-        # 创建问题记录
-        issue = Issue(
-            title=request.title,
-            content=request.content,
-            contact=request.contact,
-            severity=severity,
-            status="open"
-        )
-        db.add(issue)
-        db.commit()
-        db.refresh(issue)
-        
-        print(f"[问题提交] 成功: id={issue.id}, title={issue.title}, severity={issue.severity}")
-        
-        return issue
-        
-    except Exception as e:
-        db.rollback()
-        error_msg = str(e)
-        print(f"[问题提交] 失败: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"提交问题失败: {error_msg}")
-
-
-@app.get("/api/issues/list")
-async def list_issues(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """
-    获取问题列表（可选，用于管理）
-    """
-    try:
-        issues = db.query(Issue).order_by(Issue.created_at.desc()).offset(skip).limit(limit).all()
-        total = db.query(Issue).count()
-        
-        return {
-            "success": True,
-            "total": total,
-            "items": [IssueResponse.model_validate(issue) for issue in issues]
-        }
-    except Exception as e:
-        error_msg = str(e)
-        raise HTTPException(status_code=500, detail=f"获取问题列表失败: {error_msg}")
-
-
-@app.post("/api/rewards/create", response_model=RewardResponse)
-async def create_reward_order(
-    request: RewardCreate,
-    db: Session = Depends(get_db)
-):
-    """
-    创建打赏订单接口
-    """
-    try:
-        from server.services.payment_service import create_order
-        
-        # 创建订单
-        order_info = create_order(
-            db=db,
-            amount=request.amount,
-            message=request.message,
-            contact=request.contact
-        )
-        
-        # 查询订单
-        reward = db.query(Reward).filter(Reward.order_id == order_info["order_id"]).first()
-        
-        if not reward:
-            raise HTTPException(status_code=500, detail="订单创建失败")
-        
-        print(f"[打赏API] 订单创建成功: order_id={reward.order_id}, amount={reward.amount}")
-        
-        return reward
-        
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[打赏API] 订单创建失败: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"创建订单失败: {error_msg}")
-
-
-@app.post("/api/rewards/pay/{order_id}")
-async def pay_reward(
-    order_id: str,
-    db: Session = Depends(get_db)
-):
-    """
-    执行支付（模拟支付）
-    """
-    try:
-        from server.services.payment_service import simulate_payment
-        
-        # 执行模拟支付
-        payment_result = simulate_payment(db=db, order_id=order_id)
-        
-        return {
-            "success": True,
-            **payment_result
-        }
-        
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[打赏API] 支付失败: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"支付失败: {error_msg}")
-
-
-@app.get("/api/rewards/status/{order_id}", response_model=RewardResponse)
-async def get_reward_status(
-    order_id: str,
-    db: Session = Depends(get_db)
-):
-    """
-    查询订单状态接口
-    """
-    try:
-        from server.services.payment_service import get_order_status
-        
-        reward = get_order_status(db=db, order_id=order_id)
-        
-        if not reward:
-            raise HTTPException(status_code=404, detail="订单不存在")
-        
-        return reward
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[打赏API] 查询订单状态失败: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"查询订单状态失败: {error_msg}")
-
-
-@app.post("/api/rewards/callback")
-async def reward_callback(
-    request: Dict[str, Any],
-    db: Session = Depends(get_db)
-):
-    """
-    支付回调接口（预留，用于真实支付）
-    当前实现为占位符
-    """
-    try:
-        # 这里是预留的支付回调接口
-        # 当接入真实支付后，可以在这里处理支付回调
-        return {
-            "success": True,
-            "message": "支付回调接口（预留）"
-        }
-    except Exception as e:
-        error_msg = str(e)
-        raise HTTPException(status_code=500, detail=f"处理支付回调失败: {error_msg}")
-
-
-# ==================== OCR功能API ====================
-
-# 创建上传目录
-UPLOAD_DIR = os.path.join(project_root, "data", "uploads", "ocr")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-
-class OCRRecognizeRequest(BaseModel):
-    """OCR识别请求模型"""
-    image_id: Optional[str] = None
-    context: Optional[str] = ""
-
-
-class OCRRecognizeResponse(BaseModel):
-    """OCR识别响应模型"""
-    success: bool
-    text: str
-    image_id: Optional[str] = None
-    model: Optional[str] = None
-    elapsed_time: Optional[float] = None
-    error: Optional[str] = None
-
-
-class OCRUploadResponse(BaseModel):
-    """图片上传响应模型"""
-    success: bool
-    image_id: str
-    filename: str
-    file_size: int
-    preview_url: str
-
-
-@app.post("/api/ocr/upload", response_model=OCRUploadResponse)
-async def upload_image(file: UploadFile = File(...)):
-    """
-    图片上传接口
-    """
-    try:
-        # 验证文件类型
-        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
-        if file.content_type not in allowed_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"不支持的文件类型: {file.content_type}，仅支持: {', '.join(allowed_types)}"
-            )
-        
-        # 验证文件大小（10MB限制）
-        file_content = await file.read()
-        file_size = len(file_content)
-        max_size = 10 * 1024 * 1024  # 10MB
-        if file_size > max_size:
-            raise HTTPException(
-                status_code=400,
-                detail=f"文件大小超过限制: {file_size / 1024 / 1024:.2f}MB，最大支持10MB"
-            )
-        
-        # 生成唯一文件名
-        import uuid
-        file_ext = os.path.splitext(file.filename)[1] or ".jpg"
-        image_id = str(uuid.uuid4())
-        filename = f"{image_id}{file_ext}"
-        file_path = os.path.join(UPLOAD_DIR, filename)
-        
-        # 保存文件
-        with open(file_path, "wb") as f:
-            f.write(file_content)
-        
-        print(f"[OCR上传] 成功: image_id={image_id}, filename={file.filename}, size={file_size} bytes")
-        
-        return {
-            "success": True,
-            "image_id": image_id,
-            "filename": filename,
-            "file_size": file_size,
-            "preview_url": f"/api/ocr/preview/{image_id}"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[OCR上传] 失败: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"图片上传失败: {error_msg}")
-
-
-@app.get("/api/ocr/preview/{image_id}")
-async def preview_image(image_id: str):
-    """
-    预览上传的图片
-    """
-    try:
-        # 查找文件
-        for ext in [".jpg", ".jpeg", ".png", ".webp"]:
-            file_path = os.path.join(UPLOAD_DIR, f"{image_id}{ext}")
-            if os.path.exists(file_path):
-                return FileResponse(file_path)
-        
-        raise HTTPException(status_code=404, detail="图片不存在")
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = str(e)
-        raise HTTPException(status_code=500, detail=f"预览图片失败: {error_msg}")
-
-
-@app.post("/api/ocr/recognize", response_model=OCRRecognizeResponse)
-async def recognize_image(
-    request: Request,
-    file: Optional[UploadFile] = File(None),
-    image_id: Optional[str] = None,
-    context: Optional[str] = None
-):
-    """
-    OCR识别接口
-    支持两种方式：
-    1. 通过image_id识别已上传的图片
-    2. 直接上传图片进行识别
-    """
-    try:
-        from core.tools.ocr_processor import extract_text_from_image, analyze_stock_image
-        
-        # 如果content-type是application/json，尝试解析JSON body
-        if request.headers.get("content-type", "").startswith("application/json"):
-            try:
-                body = await request.json()
-                image_id = image_id or body.get("image_id")
-                context = context or body.get("context", "")
-            except:
-                pass
-        
-        image_path = None
-        
-        # 方式1: 通过image_id识别
-        if image_id:
-            # 查找文件
-            for ext in [".jpg", ".jpeg", ".png", ".webp"]:
-                candidate_path = os.path.join(UPLOAD_DIR, f"{image_id}{ext}")
-                if os.path.exists(candidate_path):
-                    image_path = candidate_path
-                    break
-            
-            if not image_path:
-                raise HTTPException(status_code=404, detail=f"图片不存在: {image_id}")
-        
-        # 方式2: 直接上传图片
-        elif file:
-            # 验证文件类型
-            allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
-            if file.content_type not in allowed_types:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"不支持的文件类型: {file.content_type}"
-                )
-            
-            # 保存临时文件
-            import uuid
-            file_ext = os.path.splitext(file.filename)[1] or ".jpg"
-            temp_id = str(uuid.uuid4())
-            filename = f"{temp_id}{file_ext}"
-            image_path = os.path.join(UPLOAD_DIR, filename)
-            
-            file_content = await file.read()
-            with open(image_path, "wb") as f:
-                f.write(file_content)
-        else:
-            raise HTTPException(status_code=400, detail="请提供image_id或上传图片文件")
-        
-        # 执行OCR识别
-        print(f"[OCR识别] 开始识别: {image_path}")
-        
-        context_str = context or ""
-        if context_str and ("股票" in context_str or "K线" in context_str or "财报" in context_str):
-            # 使用股票分析专用函数
-            result = analyze_stock_image(image_path)
-        else:
-            # 使用通用OCR函数
-            result = extract_text_from_image(image_path, context_str)
-        
-        # 如果使用的是临时文件，可以选择删除
-        # 这里保留文件，方便后续查看
-        
-        return {
-            "success": True,
-            "text": result.get("text", ""),
-            "image_id": image_id,
-            "model": result.get("model"),
-            "elapsed_time": result.get("elapsed_time"),
-            "error": result.get("error")
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[OCR识别] 失败: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"OCR识别失败: {error_msg}")
-
-
-@app.post("/api/ocr/analyze", response_model=OCRRecognizeResponse)
-async def analyze_image(
-    request: Request,
-    file: Optional[UploadFile] = File(None),
-    image_id: Optional[str] = None,
-    context: Optional[str] = None
-):
-    """
-    OCR+分析接口
-    识别图片文字后，结合股票分析场景进行智能提取
-    """
-    try:
-        from core.tools.ocr_processor import analyze_stock_image
-        
-        # 如果content-type是application/json，尝试解析JSON body
-        if request.headers.get("content-type", "").startswith("application/json"):
-            try:
-                body = await request.json()
-                image_id = image_id or body.get("image_id")
-                context = context or body.get("context", "")
-            except:
-                pass
-        
-        image_path = None
-        
-        # 方式1: 通过image_id识别
-        if image_id:
-            for ext in [".jpg", ".jpeg", ".png", ".webp"]:
-                candidate_path = os.path.join(UPLOAD_DIR, f"{image_id}{ext}")
-                if os.path.exists(candidate_path):
-                    image_path = candidate_path
-                    break
-            
-            if not image_path:
-                raise HTTPException(status_code=404, detail=f"图片不存在: {image_id}")
-        
-        # 方式2: 直接上传图片
-        elif file:
-            allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
-            if file.content_type not in allowed_types:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"不支持的文件类型: {file.content_type}"
-                )
-            
-            import uuid
-            file_ext = os.path.splitext(file.filename)[1] or ".jpg"
-            temp_id = str(uuid.uuid4())
-            filename = f"{temp_id}{file_ext}"
-            image_path = os.path.join(UPLOAD_DIR, filename)
-            
-            file_content = await file.read()
-            with open(image_path, "wb") as f:
-                f.write(file_content)
-        else:
-            raise HTTPException(status_code=400, detail="请提供image_id或上传图片文件")
-        
-        # 执行OCR+分析
-        print(f"[OCR分析] 开始分析: {image_path}")
-        import time
-        api_start_time = time.time()
-        
-        result = analyze_stock_image(image_path)
-        
-        api_elapsed_time = time.time() - api_start_time
-        print(f"[OCR分析] 分析完成，总耗时: {api_elapsed_time:.2f}秒")
-        print(f"[OCR分析] 识别结果长度: {len(result.get('text', ''))} 字符")
-        print(f"[OCR分析] 是否有错误: {bool(result.get('error'))}")
-        
-        # 检查识别结果
-        text = result.get("text", "").strip()
-        if not text and not result.get("error"):
-            print(f"[OCR分析] 警告: 识别结果为空，但未报告错误")
-        
-        return {
-            "success": True if text or result.get("error") else False,
-            "text": text,
-            "image_id": image_id,
-            "model": result.get("model"),
-            "elapsed_time": result.get("elapsed_time") or api_elapsed_time,
-            "error": result.get("error")
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[OCR分析] 失败: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"OCR分析失败: {error_msg}")
 
 
 if __name__ == "__main__":

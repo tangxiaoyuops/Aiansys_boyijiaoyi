@@ -503,28 +503,22 @@ def calculate_washout_indicators(data: pd.DataFrame, lookback_days: int = 30) ->
     }
 
 
-def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1.5) -> List[Dict[str, Any]]:
+def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1.5, big_yang_filter_ratio: float = 1.2, big_yang_filter_days: int = 10) -> List[Dict[str, Any]]:
     """
     识别恐慌点（买入信号）
-    
-    核心原则：持仓的跌了怕继续跌，外面的不敢进
     
     恐慌点特征：
     1. 5阶段长期阴跌后，突然急剧下跌且放量
     2. 一阶段O点之前的急剧下跌，反弹一小段后又往下跌，出现小短期放量
     3. 1/2阶段，具有上涨趋势，前面有明显洗盘、长时间横盘，突然出现1-2根大大的放巨量的阴线
     4. 小碎步上涨过程中突然的大跌放量阴线
-    5. **连续下跌，跟随的大阴线跌破前低点、重要均线，导致恐慌盘放量，散户被洗出去**
-       - 这是最重要的恐慌点类型：持仓的跌了怕继续跌，外面的不敢进
-       - 特征：前面有连续下跌（至少3-5天），大阴线跌破前低或重要均线（如20日、30日、60日均线）
-       - 放量下跌，但后续继续下跌或横盘，让外面的人不敢进
     
     返回:
         List[Dict]: 恐慌点列表，每个包含：
         {
             'date': datetime,
             'price': float,
-            'type': str,  # 'stage5_panic', 'stage1_panic', 'washout_panic', 'uptrend_panic', 'breakdown_panic'
+            'type': str,  # 'stage5_panic', 'stage1_panic', 'washout_panic', 'uptrend_panic'
             'vol_ratio': float,
             'drop_pct': float,
             'description': str
@@ -544,19 +538,112 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
     # 计算涨跌幅
     recent['change_pct'] = recent['收盘'].pct_change() * 100
     
+    # 辅助函数：检查前N天是否有大阳线，并返回最大大阳线的长度
+    def check_big_yang_in_range(start_idx: int, days: int = 10) -> Tuple[bool, float]:
+        """
+        检查从start_idx往前days天内是否有大阳线
+        
+        Returns:
+            (has_big_yang, max_yang_length): (是否有大阳线, 最大大阳线长度)
+        """
+        if start_idx < days:
+            days = start_idx
+        
+        has_big_yang = False
+        max_yang_length = 0.0
+        
+        for j in range(max(0, start_idx - days), start_idx):
+            check_row = recent.iloc[j]
+            # 判断是否为大阳线：阳线（收盘 >= 开盘）
+            is_yang = check_row['收盘'] >= check_row['开盘']
+            if is_yang:
+                yang_length = (check_row['收盘'] - check_row['开盘']) / check_row['开盘'] if check_row['开盘'] > 0 else 0
+                body_pct = (check_row['收盘'] - check_row['开盘']) / check_row['开盘'] * 100 if check_row['开盘'] > 0 else 0
+                
+                # 检查涨跌幅（如果有涨跌幅列，优先使用；否则使用实体长度）
+                change_pct = None
+                if '涨跌幅' in check_row and pd.notna(check_row['涨跌幅']):
+                    change_pct = float(check_row['涨跌幅'])
+                elif j > 0:
+                    # 如果没有涨跌幅列，计算涨跌幅
+                    prev_check_row = recent.iloc[j-1]
+                    if prev_check_row['收盘'] > 0:
+                        change_pct = (check_row['收盘'] - prev_check_row['收盘']) / prev_check_row['收盘'] * 100
+                
+                # 大阳线判断：实体长度>5% 或 涨跌幅>5%（包括涨停）
+                # 涨停：涨跌幅接近10%（9.5%以上）
+                is_limit_up = change_pct is not None and change_pct >= 9.5
+                is_big_yang = body_pct > 5.0 or (change_pct is not None and change_pct > 5.0) or is_limit_up
+                
+                if is_big_yang:
+                    has_big_yang = True
+                    # 对于涨停，大阳线长度应该使用涨跌幅（接近10%），而不是实体长度
+                    if is_limit_up and change_pct is not None:
+                        # 涨停时，大阳线长度使用涨跌幅
+                        effective_yang_length = change_pct / 100.0
+                        if effective_yang_length > max_yang_length:
+                            max_yang_length = effective_yang_length
+                    else:
+                        # 非涨停的大阳线，使用实体长度
+                        if yang_length > max_yang_length:
+                            max_yang_length = yang_length
+        
+        return has_big_yang, max_yang_length
+    
     for i in range(1, len(recent)):
         row = recent.iloc[i]
         prev_row = recent.iloc[i-1]
         
+        # 获取日期用于调试
+        current_date = row.get('日期', f'第{i}天')
+        current_date_str = str(current_date)
+        
         # 基本条件：放量
         vol_ratio_current = row['成交量'] / vol_avg if vol_avg > 0 else 1.0
         if vol_ratio_current < vol_ratio:
+            # 只在跌幅较大时输出调试信息，避免日志过多
+            drop_pct_check = (row['收盘'] - prev_row['收盘']) / prev_row['收盘'] * 100 if prev_row['收盘'] > 0 else 0
+            if drop_pct_check < -3.0:  # 如果跌幅>3%但放量不够，输出日志
+                print(f"[恐慌点检测] 跳过：日期={current_date_str}, 跌幅{drop_pct_check:.2f}%较大，但放量{vol_ratio_current:.2f}倍 < 要求{vol_ratio}倍")
             continue
         
-        # 判断是否阴线
-        is_bearish = row['收盘'] < row['开盘']
-        # 判断是否大跌
+        # 判断是否大跌（关键：恐慌点必须是下跌的，即收盘价 < 前一天收盘价）
         drop_pct = (row['收盘'] - prev_row['收盘']) / prev_row['收盘'] * 100 if prev_row['收盘'] > 0 else 0
+        
+        # 恐慌点必须是下跌的！如果上涨，直接跳过
+        if drop_pct >= 0:
+            # 添加调试信息：如果是上涨，明确说明跳过原因
+            if drop_pct > 0:
+                print(f"[恐慌点检测] 跳过：当日上涨{drop_pct:.2f}%，恐慌点必须是下跌")
+            continue
+        
+        # 判断是否阴线（收盘价 < 开盘价）
+        is_bearish = row['收盘'] < row['开盘']
+        
+        # 计算阴线长度（实体部分）：开盘价 - 收盘价（仅当是阴线时计算）
+        # 阴线定义：收盘价 < 开盘价
+        # 阴线长度 = (开盘价 - 收盘价) / 开盘价
+        if is_bearish:
+            bearish_length = (row['开盘'] - row['收盘']) / row['开盘'] if row['开盘'] > 0 else 0
+        else:
+            # 如果不是阴线（收盘价 >= 开盘价），即使下跌了，也不应该被视为恐慌点
+            # 因为恐慌点必须是阴线（收盘价 < 开盘价）
+            bearish_length = 0
+            # 添加调试信息
+            if drop_pct < 0:
+                print(f"[恐慌点检测] 跳过：当日下跌{drop_pct:.2f}%，但不是阴线（开盘{row['开盘']:.2f}，收盘{row['收盘']:.2f}），恐慌点必须是阴线")
+            continue
+        
+        # 大阳线过滤条件：恐慌点前N天范围内，如果有大阳线，恐慌点的阴线长度必须大于大阳线长度的big_yang_filter_ratio倍
+        has_big_yang, max_yang_length = check_big_yang_in_range(i, days=big_yang_filter_days)
+        if has_big_yang:
+            # 如果前N天有大阳线，恐慌点的阴线长度必须大于大阳线长度的big_yang_filter_ratio倍
+            required_bearish_length = max_yang_length * big_yang_filter_ratio
+            if bearish_length < required_bearish_length:
+                # 不符合条件，跳过这个可能的恐慌点
+                # 添加调试日志
+                print(f"[恐慌点检测] 跳过：前{big_yang_filter_days}天有大阳线(长度{max_yang_length*100:.2f}%)，当前阴线长度{bearish_length*100:.2f}% < 要求{required_bearish_length*100:.2f}%")
+                continue
         
         # 排除涨停后的调整：如果前一天是涨停，且今天跌幅不大（<5%），不算恐慌点
         # 涨停后的正常调整不应该被视为恐慌点
@@ -564,13 +651,38 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
             prev_open = prev_row['开盘']
             prev_close = prev_row['收盘']
             prev_body_pct = (prev_close - prev_open) / prev_open if prev_open > 0 else 0
-            prev_is_limit_up = prev_body_pct > 0.095  # 前一天是涨停
+            
+            # 检查前一天是否涨停：优先使用涨跌幅列，否则计算涨跌幅
+            prev_change_pct = None
+            if '涨跌幅' in prev_row and pd.notna(prev_row['涨跌幅']):
+                prev_change_pct = float(prev_row['涨跌幅'])
+            elif i >= 2:
+                # 计算涨跌幅（相对于前一天的收盘价）
+                prev_2_row = recent.iloc[i-2]
+                if prev_2_row['收盘'] > 0:
+                    prev_change_pct = (prev_close - prev_2_row['收盘']) / prev_2_row['收盘'] * 100
+            
+            # 涨停判断：涨跌幅>=9.5%，或者实体长度>=9.5%（高开低走但涨幅仍接近10%）
+            prev_is_limit_up = (prev_change_pct is not None and prev_change_pct >= 9.5) or prev_body_pct > 0.095
             
             if prev_is_limit_up:
-                # 涨停后1-3天的调整，如果跌幅<5%，不算恐慌点（这是正常的技术性调整）
-                if drop_pct > -5.0:
+                # 涨停后第二天的调整：需要检查阴线长度是否大于涨停大阳线长度的big_yang_filter_ratio倍
+                # 涨停的大阳线长度：优先使用涨跌幅，否则使用实体长度
+                if prev_change_pct is not None and prev_change_pct >= 9.5:
+                    prev_yang_length = prev_change_pct / 100.0  # 使用涨跌幅作为大阳线长度
+                else:
+                    prev_yang_length = prev_body_pct  # 使用实体长度
+                
+                required_bearish_after_limit_up = prev_yang_length * big_yang_filter_ratio
+                
+                # 如果阴线长度不够大，不算恐慌点（这是涨停后的正常调整）
+                if bearish_length < required_bearish_after_limit_up:
+                    print(f"[恐慌点检测] 跳过：前一天涨停(大阳线长度{prev_yang_length*100:.2f}%)，当前阴线长度{bearish_length*100:.2f}% < 要求{required_bearish_after_limit_up*100:.2f}%")
                     continue
-                # 即使跌幅>=5%，也要检查是否是连续涨停后的调整（不算恐慌点）
+                
+                # 如果阴线长度足够大（>= 要求），说明是真正的恐慌点，允许通过
+                # 不再用跌幅来过滤，因为阴线长度已经足够说明问题了
+                # 但是要检查是否是连续涨停后的调整（不算恐慌点）
                 if i >= 2:
                     prev_2_row = recent.iloc[i-2]
                     prev_2_open = prev_2_row['开盘']
@@ -578,6 +690,7 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                     prev_2_body_pct = (prev_2_close - prev_2_open) / prev_2_open if prev_2_open > 0 else 0
                     # 如果前两天也是涨停，说明是连续涨停后的调整，不算恐慌点
                     if prev_2_body_pct > 0.095:
+                        print(f"[恐慌点检测] 跳过：连续涨停后的调整，不算恐慌点")
                         continue
         
         # 1. 5阶段长期阴跌后的急剧下跌（跌幅>3%，放量）
@@ -587,6 +700,7 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                 prev_20 = recent.iloc[i-20:i]
                 prev_20_change = (prev_20.iloc[-1]['收盘'] - prev_20.iloc[0]['收盘']) / prev_20.iloc[0]['收盘'] * 100
                 if prev_20_change < -10:  # 前面20日累计跌幅>10%
+                    print(f"[恐慌点检测] ✓ 识别为5阶段恐慌点：日期={row.get('日期', 'N/A')}, 跌幅={drop_pct:.2f}%, 放量={vol_ratio_current:.2f}倍, 阴线长度={bearish_length*100:.2f}%")
                     panic_points.append({
                         'date': row['日期'] if '日期' in row else None,
                         'price': float(row['收盘']),
@@ -597,7 +711,7 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                     })
         
         # 2. 一阶段O点之前的急剧下跌（跌幅>3%，反弹后又下跌）
-        # 提高阈值到-3%，避免将涨停后的小幅调整误判为恐慌点
+        # 注意：此类型已经在循环开始处通过了下跌和阴线检查
         if drop_pct < -3.0 and vol_ratio_current >= vol_ratio:
             # 检查前面是否有反弹
             if i >= 5:
@@ -610,23 +724,37 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                     prev_open = prev_row['开盘']
                     prev_close = prev_row['收盘']
                     prev_body_pct = (prev_close - prev_open) / prev_open if prev_open > 0 else 0
-                    prev_is_limit_up = prev_body_pct > 0.095
+                    
+                    # 检查前一天是否涨停：优先使用涨跌幅列
+                    prev_change_pct_2 = None
+                    if '涨跌幅' in prev_row and pd.notna(prev_row['涨跌幅']):
+                        prev_change_pct_2 = float(prev_row['涨跌幅'])
+                    elif i >= 2:
+                        prev_2_row = recent.iloc[i-2]
+                        if prev_2_row['收盘'] > 0:
+                            prev_change_pct_2 = (prev_close - prev_2_row['收盘']) / prev_2_row['收盘'] * 100
+                    
+                    prev_is_limit_up = (prev_change_pct_2 is not None and prev_change_pct_2 >= 9.5) or prev_body_pct > 0.095
                     
                     # 如果是涨停后的调整，且跌幅不大，不算恐慌点
                     if prev_is_limit_up and drop_pct > -5.0:
-                        continue
-                    
-                    panic_points.append({
-                        'date': row['日期'] if '日期' in row else None,
-                        'price': float(row['收盘']),
-                        'type': 'stage1_panic',
-                        'vol_ratio': float(vol_ratio_current),
-                        'drop_pct': float(drop_pct),
-                        'description': f'一阶段O点前的急剧下跌，反弹后又下跌，跌幅{drop_pct:.2f}%，放量{vol_ratio_current:.2f}倍'
-                    })
+                        print(f"[恐慌点检测] 跳过：前一天涨停，当前跌幅{drop_pct:.2f}%不够大，不算一阶段恐慌点")
+                        # 注意：这里continue只会跳过第2种类型，不会跳过整个循环
+                        # 但由于已经在循环开始处检查了下跌和阴线，所以不会有问题
+                    else:
+                        print(f"[恐慌点检测] ✓ 识别为一阶段恐慌点：日期={row.get('日期', 'N/A')}, 跌幅={drop_pct:.2f}%, 放量={vol_ratio_current:.2f}倍, 阴线长度={bearish_length*100:.2f}%")
+                        panic_points.append({
+                            'date': row['日期'] if '日期' in row else None,
+                            'price': float(row['收盘']),
+                            'type': 'stage1_panic',
+                            'vol_ratio': float(vol_ratio_current),
+                            'drop_pct': float(drop_pct),
+                            'description': f'一阶段O点前的急剧下跌，反弹后又下跌，跌幅{drop_pct:.2f}%，放量{vol_ratio_current:.2f}倍'
+                        })
         
         # 3. 1/2阶段上涨趋势中，洗盘横盘后的放量阴线
-        if is_bearish and vol_ratio_current >= vol_ratio * 1.5:  # 放巨量
+        # 注意：此类型已经在循环开始处通过了下跌和阴线检查，且需要放巨量（1.5倍）
+        if is_bearish and drop_pct < 0 and vol_ratio_current >= vol_ratio * 1.5:  # 放巨量
             # 检查前面是否有横盘（波动小）
             if i >= 10:
                 prev_10 = recent.iloc[i-10:i]
@@ -637,6 +765,7 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                     prev_30_change = (prev_30.iloc[-1]['收盘'] - prev_30.iloc[0]['收盘']) / prev_30.iloc[0]['收盘'] * 100
                     # 前面有上涨趋势（涨幅>5%）且横盘（波动率<3%）
                     if prev_30_change > 5 and prev_10_volatility < 0.03:
+                        print(f"[恐慌点检测] ✓ 识别为洗盘恐慌点：日期={row.get('日期', 'N/A')}, 跌幅={drop_pct:.2f}%, 放量={vol_ratio_current:.2f}倍, 阴线长度={bearish_length*100:.2f}%")
                         panic_points.append({
                             'date': row['日期'] if '日期' in row else None,
                             'price': float(row['收盘']),
@@ -647,7 +776,7 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                         })
         
         # 4. 小碎步上涨过程中的大跌放量阴线
-        # 提高阈值到-3%，避免将涨停后的小幅调整误判为恐慌点
+        # 注意：此类型已经在循环开始处通过了下跌和阴线检查
         if drop_pct < -3.0 and vol_ratio_current >= vol_ratio:
             # 检查前面是否小碎步上涨（近10日累计涨幅>3%但单日涨幅都不大）
             if i >= 10:
@@ -659,13 +788,24 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                 prev_open = prev_row['开盘']
                 prev_close = prev_row['收盘']
                 prev_body_pct = (prev_close - prev_open) / prev_open if prev_open > 0 else 0
-                prev_is_limit_up = prev_body_pct > 0.095
+                
+                # 检查前一天是否涨停：优先使用涨跌幅列
+                prev_change_pct_4 = None
+                if '涨跌幅' in prev_row and pd.notna(prev_row['涨跌幅']):
+                    prev_change_pct_4 = float(prev_row['涨跌幅'])
+                elif i >= 2:
+                    prev_2_row = recent.iloc[i-2]
+                    if prev_2_row['收盘'] > 0:
+                        prev_change_pct_4 = (prev_close - prev_2_row['收盘']) / prev_2_row['收盘'] * 100
+                
+                prev_is_limit_up = (prev_change_pct_4 is not None and prev_change_pct_4 >= 9.5) or prev_body_pct > 0.095
                 
                 # 如果前一天是涨停，不算小碎步上涨，排除
                 if prev_is_limit_up:
-                    continue
-                
-                if prev_10_change > 3 and prev_10_max_single < 3:
+                    print(f"[恐慌点检测] 跳过：前一天涨停，不算小碎步上涨，排除小碎步恐慌点")
+                    # 注意：这里continue只会跳过第4种类型，不会跳过整个循环
+                elif prev_10_change > 3 and prev_10_max_single < 3:
+                    print(f"[恐慌点检测] ✓ 识别为小碎步恐慌点：日期={row.get('日期', 'N/A')}, 跌幅={drop_pct:.2f}%, 放量={vol_ratio_current:.2f}倍, 阴线长度={bearish_length*100:.2f}%")
                     panic_points.append({
                         'date': row['日期'] if '日期' in row else None,
                         'price': float(row['收盘']),
@@ -675,87 +815,74 @@ def detect_panic_points(df: pd.DataFrame, window: int = 60, vol_ratio: float = 1
                         'description': f'小碎步上涨过程中的大跌放量阴线，跌幅{drop_pct:.2f}%，放量{vol_ratio_current:.2f}倍'
                     })
         
-        # 5. 连续下跌，跟随的大阴线跌破前低点、重要均线，导致恐慌盘放量（最重要的恐慌点类型）
-        # 核心：持仓的跌了怕继续跌，外面的不敢进
-        if drop_pct < -4.0 and vol_ratio_current >= vol_ratio and is_bearish:
-            # 检查前面是否有连续下跌（至少3-5天）
-            if i >= 5:
-                # 计算连续下跌天数
-                consecutive_down_days = 0
-                for j in range(i-1, max(0, i-5), -1):
-                    if j > 0:
-                        check_row = recent.iloc[j]
-                        check_prev = recent.iloc[j-1]
-                        check_drop = (check_row['收盘'] - check_prev['收盘']) / check_prev['收盘'] * 100 if check_prev['收盘'] > 0 else 0
-                        if check_drop < 0:
-                            consecutive_down_days += 1
+        # 5. 通用恐慌点：大幅下跌（>5%）且放量（>2倍），即使不符合上述特定类型
+        # 这是一个兜底机制，确保明显的大跌放量阴线不会被遗漏
+        if drop_pct < -5.0 and is_bearish and vol_ratio_current >= 2.0:
+            # 检查这个日期是否已经被识别为恐慌点
+            row_date = row.get('日期', f'第{i}天')
+            is_identified = any(
+                str(p.get('date', '')) == str(row_date) 
+                for p in panic_points 
+                if p.get('date')
+            )
+            
+            if not is_identified:
+                print(f"[恐慌点检测] ✓ 识别为通用恐慌点：日期={row_date}, 跌幅={drop_pct:.2f}%, 放量={vol_ratio_current:.2f}倍, 阴线长度={bearish_length*100:.2f}%")
+                panic_points.append({
+                    'date': row['日期'] if '日期' in row else None,
+                    'price': float(row['收盘']),
+                    'type': 'general_panic',
+                    'vol_ratio': float(vol_ratio_current),
+                    'drop_pct': float(drop_pct),
+                    'description': f'大幅下跌放量阴线（通用恐慌点），跌幅{drop_pct:.2f}%，放量{vol_ratio_current:.2f}倍，阴线长度{bearish_length*100:.2f}%'
+                })
+        
+        # 调试信息：如果通过了基本条件（下跌、阴线、放量）但最终没有被识别为任何类型的恐慌点
+        # 只在跌幅较大（>3%）时输出，避免日志过多
+        if drop_pct < -3.0 and is_bearish and vol_ratio_current >= vol_ratio:
+            # 检查这个日期是否已经被识别为恐慌点
+            row_date = row.get('日期', f'第{i}天')
+            is_identified = any(
+                str(p.get('date', '')) == str(row_date) 
+                for p in panic_points 
+                if p.get('date')
+            )
+            
+            if not is_identified:
+                # 重新计算前一天是否涨停（用于调试信息）
+                debug_prev_is_limit_up = False
+                debug_required_bearish_after_limit_up = 0.0
+                if i >= 1:
+                    debug_prev_open = prev_row['开盘']
+                    debug_prev_close = prev_row['收盘']
+                    debug_prev_body_pct = (debug_prev_close - debug_prev_open) / debug_prev_open if debug_prev_open > 0 else 0
+                    debug_prev_change_pct = None
+                    if '涨跌幅' in prev_row and pd.notna(prev_row['涨跌幅']):
+                        debug_prev_change_pct = float(prev_row['涨跌幅'])
+                    elif i >= 2:
+                        debug_prev_2_row = recent.iloc[i-2]
+                        if debug_prev_2_row['收盘'] > 0:
+                            debug_prev_change_pct = (debug_prev_close - debug_prev_2_row['收盘']) / debug_prev_2_row['收盘'] * 100
+                    debug_prev_is_limit_up = (debug_prev_change_pct is not None and debug_prev_change_pct >= 9.5) or debug_prev_body_pct > 0.095
+                    if debug_prev_is_limit_up:
+                        if debug_prev_change_pct is not None and debug_prev_change_pct >= 9.5:
+                            debug_prev_yang_length = debug_prev_change_pct / 100.0
                         else:
-                            break
+                            debug_prev_yang_length = debug_prev_body_pct
+                        debug_required_bearish_after_limit_up = debug_prev_yang_length * big_yang_filter_ratio
                 
-                # 至少连续3天下跌
-                if consecutive_down_days >= 3:
-                    # 计算重要均线（20日、30日、60日）
-                    ma20 = None
-                    ma30 = None
-                    ma60 = None
-                    if i >= 20:
-                        ma20 = recent.iloc[max(0, i-20):i]['收盘'].mean()
-                    if i >= 30:
-                        ma30 = recent.iloc[max(0, i-30):i]['收盘'].mean()
-                    if i >= 60:
-                        ma60 = recent.iloc[max(0, i-60):i]['收盘'].mean()
-                    
-                    # 查找前低点（最近60天内的最低点）
-                    lookback_days = min(60, i)
-                    prev_lows = recent.iloc[max(0, i-lookback_days):i]['最低']
-                    if len(prev_lows) > 0:
-                        prev_low = prev_lows.min()
-                        current_close = row['收盘']
-                        
-                        # 检查是否跌破前低或重要均线
-                        broke_prev_low = current_close < prev_low * 0.98  # 收盘价跌破前低2%以上
-                        broke_ma20 = ma20 is not None and current_close < ma20 * 0.98
-                        broke_ma30 = ma30 is not None and current_close < ma30 * 0.98
-                        broke_ma60 = ma60 is not None and current_close < ma60 * 0.98
-                        
-                        # 检查后续走势：是否继续下跌或横盘（让外面的人不敢进）
-                        # 如果后续3-5天继续下跌或横盘，说明外面的人不敢进
-                        future_continues_down = False
-                        if i < len(recent) - 3:
-                            future_3 = recent.iloc[i+1:min(len(recent), i+4)]
-                            if len(future_3) > 0:
-                                future_max = future_3['收盘'].max()
-                                # 后续3天内最高价不超过当前收盘价的3%，说明继续下跌或横盘
-                                if future_max < current_close * 1.03:
-                                    future_continues_down = True
-                        
-                        # 如果跌破前低或重要均线，且后续继续下跌/横盘，符合"持仓的跌了怕继续跌，外面的不敢进"
-                        if (broke_prev_low or broke_ma20 or broke_ma30 or broke_ma60) and future_continues_down:
-                            # 排除涨停后的调整
-                            prev_open = prev_row['开盘']
-                            prev_close = prev_row['收盘']
-                            prev_body_pct = (prev_close - prev_open) / prev_open if prev_open > 0 else 0
-                            prev_is_limit_up = prev_body_pct > 0.095
-                            
-                            if not prev_is_limit_up:  # 不是涨停后的调整
-                                breakdown_desc = []
-                                if broke_prev_low:
-                                    breakdown_desc.append(f"跌破前低({prev_low:.2f})")
-                                if broke_ma20:
-                                    breakdown_desc.append("跌破20日均线")
-                                if broke_ma30:
-                                    breakdown_desc.append("跌破30日均线")
-                                if broke_ma60:
-                                    breakdown_desc.append("跌破60日均线")
-                                
-                                panic_points.append({
-                                    'date': row['日期'] if '日期' in row else None,
-                                    'price': float(row['收盘']),
-                                    'type': 'breakdown_panic',
-                                    'vol_ratio': float(vol_ratio_current),
-                                    'drop_pct': float(drop_pct),
-                                    'description': f'连续下跌后大阴线跌破{",".join(breakdown_desc)}，恐慌盘放量，跌幅{drop_pct:.2f}%，放量{vol_ratio_current:.2f}倍（持仓的跌了怕继续跌，外面的不敢进）'
-                                })
+                # 输出详细信息，帮助调试为什么没有被识别
+                print(f"[恐慌点检测] 未识别为恐慌点（调试）：日期={row_date}, 跌幅={drop_pct:.2f}%, 阴线长度={bearish_length*100:.2f}%, 放量={vol_ratio_current:.2f}倍")
+                # 输出可能的原因
+                if has_big_yang:
+                    print(f"  - 原因：前{big_yang_filter_days}天有大阳线(最大长度{max_yang_length*100:.2f}%)，需要阴线长度>{max_yang_length*big_yang_filter_ratio*100:.2f}%，实际{bearish_length*100:.2f}%")
+                if debug_prev_is_limit_up:
+                    print(f"  - 原因：前一天涨停，需要阴线长度>{debug_required_bearish_after_limit_up*100:.2f}%，实际{bearish_length*100:.2f}%")
+                # 检查其他可能的过滤原因
+                if i < 20:
+                    print(f"  - 原因：数据不足（当前索引{i} < 20），无法判断5阶段长期阴跌")
+                if i < 30:
+                    print(f"  - 原因：数据不足（当前索引{i} < 30），无法判断洗盘横盘")
     
     return panic_points
 
@@ -881,12 +1008,23 @@ def detect_sell_signals(df: pd.DataFrame, window: int = 60, stage: int = 0) -> L
             prev_open = prev_day['开盘']
             prev_close = prev_day['收盘']
             prev_body_pct = (prev_close - prev_open) / prev_open if prev_open > 0 else 0
-            prev_is_limit_up = prev_body_pct > 0.095
+            
+            # 检查前一天是否涨停：优先使用涨跌幅列
+            prev_change_pct = None
+            if '涨跌幅' in prev_day and pd.notna(prev_day['涨跌幅']):
+                prev_change_pct = float(prev_day['涨跌幅'])
+            elif i >= 2:
+                prev_2_day = recent.iloc[i-2]
+                if prev_2_day['收盘'] > 0:
+                    prev_change_pct = (prev_close - prev_2_day['收盘']) / prev_2_day['收盘'] * 100
+            
+            # 涨停判断：涨跌幅>=9.5%，或者实体长度>=9.5%
+            prev_is_limit_up = (prev_change_pct is not None and prev_change_pct >= 9.5) or prev_body_pct > 0.095
             
             if prev_is_limit_up:
-                # 今天是大阳线（涨幅>5%）且必须是阳线
-                if is_big_yang and close > open_price:
-                    # 涨停第二天还是大阳线，主力可能在出货
+                # 今天必须同时满足：大阳线（涨幅>5%）+ 放量（>1.5倍）+ 必须是阳线
+                if is_big_yang and close > open_price and vol_ratio >= 1.5:
+                    # 涨停第二天还是大阳线且放量，主力可能在出货
                     sell_signals.append({
                         'date': date,
                         'price': float(close),
@@ -896,7 +1034,7 @@ def detect_sell_signals(df: pd.DataFrame, window: int = 60, stage: int = 0) -> L
                         'body_pct': float(body_pct * 100),  # 添加body_pct用于调试
                         'open': float(open_price),  # 添加开盘价用于调试
                         'close': float(close),  # 添加收盘价用于调试
-                        'description': f'涨停第二天还是大阳线，当日涨幅{body_pct*100:.2f}%（收盘{close:.2f}>开盘{open_price:.2f}），相对前日涨幅{gain_pct:.2f}%，放量{vol_ratio:.2f}倍，主力可能出货'
+                        'description': f'涨停第二天还是大阳线且放量，当日涨幅{body_pct*100:.2f}%（收盘{close:.2f}>开盘{open_price:.2f}），相对前日涨幅{gain_pct:.2f}%，放量{vol_ratio:.2f}倍，主力可能出货'
                     })
                 # 注意：如果第二天是涨停（散户买不到）或大阴线（散户不敢买），不算卖点
     
