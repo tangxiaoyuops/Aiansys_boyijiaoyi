@@ -48,6 +48,12 @@ const routes = [
     component: () => import('./views/BacktestView.vue'),
     meta: { title: '量化回测' },
   },
+  {
+    path: '/panic-scan',
+    name: 'panic-scan',
+    component: () => import('./views/PanicScanView.vue'),
+    meta: { title: '恐慌点扫描' },
+  },
 ];
 
 const router = createRouter({
