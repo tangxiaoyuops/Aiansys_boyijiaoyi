@@ -73,3 +73,4 @@ export async function triggerScan(params: {
   return response.data;
 }
 
+
