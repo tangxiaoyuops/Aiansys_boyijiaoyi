@@ -76,7 +76,6 @@ async def get_latest_scan_result():
     获取最新的扫描结果
     """
     try:
-        # 获取项目根目录
         current_file = Path(__file__)
         project_root = current_file.parent.parent.parent
         output_dir = project_root / "output"
@@ -84,21 +83,26 @@ async def get_latest_scan_result():
         if not output_dir.exists():
             raise HTTPException(status_code=404, detail="output目录不存在")
         
-        # 查找最新的CSV文件
         csv_files = list(output_dir.glob("daily_panic_candidates_*.csv"))
-        if not csv_files:
+        json_files = list(output_dir.glob("daily_panic_candidates_*.json"))
+        
+        if not csv_files and not json_files:
             raise HTTPException(status_code=404, detail="未找到扫描结果文件")
         
-        # 按修改时间排序，取最新的
-        latest_file = max(csv_files, key=lambda f: f.stat().st_mtime)
+        all_files = csv_files + json_files
+        latest_file = max(all_files, key=lambda f: f.stat().st_mtime)
         
-        # 读取CSV文件
-        df = pd.read_csv(latest_file, encoding="utf-8-sig")
+        if latest_file.suffix == ".csv":
+            df = pd.read_csv(latest_file, encoding="utf-8-sig")
+            records = df.to_dict("records")
+        else:
+            with open(latest_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                records = data
+            else:
+                records = data.get("records", [])
         
-        # 转换为字典列表
-        records = df.to_dict("records")
-        
-        # 提取日期
         date_str = latest_file.stem.split("_")[-1]
         date_obj = datetime.strptime(date_str, "%Y%m%d")
         

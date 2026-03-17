@@ -22,7 +22,7 @@ def get_llm_client() -> OpenAI:
         _client = OpenAI(
             api_key=os.getenv("OPENAI_API_KEY"),
             base_url=os.getenv("OPENAI_BASE_URL"),
-            timeout=120.0  # 120秒超时
+            timeout=600.0  # 600秒超时（10分钟）
         )
     return _client
 

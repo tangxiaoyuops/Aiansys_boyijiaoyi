@@ -13,6 +13,7 @@
         <router-link to="/futures" class="nav-link">期货分析</router-link>
         <router-link to="/panic-scan" class="nav-link">恐慌点扫描</router-link>
         <router-link to="/backtest" class="nav-link">量化回测</router-link>
+        <router-link to="/commodity" class="nav-link active">大宗商品分析</router-link>
         <router-link to="/ziwei" class="nav-link">紫微斗数</router-link>
         <router-link to="/divination" class="nav-link">六爻卜卦</router-link>
         <router-link to="/bazi" class="nav-link">八字排盘</router-link>

@@ -54,6 +54,12 @@ const routes = [
     component: () => import('./views/PanicScanView.vue'),
     meta: { title: '恐慌点扫描' },
   },
+  {
+    path: '/commodity',
+    name: 'commodity',
+    component: () => import('./views/CommodityAnalysis.vue'),
+    meta: { title: '大宗商品分析' },
+  },
 ];
 
 const router = createRouter({

@@ -14,7 +14,7 @@ from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
 from core.models.futures_state import FuturesAnalysisState
-from server.routers import backtest, panic_scan
+from server.routers import backtest, panic_scan, commodity
 
 app = FastAPI(title="博弈交易法分析系统")
 
@@ -30,6 +30,7 @@ app.add_middleware(
 # 注册路由
 app.include_router(backtest.router)
 app.include_router(panic_scan.router)
+app.include_router(commodity.router)
 
 # 简单的内存会话存储（需要持久化时可替换为 Redis/数据库）
 SESSIONS: Dict[str, Dict[str, Any]] = {}

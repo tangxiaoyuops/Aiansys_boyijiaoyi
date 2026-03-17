@@ -48,3 +48,7 @@ def half_kelly_criterion(win_rate: float, profit_loss_ratio: float) -> float:
 
 
 
+
+
+
+

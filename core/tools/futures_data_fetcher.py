@@ -61,6 +61,41 @@ def fetch_futures_data(
             product_code = futures_code[:2].lower()
             contract_month = futures_code[2:]
             exchange = 'SHFE'  # 默认
+        elif futures_code.endswith('0'):
+            # 主力合约代码（如 SC0），需要获取当前主力合约的具体代码
+            print(f"[期货数据获取] 检测到主力合约代码: {futures_code}，查找当前主力合约...")
+            product_code = futures_code[:-1].upper()  # SC0 -> SC
+            
+            # 尝试使用 futures_main_mapping_em 获取当前主力合约代码
+            if AKSHARE_AVAILABLE:
+                try:
+                    if hasattr(ak, 'futures_main_mapping_em'):
+                        print(f"[期货数据获取] 尝试使用 futures_main_mapping_em 获取主力合约映射...")
+                        main_mapping = ak.futures_main_mapping_em()
+                        print(f"[期货数据获取] 主力合约映射列名: {list(main_mapping.columns) if main_mapping is not None else 'None'}")
+                        
+                        if main_mapping is not None and not main_mapping.empty:
+                            # 尝试匹配品种代码
+                            for col in main_mapping.columns:
+                                if '品种' in str(col) or 'code' in str(col).lower():
+                                    matching = main_mapping[main_mapping[col].str.contains(product_code, case=False, na=False)]
+                                    if not matching.empty:
+                                        # 获取主力合约代码
+                                        for contract_col in main_mapping.columns:
+                                            if '合约' in str(contract_col) or 'contract' in str(contract_col).lower() or 'main' in str(contract_col).lower():
+                                                main_contract = str(matching.iloc[0][contract_col])
+                                                print(f"[期货数据获取] 找到当前主力合约: {main_contract}")
+                                                # 递归调用，使用找到的主力合约代码
+                                                return fetch_futures_data(main_contract, days, max_retries)
+                except Exception as e:
+                    print(f"[期货数据获取] 获取主力合约映射失败: {e}")
+                    import traceback
+                    print(f"[期货数据获取] 错误详情: {traceback.format_exc()}")
+            
+            # 如果无法获取主力合约映射，直接使用主力连续合约代码
+            print(f"[期货数据获取] 无法获取主力合约映射，直接使用主力连续合约代码: {futures_code}")
+            print(f"[期货数据获取] 注意：主力连续合约数据可能存在延迟，最新数据可能不是当前交易日")
+            exchange = 'SHFE'
         else:
             raise ValueError(f"无效的期货合约代码: {futures_code}")
     else:
@@ -106,9 +141,14 @@ def fetch_futures_data(
                     df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
                     df = df.dropna(subset=['日期', '收盘']).sort_values('日期').reset_index(drop=True)
                     
+                    # 打印数据范围
+                    print(f"[期货数据获取] 数据日期范围: {df['日期'].min()} 到 {df['日期'].max()}")
+                    print(f"[期货数据获取] 最新5条数据日期: {df['日期'].tail(5).tolist()}")
+                    
                     # 只返回最近days天
                     if len(df) > days:
                         df = df.tail(days).reset_index(drop=True)
+                        print(f"[期货数据获取] 截取最近{days}天数据，最新日期: {df['日期'].max()}")
                     
                     # 计算涨跌幅
                     if '涨跌幅' not in df.columns:
@@ -295,22 +335,67 @@ def _generate_test_futures_data(futures_code: str, days: int) -> Optional[pd.Dat
     try:
         import numpy as np
         
+        # 品种代码到基础价格的映射（更接近真实价格）
+        base_price_map = {
+            # 能源化工
+            'MA': 2500.0,   # 甲醇
+            'TA': 6000.0,   # PTA
+            'PP': 8000.0,   # PP
+            'V': 6500.0,    # PVC
+            'EG': 4500.0,   # 乙二醇
+            'UR': 2300.0,   # 尿素
+            'SA': 1800.0,   # 纯碱
+            'FG': 1500.0,   # 玻璃
+            'SC': 550.0,    # 原油
+            # 有色金属
+            'CU': 68000.0,  # 铜
+            'AL': 18500.0,  # 铝
+            'ZN': 22000.0,  # 锌
+            'PB': 16000.0,  # 铅
+            'NI': 130000.0, # 镍
+            'SN': 210000.0, # 锡
+            # 黑色系
+            'RB': 3800.0,   # 螺纹钢
+            'HC': 3900.0,   # 热卷
+            'I': 900.0,     # 铁矿石
+            'J': 2400.0,    # 焦炭
+            'JM': 1800.0,   # 焦煤
+            # 农产品
+            'C': 2389.0,    # 玉米（使用用户提供的真实价格）
+            'CS': 2700.0,   # 玉米淀粉
+            'A': 5200.0,    # 大豆
+            'M': 3500.0,    # 豆粕
+            'Y': 8500.0,    # 豆油
+            'CF': 15500.0,  # 棉花
+            'SR': 6200.0,   # 白糖
+            'RU': 13000.0,  # 橡胶
+            # 贵金属
+            'AU': 480.0,    # 黄金
+            'AG': 6.0,      # 白银
+        }
+        
+        # 解析品种代码
+        product_code = futures_code[:2].upper() if len(futures_code) >= 2 else futures_code[0].upper()
+        
+        # 获取基础价格
+        base_price = base_price_map.get(product_code, 3500.0)
+        print(f"[期货数据获取] 使用测试数据，品种: {product_code}, 基础价格: {base_price}")
+        
         # 生成日期序列
         dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
         
         # 生成模拟价格数据（随机游走）
         np.random.seed(42)  # 固定随机种子，确保可重复
-        base_price = 3500.0  # 基础价格
-        returns = np.random.normal(0, 0.02, days)  # 日收益率
+        returns = np.random.normal(0, 0.01, days)  # 日收益率（降低波动率）
         prices = base_price * (1 + returns).cumprod()
         
         # 生成OHLC数据
         data = []
         for i, date in enumerate(dates):
             close = prices[i]
-            high = close * (1 + abs(np.random.normal(0, 0.01)))
-            low = close * (1 - abs(np.random.normal(0, 0.01)))
-            open_price = close * (1 + np.random.normal(0, 0.005))
+            high = close * (1 + abs(np.random.normal(0, 0.005)))
+            low = close * (1 - abs(np.random.normal(0, 0.005)))
+            open_price = close * (1 + np.random.normal(0, 0.002))
             
             data.append({
                 '日期': date,
