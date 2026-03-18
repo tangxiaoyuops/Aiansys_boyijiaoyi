@@ -164,7 +164,7 @@
             <div class="analysis-content">
               <div class="dayun-list">
                 <div v-for="(dayun, index) in result.dayun_analysis.dayun_list" :key="index" class="dayun-item">
-                  <span class="dayun-label">第{{ index + 1 }}步大运：</span>
+                  <span class="dayun-label">第{{ (index as number) + 1 }}步大运：</span>
                   <span class="dayun-value">{{ dayun.gan }}{{ dayun.zhi }}</span>
                   <span class="dayun-age">({{ dayun.start_age }}-{{ dayun.end_age }}岁)</span>
                 </div>
@@ -292,30 +292,31 @@ const formatLLMResponse = (text: string) => {
 </script>
 
 <style scoped>
-/* 八字优雅明亮主题 */
+/* 八字古典雅致主题 */
 .bazi-view {
-  --mystical-bg: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #f0f4f8 100%);
-  --mystical-surface: rgba(255, 255, 255, 0.85);
-  --mystical-surface-dark: rgba(248, 250, 252, 0.95);
-  --mystical-primary: #6366f1;
-  --mystical-secondary: #818cf8;
-  --mystical-accent: #f59e0b;
-  --mystical-glow: #a5b4fc;
-  --mystical-text: #1e293b;
-  --mystical-text-light: #64748b;
-  --mystical-border: rgba(99, 102, 241, 0.2);
-  --mystical-border-light: rgba(148, 163, 184, 0.3);
+  --bazi-bg: linear-gradient(135deg, #FAF8F5 0%, #F5F0E8 50%, #FBF9F6 100%);
+  --bazi-surface: rgba(255, 253, 250, 0.92);
+  --bazi-surface-dark: rgba(250, 247, 240, 0.95);
+  --bazi-primary: #8B6914;
+  --bazi-secondary: #D4AF37;
+  --bazi-accent: #C17F59;
+  --bazi-glow: rgba(212, 175, 55, 0.3);
+  --bazi-text: #3D3226;
+  --bazi-text-light: #6B5D4D;
+  --bazi-border: rgba(139, 90, 43, 0.2);
+  --bazi-border-light: rgba(180, 150, 100, 0.25);
+  --bazi-shadow: rgba(139, 90, 43, 0.12);
 }
 
 .bazi-view {
   height: 100%;
   overflow: auto;
-  background: var(--mystical-bg);
-  color: var(--mystical-text);
+  background: var(--bazi-bg);
+  color: var(--bazi-text);
   position: relative;
 }
 
-/* 柔和光效背景 - 明亮优雅 */
+/* 古典纹理背景 */
 .bazi-view::before {
   content: '';
   position: fixed;
@@ -324,10 +325,10 @@ const formatLLMResponse = (text: string) => {
   width: 100%;
   height: 100%;
   background: 
-    radial-gradient(circle at 25% 35%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
-    radial-gradient(circle at 75% 65%, rgba(245, 158, 11, 0.06) 0%, transparent 60%),
-    radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.05) 0%, transparent 70%);
-  animation: baziPulse 10s ease-in-out infinite;
+    radial-gradient(ellipse at 20% 30%, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(193, 127, 89, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(139, 105, 20, 0.04) 0%, transparent 70%);
+  animation: baziPulse 12s ease-in-out infinite;
   z-index: 0;
   pointer-events: none;
 }
@@ -335,31 +336,24 @@ const formatLLMResponse = (text: string) => {
 @keyframes baziPulse {
   0%, 100% {
     opacity: 1;
-    transform: scale(1) rotate(0deg);
   }
-  33% {
+  50% {
     opacity: 0.85;
-    transform: scale(1.1) rotate(-3deg);
-  }
-  66% {
-    opacity: 0.85;
-    transform: scale(1.1) rotate(3deg);
   }
 }
 
 .main-layout {
   display: flex;
-  gap: 24px;
-  padding: 24px;
+  gap: 28px;
+  padding: 28px;
   max-width: 1600px;
   margin: 0 auto;
   position: relative;
   z-index: 1;
-  perspective: 2000px;
 }
 
 .left-panel {
-  width: 380px;
+  width: 360px;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
@@ -372,93 +366,68 @@ const formatLLMResponse = (text: string) => {
   z-index: 1;
 }
 
-/* 明亮玻璃态卡片 - 优雅风格 */
+/* 古典雅致卡片 */
 .input-card {
-  background: var(--mystical-surface);
-  border-radius: 24px;
+  background: var(--bazi-surface);
+  border-radius: 20px;
   padding: 28px;
-  border: 1px solid var(--mystical-border-light);
-  backdrop-filter: blur(25px);
+  border: 1px solid var(--bazi-border-light);
   box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.08),
-    0 2px 16px rgba(99, 102, 241, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform-style: preserve-3d;
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  animation: baziCardFloat 7s ease-in-out infinite;
+    0 8px 32px var(--bazi-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.4s ease;
   position: relative;
   overflow: hidden;
-}
-
-@keyframes baziCardFloat {
-  0%, 100% {
-    transform: translateY(0px) rotateX(0deg);
-  }
-  50% {
-    transform: translateY(-8px) rotateX(2deg);
-  }
 }
 
 .input-card::before {
   content: '';
   position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: conic-gradient(transparent, rgba(99, 102, 241, 0.05), transparent 40%);
-  animation: baziRotate 5s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes baziRotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--bazi-primary), var(--bazi-secondary), var(--bazi-accent));
+  opacity: 0.6;
 }
 
 .input-card:hover {
-  transform: translateY(-8px) rotateX(4deg) rotateY(2deg);
+  transform: translateY(-4px);
   box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.12),
-    0 4px 24px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border-color: rgba(99, 102, 241, 0.4);
+    0 16px 48px var(--bazi-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border-color: var(--bazi-secondary);
 }
 
 .card-title {
   margin: 0 0 24px 0;
-  font-size: 26px;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--mystical-primary) 0%, var(--mystical-secondary) 50%, var(--mystical-accent) 100%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: baziTitleGlow 4s ease-in-out infinite;
-  letter-spacing: 1.5px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--bazi-primary);
+  position: relative;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--bazi-border-light);
 }
 
-@keyframes baziTitleGlow {
-  0%, 100% {
-    filter: brightness(1);
-  }
-  50% {
-    filter: brightness(1.4);
-  }
+.card-title::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--bazi-secondary), var(--bazi-accent));
+  border-radius: 2px;
 }
 
 .form-hint {
   margin-bottom: 16px;
-  padding: 8px 12px;
-  background: #f0f9ff;
-  border-left: 3px solid #3b82f6;
-  color: #1e40af;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
+  border-left: 3px solid var(--bazi-secondary);
+  color: var(--bazi-text-light);
   font-size: 13px;
-  border-radius: 4px;
+  border-radius: 0 8px 8px 0;
 }
 
 .bazi-form {
@@ -471,13 +440,10 @@ const formatLLMResponse = (text: string) => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  background: var(--mystical-surface);
-  border-radius: 24px;
-  border: 1px solid var(--mystical-border-light);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-  position: relative;
-  overflow: hidden;
+  background: var(--bazi-surface);
+  border-radius: 20px;
+  border: 1px solid var(--bazi-border-light);
+  box-shadow: 0 8px 32px var(--bazi-shadow);
 }
 
 .result-container {
@@ -486,65 +452,49 @@ const formatLLMResponse = (text: string) => {
   gap: 20px;
 }
 
-/* 明亮结果卡片 - 优雅玻璃态 */
+/* 结果卡片 */
 .result-card {
-  background: var(--mystical-surface);
-  border-radius: 24px;
-  padding: 32px;
-  border: 1px solid var(--mystical-border-light);
-  backdrop-filter: blur(25px);
+  background: var(--bazi-surface);
+  border-radius: 20px;
+  padding: 28px;
+  border: 1px solid var(--bazi-border-light);
   box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.08),
-    0 2px 16px rgba(99, 102, 241, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform-style: preserve-3d;
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    0 8px 32px var(--bazi-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.4s ease;
   position: relative;
   overflow: hidden;
-  animation: baziResultEnter 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: resultEnter 0.6s ease-out;
 }
 
-@keyframes baziResultEnter {
+@keyframes resultEnter {
   from {
     opacity: 0;
-    transform: translateY(40px) rotateX(-15deg) scale(0.95);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) rotateX(0deg) scale(1);
+    transform: translateY(0);
   }
 }
 
 .result-card::before {
   content: '';
   position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, transparent 70%);
-  animation: baziGlow 8s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes baziGlow {
-  0%, 100% {
-    opacity: 0.3;
-    transform: scale(1) rotate(0deg);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.3) rotate(180deg);
-  }
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--bazi-primary), var(--bazi-secondary), var(--bazi-accent));
+  opacity: 0.5;
 }
 
 .result-card:hover {
-  transform: translateY(-8px) rotateX(3deg) rotateY(-2deg);
+  transform: translateY(-4px);
   box-shadow: 
-    0 24px 80px rgba(0, 0, 0, 0.1),
-    0 4px 24px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border-color: rgba(99, 102, 241, 0.4);
+    0 16px 48px var(--bazi-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border-color: rgba(212, 175, 55, 0.4);
 }
 
 .section-title {
@@ -552,11 +502,11 @@ const formatLLMResponse = (text: string) => {
   align-items: center;
   gap: 10px;
   margin: 0 0 20px 0;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
-  color: var(--mystical-text);
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--mystical-border-light);
+  color: var(--bazi-text);
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--bazi-border-light);
   position: relative;
 }
 
@@ -565,22 +515,10 @@ const formatLLMResponse = (text: string) => {
   position: absolute;
   bottom: -2px;
   left: 0;
-  width: 80px;
+  width: 60px;
   height: 3px;
-  background: linear-gradient(90deg, var(--mystical-primary), var(--mystical-secondary), var(--mystical-accent));
+  background: linear-gradient(90deg, var(--bazi-secondary), var(--bazi-accent));
   border-radius: 2px;
-  animation: baziUnderline 4s ease-in-out infinite;
-}
-
-@keyframes baziUnderline {
-  0%, 100% {
-    width: 80px;
-    opacity: 1;
-  }
-  50% {
-    width: 150px;
-    opacity: 0.8;
-  }
 }
 
 .sizhu-info {
@@ -588,71 +526,85 @@ const formatLLMResponse = (text: string) => {
 }
 
 .info-item {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
 }
 
 .info-item .label {
   font-weight: 600;
-  color: #666;
+  color: var(--bazi-text-light);
   margin-right: 8px;
+  min-width: 60px;
 }
 
 .info-item .value {
-  color: #333;
+  color: var(--bazi-text);
+  font-weight: 500;
 }
 
 .analysis-content {
   line-height: 1.8;
-  color: #333;
+  color: var(--bazi-text);
 }
 
+/* 五行统计样式 */
 .wuxing-stats {
   display: flex;
-  gap: 20px;
-  margin-bottom: 16px;
+  gap: 16px;
   flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 
 .wuxing-item {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 16px;
+  background: rgba(212, 175, 55, 0.08);
+  border-radius: 20px;
+  border: 1px solid rgba(212, 175, 55, 0.2);
 }
 
 .wuxing-name {
   font-weight: 600;
-  color: #666;
+  color: var(--bazi-text-light);
 }
 
 .wuxing-value {
   font-size: 18px;
-  font-weight: 600;
-  color: #3b82f6;
+  font-weight: 700;
+  color: var(--bazi-primary);
 }
 
 .rizhu-info {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--bazi-border-light);
 }
 
+/* 十神表格样式 */
 .shishen-table {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .shishen-row {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 10px 14px;
+  background: rgba(212, 175, 55, 0.05);
+  border-radius: 10px;
+  border: 1px solid var(--bazi-border-light);
 }
 
 .shishen-zhu {
-  width: 80px;
+  width: 60px;
   font-weight: 600;
-  color: #666;
+  color: var(--bazi-text-light);
 }
 
 .shishen-values {
@@ -662,130 +614,118 @@ const formatLLMResponse = (text: string) => {
 }
 
 .shishen-tag {
-  padding: 4px 12px;
-  background: #f0f9ff;
-  border: 1px solid #3b82f6;
-  border-radius: 4px;
+  padding: 4px 14px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.08) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 16px;
   font-size: 13px;
-  color: #1e40af;
+  color: var(--bazi-primary);
+  font-weight: 500;
 }
 
+/* 大运列表样式 */
 .dayun-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .dayun-item {
-  padding: 8px 12px;
-  background: #f9fafb;
-  border-radius: 4px;
+  padding: 12px 16px;
+  background: rgba(212, 175, 55, 0.05);
+  border-radius: 10px;
   font-size: 14px;
+  border: 1px solid var(--bazi-border-light);
+  transition: all 0.3s ease;
+}
+
+.dayun-item:hover {
+  background: rgba(212, 175, 55, 0.1);
+  border-color: rgba(212, 175, 55, 0.3);
 }
 
 .dayun-label {
   font-weight: 600;
-  color: #666;
+  color: var(--bazi-text-light);
   margin-right: 8px;
 }
 
 .dayun-value {
-  font-weight: 600;
-  color: #3b82f6;
+  font-weight: 700;
+  color: var(--bazi-primary);
   margin-right: 8px;
 }
 
 .dayun-age {
-  color: #999;
+  color: var(--bazi-text-light);
 }
 
+/* 神煞列表样式 */
 .shensha-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .shensha-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #f9fafb;
-  border-radius: 4px;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(212, 175, 55, 0.05);
+  border-radius: 10px;
+  border: 1px solid var(--bazi-border-light);
 }
 
 .shensha-name {
   font-weight: 600;
-  color: #333;
+  color: var(--bazi-text);
 }
 
 .shensha-position {
-  color: #666;
+  color: var(--bazi-text-light);
   font-size: 13px;
 }
 
 .shensha-type {
   margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
   font-size: 12px;
+  font-weight: 500;
 }
 
 .type-ji {
-  background: #dcfce7;
-  color: #16a34a;
+  background: linear-gradient(135deg, rgba(34, 139, 34, 0.15) 0%, rgba(34, 139, 34, 0.08) 100%);
+  color: #228B22;
+  border: 1px solid rgba(34, 139, 34, 0.3);
 }
 
 .type-neutral {
-  background: #fef3c7;
-  color: #d97706;
+  background: linear-gradient(135deg, rgba(193, 127, 89, 0.15) 0%, rgba(193, 127, 89, 0.08) 100%);
+  color: #A0522D;
+  border: 1px solid rgba(193, 127, 89, 0.3);
 }
 
 .no-shensha {
-  color: #999;
+  color: var(--bazi-text-light);
   text-align: center;
-  padding: 20px;
+  padding: 24px;
+  background: rgba(212, 175, 55, 0.03);
+  border-radius: 10px;
 }
 
+/* LLM分析卡片 */
 .llm-card {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%);
-  border: 2px solid rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(193, 127, 89, 0.05) 100%);
+  border: 2px solid rgba(212, 175, 55, 0.25);
   box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.1),
-    0 0 30px rgba(99, 102, 241, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  position: relative;
-}
-
-.llm-card::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(45deg, var(--mystical-primary), var(--mystical-accent), var(--mystical-primary));
-  background-size: 200% 200%;
-  border-radius: 24px;
-  opacity: 0.2;
-  z-index: -1;
-  filter: blur(8px);
-  animation: baziBorderFlow 4s ease-in-out infinite;
-}
-
-@keyframes baziBorderFlow {
-  0%, 100% {
-    background-position: 0% 50%;
-    opacity: 0.2;
-  }
-  50% {
-    background-position: 100% 50%;
-    opacity: 0.4;
-  }
+    0 8px 32px var(--bazi-shadow),
+    0 0 40px rgba(212, 175, 55, 0.1);
 }
 
 .llm-card .section-title {
-  color: var(--mystical-text);
+  color: var(--bazi-text);
 }
 
 .llm-content {
@@ -793,8 +733,9 @@ const formatLLMResponse = (text: string) => {
 }
 
 .llm-text {
-  line-height: 1.8;
-  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.9;
+  color: var(--bazi-text);
+  font-size: 15px;
 }
 
 .llm-error {
