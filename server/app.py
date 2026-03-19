@@ -750,6 +750,19 @@ class BaziPanRequest(BaseModel):
     include_shensha: bool = True  # 是否包含神煞分析
     include_llm: bool = False  # 是否包含LLM深度分析（默认关闭，需要用户明确勾选）
     target_year: Optional[int] = None  # 目标年份（用于流年分析）
+    analysis_style: str = 'classic'  # 分析风格：classic/simple/life_guide/business/emotion
+
+
+@app.get("/api/bazi/styles")
+async def get_bazi_styles():
+    """
+    获取可用的八字分析风格列表
+    """
+    from core.agents.bazi_prompt_styles import get_all_styles
+    return {
+        "success": True,
+        "styles": get_all_styles()
+    }
 
 
 @app.post("/api/bazi/pan")
@@ -802,6 +815,7 @@ async def bazi_pan(request: BaziPanRequest):
             include_shensha=request.include_shensha,
             include_llm=request.include_llm,
             target_year=request.target_year,
+            analysis_style=request.analysis_style,
         )
         
         print(f"[八字排盘API] 分析函数返回结果: success={result.get('success')}")
@@ -843,6 +857,104 @@ async def bazi_pan(request: BaziPanRequest):
         print(f"[八字排盘API] 异常堆栈:\n{traceback.format_exc()}")
         logger.error(f"排盘异常: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
+
+
+class BaziLLMStreamRequest(BaseModel):
+    """八字LLM流式分析请求模型"""
+    year: int
+    month: int
+    day: int
+    hour: int
+    gender: str = '男'
+    analysis_style: str = 'classic'
+
+
+@app.post("/api/bazi/llm-stream")
+async def bazi_llm_stream(request: BaziLLMStreamRequest):
+    """
+    八字LLM流式分析接口
+    先进行基础排盘，然后流式输出LLM分析结果
+    """
+    import logging
+    import json
+    logger = logging.getLogger(__name__)
+    
+    async def generate():
+        try:
+            # 发送进度：开始排盘
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'pan', 'message': '正在进行八字排盘...'}, ensure_ascii=False)}\n\n"
+            
+            # 基础排盘
+            from core.agents.bazi_pan_agent import bazi_pan_node
+            pan_result = bazi_pan_node(request.year, request.month, request.day, request.hour, request.gender)
+            
+            if not pan_result.get('success'):
+                yield f"data: {json.dumps({'type': 'error', 'message': pan_result.get('error', '排盘失败')}, ensure_ascii=False)}\n\n"
+                return
+            
+            sizhu = pan_result['sizhu']
+            
+            # 发送进度：五行分析
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'wuxing', 'message': '正在分析五行...'}, ensure_ascii=False)}\n\n"
+            
+            # 五行分析
+            from core.agents.bazi_wuxing_agent import bazi_wuxing_node
+            wuxing_result = bazi_wuxing_node(sizhu)
+            wuxing_analysis = wuxing_result if wuxing_result.get('success') else None
+            
+            # 发送进度：十神分析
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'shishen', 'message': '正在分析十神...'}, ensure_ascii=False)}\n\n"
+            
+            # 十神分析
+            from core.agents.bazi_shishen_agent import bazi_shishen_node
+            shishen_result = bazi_shishen_node(sizhu)
+            shishen_analysis = shishen_result if shishen_result.get('success') else None
+            
+            # 发送进度：大运分析
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'dayun', 'message': '正在分析大运...'}, ensure_ascii=False)}\n\n"
+            
+            # 大运分析
+            from core.agents.bazi_dayun_agent import bazi_dayun_node
+            dayun_result = bazi_dayun_node(sizhu, request.year, request.month, request.day, request.hour, request.gender)
+            dayun_analysis = dayun_result if dayun_result.get('success') else None
+            
+            # 发送进度：神煞分析
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'shensha', 'message': '正在分析神煞...'}, ensure_ascii=False)}\n\n"
+            
+            # 神煞分析
+            from core.agents.bazi_shensha_agent import bazi_shensha_node
+            shensha_result = bazi_shensha_node(sizhu)
+            shensha_analysis = shensha_result if shensha_result.get('success') else None
+            
+            # 发送进度：开始AI分析
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
+            
+            # 发送基础数据
+            yield f"data: {json.dumps({'type': 'data', 'sizhu': sizhu, 'wuxing_analysis': wuxing_analysis, 'shishen_analysis': shishen_analysis, 'dayun_analysis': dayun_analysis, 'shensha_analysis': shensha_analysis}, ensure_ascii=False)}\n\n"
+            
+            # 流式调用LLM
+            from core.agents.bazi_prompt_styles import get_system_prompt, build_bazi_prompt
+            from core.tools.llm_client import call_llm_stream
+            
+            system_prompt = get_system_prompt(request.analysis_style)
+            user_prompt = build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis)
+            
+            full_content = ""
+            for chunk in call_llm_stream(system_prompt, user_prompt):
+                full_content += chunk
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
+            
+            # 发送完成信号
+            yield f"data: {json.dumps({'type': 'done', 'full_content': full_content}, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"[八字LLM流式API] 错误: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 # ==================== 六爻卜卦API ====================

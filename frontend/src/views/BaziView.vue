@@ -39,6 +39,16 @@
               </el-radio-group>
             </el-form-item>
             <el-divider />
+            <el-form-item label="解读风格">
+              <el-select v-model="form.analysis_style" placeholder="选择解读风格" style="width: 100%">
+                <el-option
+                  v-for="style in analysisStyles"
+                  :key="style.value"
+                  :label="`${style.name}（${style.description}）`"
+                  :value="style.value"
+                />
+              </el-select>
+            </el-form-item>
             <el-form-item label="分析选项">
               <el-checkbox v-model="form.include_wuxing">五行分析</el-checkbox>
               <el-checkbox v-model="form.include_shishen">十神分析</el-checkbox>
@@ -47,7 +57,7 @@
               <el-checkbox v-model="form.include_llm">AI深度解析</el-checkbox>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :loading="loading" @click="handleAnalyze" style="width: 100%">
+              <el-button type="primary" :loading="loading || llmLoading" @click="handleAnalyze" style="width: 100%">
                 <el-icon><MagicStick /></el-icon>
                 开始排盘分析
               </el-button>
@@ -191,15 +201,24 @@
           </div>
 
           <!-- LLM深度分析 -->
-          <div v-if="result.llm_analysis" class="result-card llm-card">
+          <div v-if="form.include_llm || llmLoading || llmText" class="result-card llm-card">
             <h3 class="section-title">
               <el-icon><ChatLineRound /></el-icon>
               AI深度解析
             </h3>
             <div class="llm-content">
-              <div v-if="result.llm_analysis.success && result.llm_analysis.analysis" class="llm-text" v-html="formatLLMResponse(result.llm_analysis.analysis)"></div>
-              <div v-else class="llm-error">
-                <el-alert :title="result.llm_analysis.error || '分析失败'" type="error" :closable="false" />
+              <div v-if="llmLoading" class="llm-progress">
+                <el-skeleton :rows="4" animated />
+                <div class="llm-progress-text">{{ llmProgress || 'AI 正在深度分析，请稍候…' }}</div>
+              </div>
+              <div v-else>
+                <div v-if="llmText" class="llm-text" v-html="formatLLMResponse(llmText)"></div>
+                <div v-else-if="llmError" class="llm-error">
+                  <el-alert :title="llmError" type="error" :closable="false" />
+                </div>
+                <div v-else class="llm-empty">
+                  勾选左侧「AI深度解析」后，点击「开始排盘分析」即可生成解读。
+                </div>
               </div>
             </div>
           </div>
@@ -210,13 +229,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { MagicStick, Document, Star, Calendar, Sunny, Grid, ChatLineRound } from '@element-plus/icons-vue';
 import BaziChart from '../components/BaziChart.vue';
 
 const loading = ref(false);
 const result = ref<any>(null);
+
+const analysisStyles = ref<Array<{ value: string; name: string; description: string }>>([
+  {
+    value: 'classic',
+    name: '传统专业',
+    description: '专业术语完整，分析深入全面',
+  },
+  {
+    value: 'simple',
+    name: '简明通俗',
+    description: '语言生活化，适合零基础用户',
+  },
+  {
+    value: 'life_guide',
+    name: '人生指南',
+    description: '更关注人生阶段与规划建议',
+  },
+  {
+    value: 'business',
+    name: '商业决策',
+    description: '偏重事业与财富方向',
+  },
+  {
+    value: 'emotion',
+    name: '情感婚恋',
+    description: '重点解读感情与婚姻',
+  },
+]);
+
+const llmLoading = ref(false);
+const llmProgress = ref('');
+const llmText = ref('');
+const llmError = ref('');
 
 const form = reactive({
   year: new Date().getFullYear(),
@@ -229,6 +281,7 @@ const form = reactive({
   include_dayun: true,
   include_shensha: true,
   include_llm: false,
+  analysis_style: 'classic',
 });
 
 const zhuNameMap: Record<string, string> = {
@@ -236,6 +289,95 @@ const zhuNameMap: Record<string, string> = {
   'yue_zhu': '月柱',
   'ri_zhu': '日柱',
   'shi_zhu': '时柱',
+};
+
+onMounted(async () => {
+  try {
+    const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+    const response = await fetch(`${baseURL}/api/bazi/styles`);
+    const data = await response.json();
+    if (response.ok && data.success && Array.isArray(data.styles) && data.styles.length) {
+      analysisStyles.value = data.styles;
+    }
+  } catch (e) {
+    console.warn('获取八字风格列表失败，使用本地默认配置');
+  }
+});
+
+const startLLMStream = async () => {
+  llmLoading.value = true;
+  llmProgress.value = '';
+  llmText.value = '';
+  llmError.value = '';
+
+  try {
+    const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+    const response = await fetch(`${baseURL}/api/bazi/llm-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        year: form.year,
+        month: form.month,
+        day: form.day,
+        hour: form.hour,
+        gender: form.gender,
+        analysis_style: form.analysis_style,
+      }),
+    });
+
+    if (!response.body) {
+      throw new Error('当前浏览器不支持流式输出');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split('\n\n');
+      // 最后一段可能是不完整的，留在缓冲区
+      buffer = parts.pop() || '';
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        const jsonStr = line.slice(5).trim();
+        if (!jsonStr) continue;
+        try {
+          const payload = JSON.parse(jsonStr);
+          if (payload.type === 'progress') {
+            llmProgress.value = payload.message || '';
+          } else if (payload.type === 'content') {
+            if (payload.content) {
+              llmText.value += payload.content;
+            }
+          } else if (payload.type === 'done') {
+            if (payload.full_content && !llmText.value) {
+              llmText.value = payload.full_content;
+            }
+          } else if (payload.type === 'error') {
+            llmError.value = payload.message || 'AI解析失败';
+          } else if (payload.type === 'data') {
+            // 可选：更新前端结果中的基础数据（目前后端已在主接口返回，可忽略）
+          }
+        } catch {
+          console.warn('解析LLM流式数据失败');
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error('LLM流式解析失败:', error);
+    llmError.value = error.message || 'AI解析失败，请稍后重试';
+  } finally {
+    llmLoading.value = false;
+  }
 };
 
 const handleAnalyze = async () => {
@@ -246,6 +388,9 @@ const handleAnalyze = async () => {
 
   loading.value = true;
   result.value = null;
+  llmText.value = '';
+  llmError.value = '';
+  llmProgress.value = '';
 
   try {
     const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
@@ -264,7 +409,9 @@ const handleAnalyze = async () => {
         include_shishen: form.include_shishen,
         include_dayun: form.include_dayun,
         include_shensha: form.include_shensha,
-        include_llm: form.include_llm,
+        // 基础分析阶段不直接调用 LLM，避免页面长时间卡住
+        include_llm: false,
+        analysis_style: form.analysis_style,
       }),
     });
 
@@ -276,6 +423,11 @@ const handleAnalyze = async () => {
 
     result.value = data;
     ElMessage.success('排盘分析完成');
+
+    // 如果用户勾选了 AI 深度解析，则在基础结果加载完成后单独走流式 LLM
+    if (form.include_llm) {
+      startLLMStream();
+    }
   } catch (error: any) {
     console.error('排盘失败:', error);
     ElMessage.error(error.message || '排盘失败，请稍后重试');
@@ -740,6 +892,22 @@ const formatLLMResponse = (text: string) => {
 
 .llm-error {
   margin-top: 16px;
+}
+
+.llm-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.llm-progress-text {
+  font-size: 13px;
+  color: var(--bazi-text-light);
+}
+
+.llm-empty {
+  font-size: 13px;
+  color: var(--bazi-text-light);
 }
 </style>
 

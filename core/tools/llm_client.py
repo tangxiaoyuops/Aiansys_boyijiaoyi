@@ -5,7 +5,7 @@ LLM 客户端工具
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Generator
 
 
 # 加载环境变量
@@ -106,5 +106,64 @@ def call_llm(
         
         # 抛出异常，让调用方处理
         raise Exception(error_msg)
+
+
+def call_llm_stream(
+    system_prompt: str,
+    user_prompt: str,
+    model: Optional[str] = None,
+    temperature: float = 0.3,
+) -> Generator[str, None, None]:
+    """
+    流式调用大模型
+    
+    Args:
+        system_prompt: 系统提示词
+        user_prompt: 用户提示词
+        model: 模型名称（默认从环境变量 QWEN_MODEL 读取）
+        temperature: 温度参数
+    
+    Yields:
+        模型返回的文本片段
+    """
+    import time
+    start_time = time.time()
+    
+    try:
+        print(f"[LLM流式调用] 开始调用大模型...")
+        print(f"[LLM流式调用] 模型: {model or os.getenv('QWEN_MODEL', 'qwen-plus')}")
+        
+        client = get_llm_client()
+        model_name = model or os.getenv("QWEN_MODEL", "qwen-plus")
+        
+        print(f"[LLM流式调用] 正在发送请求到API...")
+        stream = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=temperature,
+            stream=True
+        )
+        
+        elapsed_time = time.time() - start_time
+        print(f"[LLM流式调用] API响应开始，耗时: {elapsed_time:.2f}秒")
+        
+        for chunk in stream:
+            if chunk.choices and len(chunk.choices) > 0:
+                delta = chunk.choices[0].delta
+                if hasattr(delta, 'content') and delta.content:
+                    yield delta.content
+        
+        total_time = time.time() - start_time
+        print(f"[LLM流式调用] 流式输出完成，总耗时: {total_time:.2f}秒")
+        
+    except Exception as e:
+        elapsed_time = time.time() - start_time
+        error_str = str(e)
+        print(f"[LLM流式调用失败] 耗时: {elapsed_time:.2f}秒")
+        print(f"[LLM流式调用失败] 错误: {error_str}")
+        raise Exception(error_str)
 
 

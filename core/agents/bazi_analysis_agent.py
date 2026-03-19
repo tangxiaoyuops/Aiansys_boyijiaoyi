@@ -29,6 +29,7 @@ def bazi_complete_analysis(
     include_shensha: bool = True,
     include_llm: bool = False,
     target_year: Optional[int] = None,
+    analysis_style: str = 'classic',
 ) -> Dict[str, Any]:
     """
     完整的八字分析
@@ -46,6 +47,7 @@ def bazi_complete_analysis(
         include_shensha: 是否包含神煞分析
         include_llm: 是否包含LLM深度分析
         target_year: 目标年份（用于流年分析）
+        analysis_style: 分析风格（classic/simple/life_guide/business/emotion）
     
     Returns:
         完整的分析结果
@@ -53,8 +55,9 @@ def bazi_complete_analysis(
     try:
         print(f"[完整分析] ========== 开始八字完整分析 ==========")
         print(f"[完整分析] 参数: {year}年{month}月{day}日{hour}时, 性别={gender}")
+        print(f"[完整分析] 分析风格: {analysis_style}")
         print(f"[完整分析] 分析选项: 五行={include_wuxing}, 十神={include_shishen}, 大运={include_dayun}, 流年={include_liunian}, 神煞={include_shensha}, LLM={include_llm}")
-        logger.info(f"开始完整分析: {year}年{month}月{day}日{hour}时")
+        logger.info(f"开始完整分析: {year}年{month}月{day}日{hour}时, 风格={analysis_style}")
         
         # 1. 基础排盘
         print(f"[完整分析] 步骤1: 开始基础排盘...")
@@ -126,7 +129,7 @@ def bazi_complete_analysis(
         if include_llm:
             print(f"[完整分析] 步骤7: 开始LLM深度分析...")
             try:
-                llm_result = _build_llm_analysis(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis)
+                llm_result = _build_llm_analysis(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, analysis_style)
                 if llm_result.get('success'):
                     llm_analysis = llm_result
                     print(f"[完整分析] 步骤7完成: LLM深度分析成功")
@@ -171,7 +174,8 @@ def _build_llm_analysis(
     wuxing_analysis: Optional[Dict[str, Any]],
     shishen_analysis: Optional[Dict[str, Any]],
     dayun_analysis: Optional[Dict[str, Any]],
-    shensha_analysis: Optional[Dict[str, Any]]
+    shensha_analysis: Optional[Dict[str, Any]],
+    analysis_style: str = 'classic'
 ) -> Dict[str, Any]:
     """
     构建LLM分析
@@ -182,29 +186,23 @@ def _build_llm_analysis(
         shishen_analysis: 十神分析结果
         dayun_analysis: 大运分析结果
         shensha_analysis: 神煞分析结果
+        analysis_style: 分析风格
     
     Returns:
         LLM分析结果
     """
     try:
-        system_prompt = """你是一位传统文化分析专家，擅长根据结构化信息进行逻辑分析和提供建议。
-请根据提供的八字信息，进行深入、全面、专业的分析，包括：
-1. 四柱的结构和象征意义解读
-2. 五行分布的平衡性分析
-3. 十神关系的含义和影响
-4. 大运的趋势分析（如果有）
-5. 神煞的吉凶含义（如果有）
-6. 综合性的思考方向和建议
-
-请用专业但易懂的语言进行分析，避免过于玄学的表述，注重实用性和指导性。"""
+        from core.agents.bazi_prompt_styles import get_system_prompt, build_bazi_prompt
         
-        user_prompt = _build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis)
+        system_prompt = get_system_prompt(analysis_style)
+        user_prompt = build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis)
         
         llm_response = call_llm(system_prompt, user_prompt, model=None, temperature=0.3)
         
         return {
             'success': True,
             'analysis': llm_response,
+            'style': analysis_style,
         }
         
     except Exception as e:
@@ -230,6 +228,7 @@ def _build_llm_analysis(
             'error': error_msg,
         }
 
+
 def _build_bazi_prompt(
     sizhu: Dict[str, Any],
     wuxing_analysis: Optional[Dict[str, Any]],
@@ -238,71 +237,10 @@ def _build_bazi_prompt(
     shensha_analysis: Optional[Dict[str, Any]]
 ) -> str:
     """
-    构建八字分析的提示词
-    
-    Args:
-        sizhu: 四柱数据
-        wuxing_analysis: 五行分析结果
-        shishen_analysis: 十神分析结果
-        dayun_analysis: 大运分析结果
-        shensha_analysis: 神煞分析结果
-    
-    Returns:
-        提示词字符串
+    构建八字分析的提示词（已迁移到 bazi_prompt_styles.py）
+    保留此函数以保持向后兼容
     """
-    lines = ["## 八字分析信息\n"]
-    
-    # 四柱信息
-    lines.append("### 四柱信息")
-    nian_zhu = sizhu.get('nian_zhu', {})
-    yue_zhu = sizhu.get('yue_zhu', {})
-    ri_zhu = sizhu.get('ri_zhu', {})
-    shi_zhu = sizhu.get('shi_zhu', {})
-    lines.append(f"年柱: {nian_zhu.get('tian_gan', '')}{nian_zhu.get('di_zhi', '')}")
-    lines.append(f"月柱: {yue_zhu.get('tian_gan', '')}{yue_zhu.get('di_zhi', '')}")
-    lines.append(f"日柱: {ri_zhu.get('tian_gan', '')}{ri_zhu.get('di_zhi', '')} (日主: {sizhu.get('ri_zhu_tiangan', '')})")
-    lines.append(f"时柱: {shi_zhu.get('tian_gan', '')}{shi_zhu.get('di_zhi', '')}")
-    lines.append("")
-    
-    # 五行信息
-    if wuxing_analysis:
-        wuxing_data = wuxing_analysis.get('wuxing_data', {})
-        lines.append("### 五行分布")
-        lines.append(f"金: {wuxing_data.get('jin', 0)}, 木: {wuxing_data.get('mu', 0)}, 水: {wuxing_data.get('shui', 0)}, 火: {wuxing_data.get('huo', 0)}, 土: {wuxing_data.get('tu', 0)}")
-        lines.append(f"日主五行: {wuxing_data.get('rizhu_wuxing', '')}")
-        lines.append("")
-    
-    # 十神信息
-    if shishen_analysis:
-        shishen_data = shishen_analysis.get('shishen_data', {})
-        lines.append("### 十神关系")
-        for zhu_name, shishen_info in shishen_data.items():
-            gan_shishen = shishen_info.get('gan_shishen', '')
-            zhi_shishen = shishen_info.get('zhi_shishen', '')
-            if gan_shishen or zhi_shishen:
-                lines.append(f"{zhu_name}: 天干={gan_shishen}, 地支={zhi_shishen}")
-        lines.append("")
-    
-    # 大运信息
-    if dayun_analysis:
-        dayun_list = dayun_analysis.get('dayun_list', [])
-        lines.append("### 大运信息")
-        for i, dayun in enumerate(dayun_list[:5], 1):  # 只显示前5步大运
-            lines.append(f"第{i}步大运: {dayun.get('gan', '')}{dayun.get('zhi', '')} ({dayun.get('start_age', 0)}-{dayun.get('end_age', 0)}岁)")
-        lines.append("")
-    
-    # 神煞信息
-    if shensha_analysis:
-        shensha_data = shensha_analysis.get('shensha_data', {})
-        shensha_list = shensha_data.get('shensha_list', [])
-        if shensha_list:
-            lines.append("### 神煞信息")
-            for shensha in shensha_list:
-                lines.append(f"{shensha.get('name', '')}: {shensha.get('position', '')} ({shensha.get('type', '')})")
-            lines.append("")
-    
-    lines.append("请根据以上信息，进行全面的八字分析。")
-    
-    return "\n".join(lines)
+    from core.agents.bazi_prompt_styles import build_bazi_prompt
+    return build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis)
 
 
