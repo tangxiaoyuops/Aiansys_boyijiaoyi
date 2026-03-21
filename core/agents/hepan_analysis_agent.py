@@ -24,10 +24,10 @@ def hepan_complete_analysis(
     hour_a: int,
     gender_a: str = '男',
     # 命盘B参数
-    year_b: int,
-    month_b: int,
-    day_b: int,
-    hour_b: int,
+    year_b: int = 1990,
+    month_b: int = 1,
+    day_b: int = 1,
+    hour_b: int = 11,
     gender_b: str = '女',
     # 分析选项
     hepan_type: str = 'couple',

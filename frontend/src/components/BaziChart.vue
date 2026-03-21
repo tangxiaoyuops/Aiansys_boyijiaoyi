@@ -1,5 +1,5 @@
 <template>
-  <div class="bazi-chart-container">
+  <div class="bazi-chart-container" :class="{ 'compact-mode': compact }">
     <!-- 四柱八字主体 -->
     <div class="sizhu-wrapper">
       <div class="sizhu-grid">
@@ -147,9 +147,12 @@ interface Props {
   sizhu?: any;
   wuxingAnalysis?: any;
   shishenAnalysis?: any;
+  compact?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  compact: false,
+});
 
 // 天干五行映射
 const tianganWuxing: Record<string, string> = {
@@ -536,5 +539,61 @@ const getWuxingGradient = (wuxing: string): string => {
   .wuxing-bar-item:nth-child(5) {
     grid-column: span 1;
   }
+}
+
+.compact-mode {
+  padding: 12px;
+}
+
+.compact-mode .sizhu-wrapper {
+  padding: 0;
+}
+
+.compact-mode .sizhu-grid {
+  gap: 8px;
+}
+
+.compact-mode .zhu-column {
+  padding: 6px;
+}
+
+.compact-mode .zhu-label {
+  font-size: 11px;
+  padding: 3px 8px;
+  margin-bottom: 6px;
+}
+
+.compact-mode .zhu-body {
+  padding: 6px;
+  gap: 6px;
+}
+
+.compact-mode .tiangan,
+.compact-mode .dizhi {
+  width: 40px;
+  height: 40px;
+}
+
+.compact-mode .gan-char {
+  font-size: 24px;
+}
+
+.compact-mode .zhi-char {
+  font-size: 20px;
+}
+
+.compact-mode .wuxing-badge {
+  font-size: 8px;
+  padding: 1px 4px;
+}
+
+.compact-mode .shishen-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  margin-top: 4px;
+}
+
+.compact-mode .wuxing-section {
+  display: none;
 }
 </style>

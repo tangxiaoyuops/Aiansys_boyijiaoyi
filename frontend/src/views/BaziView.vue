@@ -4,9 +4,19 @@
       <!-- 左侧输入区域 -->
       <div class="left-panel">
         <div class="input-card">
-          <h2 class="card-title">排盘信息</h2>
-          <div class="form-hint">请输入公历日期</div>
-          <el-form :model="form" label-width="90px" class="bazi-form">
+          <!-- 模式切换 -->
+          <div class="mode-switch">
+            <el-radio-group v-model="analysisMode" size="large">
+              <el-radio-button label="single">单人分析</el-radio-button>
+              <el-radio-button label="hepan">双人合盘</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <!-- 单人模式表单 -->
+          <template v-if="analysisMode === 'single'">
+            <h2 class="card-title">排盘信息</h2>
+            <div class="form-hint">请输入公历日期</div>
+            <el-form :model="form" label-width="90px" class="bazi-form">
             <el-form-item label="出生年份">
               <el-input-number v-model="form.year" :min="1900" :max="2100" style="width: 100%" />
             </el-form-item>
@@ -62,20 +72,134 @@
               </el-button>
             </el-form-item>
           </el-form>
+          </template>
+
+          <!-- 双人合盘模式表单 -->
+          <template v-else>
+            <el-collapse v-model="activePanels" class="hepan-collapse">
+              <el-collapse-item name="A">
+                <template #title>
+                  <span class="pan-title">
+                    命盘A ({{ hepanForm.gender_a }}) - {{ hepanForm.year_a }}年{{ hepanForm.month_a }}月{{ hepanForm.day_a }}日
+                  </span>
+                </template>
+                <el-form :model="hepanForm" label-width="80px" class="hepan-form">
+                  <el-form-item label="出生年份">
+                    <el-input-number v-model="hepanForm.year_a" :min="1900" :max="2100" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item label="出生月份">
+                    <el-input-number v-model="hepanForm.month_a" :min="1" :max="12" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item label="出生日期">
+                    <el-input-number v-model="hepanForm.day_a" :min="1" :max="31" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item label="出生时辰">
+                    <el-select v-model="hepanForm.hour_a" placeholder="选择时辰" style="width: 100%">
+                      <el-option label="子时(23-1)" :value="23" />
+                      <el-option label="丑时(1-3)" :value="1" />
+                      <el-option label="寅时(3-5)" :value="3" />
+                      <el-option label="卯时(5-7)" :value="5" />
+                      <el-option label="辰时(7-9)" :value="7" />
+                      <el-option label="巳时(9-11)" :value="9" />
+                      <el-option label="午时(11-13)" :value="11" />
+                      <el-option label="未时(13-15)" :value="13" />
+                      <el-option label="申时(15-17)" :value="15" />
+                      <el-option label="酉时(17-19)" :value="17" />
+                      <el-option label="戌时(19-21)" :value="19" />
+                      <el-option label="亥时(21-23)" :value="21" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="性别">
+                    <el-radio-group v-model="hepanForm.gender_a">
+                      <el-radio label="男">男</el-radio>
+                      <el-radio label="女">女</el-radio>
+                    </el-radio-group>
+                  </el-form-item>
+                </el-form>
+              </el-collapse-item>
+
+              <el-collapse-item name="B">
+                <template #title>
+                  <span class="pan-title">
+                    命盘B ({{ hepanForm.gender_b }}) - {{ hepanForm.year_b }}年{{ hepanForm.month_b }}月{{ hepanForm.day_b }}日
+                  </span>
+                </template>
+                <el-form :model="hepanForm" label-width="80px" class="hepan-form">
+                  <el-form-item label="出生年份">
+                    <el-input-number v-model="hepanForm.year_b" :min="1900" :max="2100" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item label="出生月份">
+                    <el-input-number v-model="hepanForm.month_b" :min="1" :max="12" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item label="出生日期">
+                    <el-input-number v-model="hepanForm.day_b" :min="1" :max="31" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item label="出生时辰">
+                    <el-select v-model="hepanForm.hour_b" placeholder="选择时辰" style="width: 100%">
+                      <el-option label="子时(23-1)" :value="23" />
+                      <el-option label="丑时(1-3)" :value="1" />
+                      <el-option label="寅时(3-5)" :value="3" />
+                      <el-option label="卯时(5-7)" :value="5" />
+                      <el-option label="辰时(7-9)" :value="7" />
+                      <el-option label="巳时(9-11)" :value="9" />
+                      <el-option label="午时(11-13)" :value="11" />
+                      <el-option label="未时(13-15)" :value="13" />
+                      <el-option label="申时(15-17)" :value="15" />
+                      <el-option label="酉时(17-19)" :value="17" />
+                      <el-option label="戌时(19-21)" :value="19" />
+                      <el-option label="亥时(21-23)" :value="21" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="性别">
+                    <el-radio-group v-model="hepanForm.gender_b">
+                      <el-radio label="男">男</el-radio>
+                      <el-radio label="女">女</el-radio>
+                    </el-radio-group>
+                  </el-form-item>
+                </el-form>
+              </el-collapse-item>
+            </el-collapse>
+
+            <div class="hepan-options">
+              <el-form-item label="合盘类型">
+                <el-radio-group v-model="hepanForm.hepan_type">
+                  <el-radio label="couple">情侣合婚</el-radio>
+                  <el-radio label="business">商业合作</el-radio>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="hepanLoading" @click="handleHepanAnalyze" style="width: 100%">
+                  <el-icon><Connection /></el-icon>
+                  开始合盘分析
+                </el-button>
+              </el-form-item>
+            </div>
+          </template>
         </div>
       </div>
 
       <!-- 右侧结果区域 -->
       <div class="right-panel">
-        <div v-if="!result && !loading" class="empty-state">
+        <!-- 单人模式空状态 -->
+        <div v-if="analysisMode === 'single' && !result && !loading" class="empty-state">
           <el-empty description="请填写信息并点击排盘分析" />
+        </div>
+
+        <!-- 合盘模式空状态 -->
+        <div v-if="analysisMode === 'hepan' && !hepanResult && !hepanLoading" class="empty-state">
+          <el-empty description="请填写双方信息并点击合盘分析" />
         </div>
 
         <div v-if="loading" class="loading-state">
           <el-skeleton :rows="10" animated />
         </div>
 
-        <div v-if="result && !loading" class="result-wrapper">
+        <div v-if="hepanLoading" class="loading-state">
+          <el-skeleton :rows="10" animated />
+        </div>
+
+        <!-- 单人模式结果 -->
+        <div v-if="analysisMode === 'single' && result && !loading" class="result-wrapper">
           <!-- 上方：基础分析结果 -->
           <div class="basic-result-section" :style="{ height: basicResultHeight + 'px' }">
             <!-- 四柱信息 -->
@@ -146,6 +270,54 @@
             <BaziChatPanel ref="chatPanelRef" :llm-loading="llmLoading" :llm-progress="llmProgress" />
           </div>
         </div>
+
+        <!-- 合盘模式结果 -->
+        <div v-if="analysisMode === 'hepan' && hepanResult && !hepanLoading" class="result-wrapper hepan-result-wrapper">
+          <!-- 上方：合盘匹配结果 -->
+          <div class="hepan-basic-section" :style="{ height: hepanResultHeight + 'px' }">
+            <!-- 双方四柱对比 -->
+            <div class="dual-sizhu-row">
+              <div class="sizhu-card">
+                <h4 class="sizhu-title">命盘A ({{ hepanResult.birth_info_a?.gender }})</h4>
+                <BaziChart :sizhu="hepanResult.pan_a?.sizhu" :compact="true" />
+              </div>
+              <div class="vs-divider">
+                <span class="vs-text">VS</span>
+              </div>
+              <div class="sizhu-card">
+                <h4 class="sizhu-title">命盘B ({{ hepanResult.birth_info_b?.gender }})</h4>
+                <BaziChart :sizhu="hepanResult.pan_b?.sizhu" :compact="true" />
+              </div>
+            </div>
+
+            <!-- 合盘匹配分析 -->
+            <HepanResultPanel :hepan-data="hepanResult.hepan" />
+          </div>
+
+          <!-- 可拖拽分割条 -->
+          <div class="resize-handle" @mousedown="startHepanResize" :class="{ 'resizing': isHepanResizing }">
+            <div class="resize-line"></div>
+            <div class="resize-hint"><el-icon><DCaret /></el-icon>拖拽调整</div>
+          </div>
+
+          <!-- 下方：AI深度解读 -->
+          <div class="hepan-llm-section" :style="{ height: `calc(100% - ${hepanResultHeight + RESIZE_HANDLE_HEIGHT}px)` }">
+            <div v-if="hepanLlmLoading" class="llm-loading">
+              <el-skeleton :rows="6" animated />
+              <div class="progress-text">{{ hepanLlmProgress }}</div>
+            </div>
+            <div v-else-if="hepanLlmContent" class="llm-content">
+              <div class="content-header">
+                <el-icon><Document /></el-icon>
+                <span>AI 深度解读</span>
+              </div>
+              <div class="markdown-body" v-html="renderMarkdown(hepanLlmContent)"></div>
+            </div>
+            <div v-else class="llm-empty">
+              <el-empty description="点击上方开始合盘分析获取AI解读" :image-size="60" />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -154,9 +326,10 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { MagicStick, Document, Star, Calendar, Grid, DCaret } from '@element-plus/icons-vue';
+import { MagicStick, Document, Star, Calendar, Grid, DCaret, Connection } from '@element-plus/icons-vue';
 import BaziChart from '../components/BaziChart.vue';
 import BaziChatPanel from '../components/BaziChatPanel.vue';
+import HepanResultPanel from '../components/HepanResultPanel.vue';
 import { useBaziChatStore } from '../stores/baziChat';
 
 const baziChatStore = useBaziChatStore();
@@ -164,6 +337,15 @@ const chatPanelRef = ref<any>(null);
 
 const loading = ref(false);
 const result = ref<any>(null);
+
+const analysisMode = ref<'single' | 'hepan'>('single');
+const activePanels = ref(['A', 'B']);
+
+const hepanLoading = ref(false);
+const hepanResult = ref<any>(null);
+const hepanLlmLoading = ref(false);
+const hepanLlmProgress = ref('');
+const hepanLlmContent = ref('');
 
 const analysisStyles = ref([
   { value: 'classic', name: '传统专业', description: '专业术语完整，分析深入全面' },
@@ -189,6 +371,22 @@ const form = reactive({
   analysis_style: 'classic',
 });
 
+const hepanForm = reactive({
+  year_a: 1990,
+  month_a: 1,
+  day_a: 1,
+  hour_a: 11,
+  gender_a: '男',
+  year_b: 1992,
+  month_b: 5,
+  day_b: 15,
+  hour_b: 13,
+  gender_b: '女',
+  hepan_type: 'couple' as 'couple' | 'business',
+  include_llm: true,
+  analysis_style: 'emotion',
+});
+
 const zhuNameMap: Record<string, string> = {
   'nian_zhu': '年', 'yue_zhu': '月', 'ri_zhu': '日', 'shi_zhu': '时',
 };
@@ -204,6 +402,11 @@ const basicResultHeight = ref(200);
 const isResizing = ref(false);
 const startY = ref(0);
 const startHeight = ref(0);
+
+const hepanResultHeight = ref(300);
+const isHepanResizing = ref(false);
+const hepanStartY = ref(0);
+const hepanStartHeight = ref(0);
 
 const startResize = (e: MouseEvent) => {
   isResizing.value = true;
@@ -229,9 +432,35 @@ const stopResize = () => {
   document.body.style.userSelect = '';
 };
 
+const startHepanResize = (e: MouseEvent) => {
+  isHepanResizing.value = true;
+  hepanStartY.value = e.clientY;
+  hepanStartHeight.value = hepanResultHeight.value;
+  document.addEventListener('mousemove', onHepanResize);
+  document.addEventListener('mouseup', stopHepanResize);
+  document.body.style.cursor = 'ns-resize';
+  document.body.style.userSelect = 'none';
+};
+
+const onHepanResize = (e: MouseEvent) => {
+  if (!isHepanResizing.value) return;
+  const delta = e.clientY - hepanStartY.value;
+  hepanResultHeight.value = Math.max(200, Math.min(600, hepanStartHeight.value + delta));
+};
+
+const stopHepanResize = () => {
+  isHepanResizing.value = false;
+  document.removeEventListener('mousemove', onHepanResize);
+  document.removeEventListener('mouseup', stopHepanResize);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+};
+
 onUnmounted(() => {
   document.removeEventListener('mousemove', onResize);
   document.removeEventListener('mouseup', stopResize);
+  document.removeEventListener('mousemove', onHepanResize);
+  document.removeEventListener('mouseup', stopHepanResize);
 });
 
 onMounted(async () => {
@@ -387,6 +616,132 @@ const updateChatContext = (data: any) => {
     gender: form.gender,
     birth_info: { year: form.year, month: form.month, day: form.day, hour: form.hour },
   });
+};
+
+const handleHepanAnalyze = async () => {
+  if (!hepanForm.year_a || !hepanForm.month_a || !hepanForm.day_a ||
+      !hepanForm.year_b || !hepanForm.month_b || !hepanForm.day_b) {
+    ElMessage.warning('请填写完整的双方出生信息');
+    return;
+  }
+
+  hepanLoading.value = true;
+  hepanResult.value = null;
+  hepanLlmContent.value = '';
+  hepanLlmProgress.value = '';
+
+  try {
+    const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+    
+    // 使用流式API
+    const response = await fetch(`${baseURL}/api/bazi/hepan-stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        year_a: hepanForm.year_a,
+        month_a: hepanForm.month_a,
+        day_a: hepanForm.day_a,
+        hour_a: hepanForm.hour_a,
+        gender_a: hepanForm.gender_a,
+        year_b: hepanForm.year_b,
+        month_b: hepanForm.month_b,
+        day_b: hepanForm.day_b,
+        hour_b: hepanForm.hour_b,
+        gender_b: hepanForm.gender_b,
+        hepan_type: hepanForm.hepan_type,
+        include_llm: hepanForm.include_llm,
+        analysis_style: hepanForm.analysis_style,
+      }),
+    });
+
+    if (!response.body) throw new Error('不支持流式输出');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        const jsonStr = line.slice(5).trim();
+        if (!jsonStr) continue;
+        try {
+          const payload = JSON.parse(jsonStr);
+          
+          if (payload.type === 'progress') {
+            hepanLlmProgress.value = payload.message || '';
+          }
+          else if (payload.type === 'data') {
+            hepanResult.value = {
+              success: true,
+              pan_a: payload.pan_a,
+              pan_b: payload.pan_b,
+              hepan: payload.hepan,
+              birth_info_a: {
+                year: hepanForm.year_a,
+                month: hepanForm.month_a,
+                day: hepanForm.day_a,
+                hour: hepanForm.hour_a,
+                gender: hepanForm.gender_a,
+              },
+              birth_info_b: {
+                year: hepanForm.year_b,
+                month: hepanForm.month_b,
+                day: hepanForm.day_b,
+                hour: hepanForm.hour_b,
+                gender: hepanForm.gender_b,
+              },
+            };
+            hepanLlmLoading.value = true;
+          }
+          else if (payload.type === 'content' && payload.content) {
+            hepanLlmContent.value += payload.content;
+          }
+          else if (payload.type === 'done') {
+            if (payload.full_content) {
+              hepanLlmContent.value = payload.full_content;
+            }
+            hepanLlmLoading.value = false;
+          }
+          else if (payload.type === 'error') {
+            ElMessage.error(payload.message || '分析失败');
+            hepanLlmLoading.value = false;
+          }
+        } catch (e) {
+          console.error('[HepanView] 解析错误:', e);
+        }
+      }
+    }
+
+    ElMessage.success('合盘分析完成');
+  } catch (error: any) {
+    ElMessage.error(error.message || '合盘分析失败');
+  } finally {
+    hepanLoading.value = false;
+    hepanLlmLoading.value = false;
+  }
+};
+
+const renderMarkdown = (content: string): string => {
+  if (!content) return '';
+  let html = content
+    .replace(/^### (.*$)/gim, '<h4>$1</h4>')
+    .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+    .replace(/^# (.*$)/gim, '<h2>$1</h2>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/^- (.*$)/gim, '<li>$1</li>')
+    .replace(/\n/g, '<br>');
+  html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+  return html;
 };
 </script>
 
@@ -545,4 +900,181 @@ const updateChatContext = (data: any) => {
 
 .chat-section { flex: 1; min-height: 200px; overflow: hidden; }
 .chat-section :deep(.bazi-chat-panel) { height: 100%; }
+
+.mode-switch {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.mode-switch :deep(.el-radio-group) {
+  width: 100%;
+}
+
+.mode-switch :deep(.el-radio-button__inner) {
+  width: 100%;
+}
+
+.hepan-collapse {
+  margin-bottom: 16px;
+  border: none;
+}
+
+.hepan-collapse :deep(.el-collapse-item__header) {
+  background: rgba(212, 175, 55, 0.1);
+  border-radius: 8px;
+  padding: 0 16px;
+  border: none;
+  margin-bottom: 8px;
+}
+
+.hepan-collapse :deep(.el-collapse-item__wrap) {
+  border: none;
+}
+
+.hepan-collapse :deep(.el-collapse-item__content) {
+  padding: 12px 0 0 0;
+}
+
+.pan-title {
+  font-weight: 500;
+  color: var(--bazi-text);
+}
+
+.hepan-form {
+  padding: 0 8px;
+}
+
+.hepan-options {
+  padding: 16px;
+  background: rgba(212, 175, 55, 0.05);
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+.hepan-result-wrapper {
+  padding: 0;
+}
+
+.hepan-basic-section {
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: 16px;
+  min-height: 200px;
+}
+
+.dual-sizhu-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: stretch;
+}
+
+.sizhu-card {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid var(--bazi-border-light);
+}
+
+.sizhu-title {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bazi-primary);
+  text-align: center;
+}
+
+.vs-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+}
+
+.vs-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--bazi-secondary);
+  background: rgba(212, 175, 55, 0.15);
+  padding: 8px 12px;
+  border-radius: 50%;
+}
+
+.hepan-llm-section {
+  flex: 1;
+  min-height: 150px;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.llm-loading {
+  padding: 16px;
+}
+
+.progress-text {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--bazi-text-light);
+  text-align: center;
+}
+
+.llm-content {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid var(--bazi-border-light);
+}
+
+.content-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: var(--bazi-primary);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--bazi-border-light);
+}
+
+.markdown-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--bazi-text);
+}
+
+.markdown-body h2 {
+  font-size: 16px;
+  margin: 16px 0 8px 0;
+  color: var(--bazi-primary);
+}
+
+.markdown-body h3 {
+  font-size: 15px;
+  margin: 14px 0 6px 0;
+  color: var(--bazi-text);
+}
+
+.markdown-body h4 {
+  font-size: 14px;
+  margin: 12px 0 6px 0;
+  color: var(--bazi-text);
+}
+
+.markdown-body ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.markdown-body li {
+  margin-bottom: 4px;
+}
+
+.llm-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
 </style>

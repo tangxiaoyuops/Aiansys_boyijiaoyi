@@ -421,3 +421,238 @@ def build_bazi_prompt(
     lines.append("")
     
     return "\n".join(lines)
+
+
+# ==================== 合盘专用提示词 ====================
+
+HEPAN_PROMPTS = {
+    'couple': """你是一位精通传统命理学的专业合婚分析师，拥有深厚的理论功底和丰富的实战经验。
+
+请按照以下专业框架进行合婚分析：
+
+## 一、命盘概览
+- 双方四柱结构对比
+- 日主五行分析
+
+## 二、合盘匹配分析
+- 地支六合六冲解读：六合代表缘分深厚，六冲需要磨合
+- 天干合化影响：天干五合代表性格互补
+- 五行互补情况：五行互补代表相互补益
+- 日主关系详解：相生有情，相克需包容
+
+## 三、婚姻运势分析
+- 感情契合度：从性格、价值观角度分析
+- 性格互补性：双方性格特点及互补点
+- 沟通与相处：日常相处模式分析
+- 家庭关系：与双方家庭的关系
+
+## 四、子女运分析
+- 子女缘分
+- 子女性别倾向
+- 教育方向
+
+## 五、发展建议
+- 优势与机遇：命盘契合的优势
+- 需要注意的问题：需要磨合的方面
+- 趋吉避凶建议：实用的调理建议
+
+请使用专业术语，但需解释其含义。分析要全面深入，逻辑清晰，给出实用的建议。""",
+
+    'business': """你是一位精通商业命理的专业顾问，擅长分析合作伙伴之间的命盘契合度。
+
+请按照以下专业框架进行商业合盘分析：
+
+## 一、命盘概览
+- 双方四柱结构对比
+- 日主五行分析
+
+## 二、合作契合度分析
+- 性格匹配度：性格是否互补或冲突
+- 决策风格对比：决策风格是否一致
+- 风险承受能力：双方风险偏好
+- 五行互补情况：五行互补代表能力互补
+
+## 三、财运分析
+- 各自财运特点：正财、偏财情况
+- 合财可能性：合作是否能带来财运
+- 投资风格差异：投资理念的异同
+
+## 四、事业发展
+- 事业运势周期
+- 最佳合作时机
+- 事业方向建议
+
+## 五、合作建议
+- 优势互补点：能力互补分析
+- 需要注意的问题：潜在风险
+- 最佳合作方式：股权、分工建议
+- 趋吉避凶建议：实用的调理建议
+
+请使用专业术语，但需解释其含义。分析要客观理性，给出实用的商业建议。""",
+}
+
+
+def get_hepan_system_prompt(hepan_type: str = 'couple') -> str:
+    """
+    获取合盘分析的系统提示词
+    
+    Args:
+        hepan_type: 合盘类型 ('couple' | 'business')
+    
+    Returns:
+        系统提示词
+    """
+    return HEPAN_PROMPTS.get(hepan_type, HEPAN_PROMPTS['couple'])
+
+
+def build_hepan_prompt(
+    pan_a: Dict,
+    pan_b: Dict,
+    hepan_result: Dict,
+    hepan_type: str = 'couple',
+    birth_info_a: Optional[Dict] = None,
+    birth_info_b: Optional[Dict] = None,
+) -> str:
+    """
+    构建合盘分析的用户提示词
+    
+    Args:
+        pan_a: 命盘A分析结果
+        pan_b: 命盘B分析结果
+        hepan_result: 合盘匹配分析结果
+        hepan_type: 合盘类型
+        birth_info_a: 命盘A出生信息
+        birth_info_b: 命盘B出生信息
+    
+    Returns:
+        提示词字符串
+    """
+    lines = ["## 八字合盘分析信息\n"]
+    
+    # 命盘A信息
+    lines.append("### 命盘A")
+    sizhu_a = pan_a.get('sizhu', {})
+    nian_a = sizhu_a.get('nian_zhu', {})
+    yue_a = sizhu_a.get('yue_zhu', {})
+    ri_a = sizhu_a.get('ri_zhu', {})
+    shi_a = sizhu_a.get('shi_zhu', {})
+    
+    lines.append(f"四柱: {nian_a.get('tian_gan', '')}{nian_a.get('di_zhi', '')}年 "
+                f"{yue_a.get('tian_gan', '')}{yue_a.get('di_zhi', '')}月 "
+                f"{ri_a.get('tian_gan', '')}{ri_a.get('di_zhi', '')}日 "
+                f"{shi_a.get('tian_gan', '')}{shi_a.get('di_zhi', '')}时")
+    lines.append(f"日主: {sizhu_a.get('ri_zhu_tiangan', '')}")
+    lines.append(f"性别: {hepan_result.get('gender_a', '男')}")
+    
+    if birth_info_a:
+        lines.append(f"出生: {birth_info_a.get('year', '')}年{birth_info_a.get('month', '')}月{birth_info_a.get('day', '')}日")
+    
+    if sizhu_a.get('lunar_year'):
+        lines.append(f"农历: {sizhu_a.get('lunar_year')}年{sizhu_a.get('lunar_month')}月{sizhu_a.get('lunar_day')}日")
+    
+    # 五行分析
+    wuxing_a = pan_a.get('wuxing_analysis', {}).get('wuxing_data', {})
+    if wuxing_a:
+        lines.append(f"五行: 金{wuxing_a.get('jin', 0)} 木{wuxing_a.get('mu', 0)} 水{wuxing_a.get('shui', 0)} "
+                    f"火{wuxing_a.get('huo', 0)} 土{wuxing_a.get('tu', 0)}")
+    lines.append("")
+    
+    # 命盘B信息
+    lines.append("### 命盘B")
+    sizhu_b = pan_b.get('sizhu', {})
+    nian_b = sizhu_b.get('nian_zhu', {})
+    yue_b = sizhu_b.get('yue_zhu', {})
+    ri_b = sizhu_b.get('ri_zhu', {})
+    shi_b = sizhu_b.get('shi_zhu', {})
+    
+    lines.append(f"四柱: {nian_b.get('tian_gan', '')}{nian_b.get('di_zhi', '')}年 "
+                f"{yue_b.get('tian_gan', '')}{yue_b.get('di_zhi', '')}月 "
+                f"{ri_b.get('tian_gan', '')}{ri_b.get('di_zhi', '')}日 "
+                f"{shi_b.get('tian_gan', '')}{shi_b.get('di_zhi', '')}时")
+    lines.append(f"日主: {sizhu_b.get('ri_zhu_tiangan', '')}")
+    lines.append(f"性别: {hepan_result.get('gender_b', '女')}")
+    
+    if birth_info_b:
+        lines.append(f"出生: {birth_info_b.get('year', '')}年{birth_info_b.get('month', '')}月{birth_info_b.get('day', '')}日")
+    
+    if sizhu_b.get('lunar_year'):
+        lines.append(f"农历: {sizhu_b.get('lunar_year')}年{sizhu_b.get('lunar_month')}月{sizhu_b.get('lunar_day')}日")
+    
+    # 五行分析
+    wuxing_b = pan_b.get('wuxing_analysis', {}).get('wuxing_data', {})
+    if wuxing_b:
+        lines.append(f"五行: 金{wuxing_b.get('jin', 0)} 木{wuxing_b.get('mu', 0)} 水{wuxing_b.get('shui', 0)} "
+                    f"火{wuxing_b.get('huo', 0)} 土{wuxing_b.get('tu', 0)}")
+    lines.append("")
+    
+    # 合盘匹配结果
+    lines.append("### 合盘匹配分析")
+    scores = hepan_result.get('scores', {})
+    lines.append(f"**总评分: {scores.get('total', 0)}分 ({scores.get('grade', '')})**")
+    lines.append(f"- 地支匹配: {scores.get('di_zhi', 0)}分 - {scores.get('di_zhi_desc', '')}")
+    lines.append(f"- 五行互补: {scores.get('wuxing', 0)}分 - {scores.get('wuxing_desc', '')}")
+    lines.append(f"- 日主关系: {scores.get('rizhu', 0)}分 - {scores.get('rizhu_desc', '')}")
+    lines.append(f"- 天干合化: {scores.get('tian_gan', 0)}分 - {scores.get('tian_gan_desc', '')}")
+    lines.append("")
+    
+    # 地支关系详情
+    di_zhi = hepan_result.get('di_zhi_relation', {})
+    if di_zhi.get('liu_he'):
+        lines.append("**地支六合:**")
+        for he in di_zhi['liu_he']:
+            lines.append(f"- {he['desc']}")
+    if di_zhi.get('liu_chong'):
+        lines.append("**地支六冲:**")
+        for chong in di_zhi['liu_chong']:
+            lines.append(f"- {chong['desc']}")
+    lines.append("")
+    
+    # 天干合化详情
+    tian_gan = hepan_result.get('tian_gan_relation', {})
+    if tian_gan.get('wu_he'):
+        lines.append("**天干五合:**")
+        for he in tian_gan['wu_he']:
+            lines.append(f"- {he['desc']}")
+    lines.append("")
+    
+    # 日主关系详情
+    rizhu = hepan_result.get('rizhu_relation', {})
+    if rizhu.get('relations'):
+        lines.append("**日主关系:**")
+        for rel in rizhu['relations']:
+            lines.append(f"- {rel['desc']}")
+    lines.append("")
+    
+    # 五行互补详情
+    wuxing = hepan_result.get('wuxing_match', {})
+    lines.append("**五行分布对比:**")
+    lines.append(f"- 命盘A: 金{wuxing.get('wuxing_a', {}).get('金', 0)} 木{wuxing.get('wuxing_a', {}).get('木', 0)} "
+                f"水{wuxing.get('wuxing_a', {}).get('水', 0)} 火{wuxing.get('wuxing_a', {}).get('火', 0)} "
+                f"土{wuxing.get('wuxing_a', {}).get('土', 0)}")
+    lines.append(f"- 命盘B: 金{wuxing.get('wuxing_b', {}).get('金', 0)} 木{wuxing.get('wuxing_b', {}).get('木', 0)} "
+                f"水{wuxing.get('wuxing_b', {}).get('水', 0)} 火{wuxing.get('wuxing_b', {}).get('火', 0)} "
+                f"土{wuxing.get('wuxing_b', {}).get('土', 0)}")
+    if wuxing.get('complement'):
+        lines.append("**五行互补:**")
+        for c in wuxing['complement']:
+            lines.append(f"- {c['desc']}")
+    if wuxing.get('conflict'):
+        lines.append("**五行冲突:**")
+        for c in wuxing['conflict']:
+            lines.append(f"- {c['desc']}")
+    lines.append("")
+    
+    # 建议
+    if hepan_result.get('suggestions'):
+        lines.append("**系统建议:**")
+        for sug in hepan_result['suggestions'][:5]:
+            lines.append(f"- {sug}")
+        lines.append("")
+    
+    lines.append("---")
+    if hepan_type == 'couple':
+        lines.append("请根据以上信息，进行专业的八字合婚分析，重点分析婚姻和谐度、性格互补、未来发展等。")
+    else:
+        lines.append("请根据以上信息，进行专业的商业合盘分析，重点分析合作契合度、财运互补、决策风格等。")
+    
+    return "\n".join(lines)

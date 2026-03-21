@@ -24,6 +24,20 @@ export interface BaziContext {
   birth_info: Record<string, any> | null;
 }
 
+// 合盘上下文
+export interface HepanContext {
+  hepan_type: 'couple' | 'business';
+  // 命盘A
+  pan_a: Record<string, any> | null;
+  birth_info_a: Record<string, any> | null;
+  // 命盘B
+  pan_b: Record<string, any> | null;
+  birth_info_b: Record<string, any> | null;
+  // 合盘结果
+  hepan_result: Record<string, any> | null;
+  llm_analysis: string | null;
+}
+
 const randomId = () => Math.random().toString(36).slice(2);
 
 const defaultBaziContext: BaziContext = {
@@ -39,12 +53,23 @@ const defaultBaziContext: BaziContext = {
   birth_info: null,
 };
 
+const defaultHepanContext: HepanContext = {
+  hepan_type: 'couple',
+  pan_a: null,
+  birth_info_a: null,
+  pan_b: null,
+  birth_info_b: null,
+  hepan_result: null,
+  llm_analysis: null,
+};
+
 export const useBaziChatStore = defineStore('baziChat', () => {
   // State
   const messages = ref<BaziChatMessage[]>([]);
   const loading = ref(false);
   const conversationId = ref<string | null>(null);
   const baziContext = ref<BaziContext>({ ...defaultBaziContext });
+  const hepanContext = ref<HepanContext>({ ...defaultHepanContext });
   const progressMessage = ref('');
   
   // 分析状态：用于追踪深度分析是否已开始接收内容
@@ -72,6 +97,17 @@ export const useBaziChatStore = defineStore('baziChat', () => {
 
   function clearBaziContext() {
     baziContext.value = { ...defaultBaziContext };
+  }
+
+  function setHepanContext(context: Partial<HepanContext>) {
+    hepanContext.value = {
+      ...hepanContext.value,
+      ...context,
+    };
+  }
+
+  function clearHepanContext() {
+    hepanContext.value = { ...defaultHepanContext };
   }
 
   function appendUserMessage(content: string) {
@@ -172,6 +208,7 @@ export const useBaziChatStore = defineStore('baziChat', () => {
   function fullReset() {
     reset();
     clearBaziContext();
+    clearHepanContext();
   }
 
   function buildPayload(message: string): Record<string, any> {
@@ -202,6 +239,7 @@ export const useBaziChatStore = defineStore('baziChat', () => {
     loading,
     conversationId,
     baziContext,
+    hepanContext,
     progressMessage,
     analysisStarted,
     analysisContentLength,
@@ -213,6 +251,8 @@ export const useBaziChatStore = defineStore('baziChat', () => {
     // Actions
     setBaziContext,
     clearBaziContext,
+    setHepanContext,
+    clearHepanContext,
     appendUserMessage,
     appendAssistantMessage,
     updateFirstAssistantMessage,
