@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { ref, computed, reactive } from 'vue';
 
 export type MessageRole = 'user' | 'assistant';
 
@@ -6,7 +7,7 @@ export interface BaziChatMessage {
   id: string;
   role: MessageRole;
   content: string;
-  type?: string;
+  type?: string; // 'analysis' | 'content'
   timestamp: number;
 }
 
@@ -21,14 +22,6 @@ export interface BaziContext {
   analysis_style: string;
   gender: string;
   birth_info: Record<string, any> | null;
-}
-
-export interface BaziChatState {
-  messages: BaziChatMessage[];
-  loading: boolean;
-  conversationId: string | null;
-  baziContext: BaziContext;
-  progressMessage: string;
 }
 
 const randomId = () => Math.random().toString(36).slice(2);
@@ -46,113 +39,181 @@ const defaultBaziContext: BaziContext = {
   birth_info: null,
 };
 
-export const useBaziChatStore = defineStore('baziChat', {
-  state: (): BaziChatState => ({
-    messages: [],
-    loading: false,
-    conversationId: null,
-    baziContext: { ...defaultBaziContext },
-    progressMessage: '',
-  }),
+export const useBaziChatStore = defineStore('baziChat', () => {
+  // State
+  const messages = ref<BaziChatMessage[]>([]);
+  const loading = ref(false);
+  const conversationId = ref<string | null>(null);
+  const baziContext = ref<BaziContext>({ ...defaultBaziContext });
+  const progressMessage = ref('');
+  
+  // 分析状态：用于追踪深度分析是否已开始接收内容
+  const analysisStarted = ref(false);
 
-  getters: {
-    hasContext: (state): boolean => {
-      return state.baziContext.sizhu !== null;
-    },
+  // Getters
+  const hasContext = computed(() => baziContext.value.sizhu !== null);
+  const messageCount = computed(() => messages.value.length);
+  const lastMessage = computed(() => messages.value.length > 0 ? messages.value[messages.value.length - 1] : null);
+  const analysisMessage = computed(() => messages.value.find(m => m.role === 'assistant' && m.type === 'analysis') || null);
+  
+  // 获取分析消息的内容长度
+  const analysisContentLength = computed(() => {
+    const msg = messages.value.find(m => m.role === 'assistant' && m.type === 'analysis');
+    return msg?.content?.length || 0;
+  });
+
+  // Actions
+  function setBaziContext(context: Partial<BaziContext>) {
+    baziContext.value = {
+      ...baziContext.value,
+      ...context,
+    };
+  }
+
+  function clearBaziContext() {
+    baziContext.value = { ...defaultBaziContext };
+  }
+
+  function appendUserMessage(content: string) {
+    messages.value.push({
+      id: randomId(),
+      role: 'user',
+      content,
+      type: 'content',
+      timestamp: Date.now(),
+    });
+  }
+
+  function appendAssistantMessage(content: string, type: string = 'content') {
+    messages.value.push({
+      id: randomId(),
+      role: 'assistant',
+      content,
+      type,
+      timestamp: Date.now(),
+    });
+    if (type === 'analysis') {
+      analysisStarted.value = false; // 重置分析状态
+    }
+  }
+
+  function updateFirstAssistantMessage(content: string) {
+    const idx = messages.value.findIndex(m => m.role === 'assistant' && m.type === 'analysis');
     
-    messageCount: (state): number => {
-      return state.messages.length;
-    },
-    
-    lastMessage: (state): BaziChatMessage | null => {
-      return state.messages.length > 0 ? state.messages[state.messages.length - 1] : null;
-    },
-  },
-
-  actions: {
-    setBaziContext(context: Partial<BaziContext>) {
-      this.baziContext = {
-        ...this.baziContext,
-        ...context,
-      };
-    },
-
-    clearBaziContext() {
-      this.baziContext = { ...defaultBaziContext };
-    },
-
-    appendUserMessage(content: string) {
-      this.messages.push({
-        id: randomId(),
-        role: 'user',
-        content,
-        timestamp: Date.now(),
-      });
-    },
-
-    appendAssistantMessage(content: string, type: string = 'content') {
-      this.messages.push({
+    if (idx >= 0) {
+      // 直接修改数组元素的content属性
+      messages.value[idx].content += content;
+      messages.value[idx].timestamp = Date.now();
+      
+      // 标记分析已开始
+      if (messages.value[idx].content.length > 0) {
+        analysisStarted.value = true;
+      }
+    } else {
+      // 如果没有分析消息，在开头插入
+      const newMsg: BaziChatMessage = {
         id: randomId(),
         role: 'assistant',
         content,
-        type,
+        type: 'analysis',
         timestamp: Date.now(),
-      });
-    },
-
-    updateLastAssistantMessage(content: string) {
-      const lastIdx = this.messages.length - 1;
-      if (lastIdx >= 0 && this.messages[lastIdx].role === 'assistant') {
-        this.messages[lastIdx].content += content;
-        this.messages[lastIdx].timestamp = Date.now();
-      } else {
-        this.appendAssistantMessage(content);
-      }
-    },
-
-    setLoading(loading: boolean) {
-      this.loading = loading;
-    },
-
-    setProgressMessage(message: string) {
-      this.progressMessage = message;
-    },
-
-    setConversationId(id: string | null) {
-      this.conversationId = id;
-    },
-
-    clearMessages() {
-      this.messages = [];
-    },
-
-    reset() {
-      this.messages = [];
-      this.loading = false;
-      this.conversationId = null;
-      this.progressMessage = '';
-    },
-
-    fullReset() {
-      this.reset();
-      this.clearBaziContext();
-    },
-
-    buildPayload(message: string): Record<string, any> {
-      return {
-        message,
-        conversation_id: this.conversationId,
-        sizhu: this.baziContext.sizhu,
-        wuxing_analysis: this.baziContext.wuxing_analysis,
-        shishen_analysis: this.baziContext.shishen_analysis,
-        dayun_analysis: this.baziContext.dayun_analysis,
-        liunian_analysis: this.baziContext.liunian_analysis,
-        shensha_analysis: this.baziContext.shensha_analysis,
-        llm_analysis: this.baziContext.llm_analysis,
-        analysis_style: this.baziContext.analysis_style,
-        gender: this.baziContext.gender,
-        birth_info: this.baziContext.birth_info,
       };
-    },
-  },
+      messages.value.unshift(newMsg);
+      if (content.length > 0) {
+        analysisStarted.value = true;
+      }
+    }
+  }
+
+  function updateLastAssistantMessage(content: string) {
+    const lastIdx = messages.value.length - 1;
+    if (lastIdx >= 0 && messages.value[lastIdx].role === 'assistant') {
+      messages.value[lastIdx].content += content;
+      messages.value[lastIdx].timestamp = Date.now();
+    } else {
+      appendAssistantMessage(content);
+    }
+  }
+
+  function setLoading(value: boolean) {
+    loading.value = value;
+  }
+
+  function setProgressMessage(message: string) {
+    progressMessage.value = message;
+  }
+
+  function setConversationId(id: string | null) {
+    conversationId.value = id;
+  }
+
+  function clearMessages() {
+    messages.value = [];
+    analysisStarted.value = false;
+  }
+
+  function reset() {
+    messages.value = [];
+    loading.value = false;
+    conversationId.value = null;
+    progressMessage.value = '';
+    analysisStarted.value = false;
+  }
+
+  function fullReset() {
+    reset();
+    clearBaziContext();
+  }
+
+  function buildPayload(message: string): Record<string, any> {
+    return {
+      message,
+      conversation_id: conversationId.value,
+      sizhu: baziContext.value.sizhu,
+      wuxing_analysis: baziContext.value.wuxing_analysis,
+      shishen_analysis: baziContext.value.shishen_analysis,
+      dayun_analysis: baziContext.value.dayun_analysis,
+      liunian_analysis: baziContext.value.liunian_analysis,
+      shensha_analysis: baziContext.value.shensha_analysis,
+      llm_analysis: baziContext.value.llm_analysis,
+      analysis_style: baziContext.value.analysis_style,
+      gender: baziContext.value.gender,
+      birth_info: baziContext.value.birth_info,
+      chat_history: messages.value.map(m => ({
+        role: m.role,
+        content: m.content,
+        type: m.type || 'content'
+      }))
+    };
+  }
+
+  return {
+    // State
+    messages,
+    loading,
+    conversationId,
+    baziContext,
+    progressMessage,
+    analysisStarted,
+    analysisContentLength,
+    // Getters
+    hasContext,
+    messageCount,
+    lastMessage,
+    analysisMessage,
+    // Actions
+    setBaziContext,
+    clearBaziContext,
+    appendUserMessage,
+    appendAssistantMessage,
+    updateFirstAssistantMessage,
+    updateLastAssistantMessage,
+    setLoading,
+    setProgressMessage,
+    setConversationId,
+    clearMessages,
+    reset,
+    fullReset,
+    buildPayload,
+  };
 });

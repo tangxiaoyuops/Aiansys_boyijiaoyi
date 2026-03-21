@@ -127,19 +127,25 @@ class BaziDialogueAgent:
         
         return "\n".join(parts)
     
-    def build_history_text(self, messages: List[Dict[str, str]]) -> str:
+    def build_history_text(self, messages: List[Dict[str, str]], is_first_assistant: bool = False) -> str:
         """构建历史对话文本"""
         if not messages:
             return "（无历史对话）"
         
         lines = []
-        for msg in messages[-10:]:  # 最近10轮
+        for i, msg in enumerate(messages):
             role = "用户" if msg.get("role") == "user" else "助手"
             content = msg.get("content", "")
-            # 截断过长的内容
-            if len(content) > 500:
-                content = content[:500] + "..."
-            lines.append(f"{role}：{content}")
+            msg_type = msg.get("type", "content")
+            
+            # 第一条助手消息通常是深度分析，不截断
+            if i == 0 and msg.get("role") == "assistant" and msg_type == "analysis":
+                lines.append(f"【AI深度分析报告】\n{content}")
+            else:
+                # 后续对话，截断过长的内容
+                if len(content) > 800:
+                    content = content[:800] + "..."
+                lines.append(f"{role}：{content}")
         
         return "\n".join(lines)
     
@@ -188,7 +194,8 @@ class BaziDialogueAgent:
         self,
         conversation_id: str,
         user_message: str,
-        bazi_context: BaziContext
+        bazi_context: BaziContext,
+        chat_history: List[Dict[str, str]] = None
     ) -> Generator[Dict[str, Any], None, None]:
         """
         处理用户消息（流式输出）
@@ -197,11 +204,21 @@ class BaziDialogueAgent:
         1. 构建完整的提示词（八字上下文 + 历史对话 + 当前问题）
         2. 流式调用LLM
         3. 输出结果
+        
+        Args:
+            conversation_id: 会话ID
+            user_message: 用户消息
+            bazi_context: 八字上下文
+            chat_history: 前端传入的历史消息列表，格式: [{"role": "user/assistant", "content": "...", "type": "analysis/content"}]
         """
         state = self.get_or_create_conversation(conversation_id, bazi_context)
         
+        # 如果前端传入了历史消息，使用前端的（包含深度分析）
+        if chat_history:
+            state.messages = chat_history.copy()
+        
         # 添加用户消息到历史
-        state.messages.append({"role": "user", "content": user_message})
+        state.messages.append({"role": "user", "content": user_message, "type": "content"})
         
         # 发送开始信号
         yield {
@@ -284,10 +301,16 @@ class BaziDialogueAgent:
         conversation_id: str,
         user_message: str,
         bazi_context: BaziContext,
+        chat_history: List[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """处理用户消息（非流式）"""
         state = self.get_or_create_conversation(conversation_id, bazi_context)
-        state.messages.append({"role": "user", "content": user_message})
+        
+        # 如果前端传入了历史消息，使用前端的（包含深度分析）
+        if chat_history:
+            state.messages = chat_history.copy()
+        
+        state.messages.append({"role": "user", "content": user_message, "type": "content"})
         
         context_text = self.build_context_text(bazi_context)
         history_text = self.build_history_text(state.messages[:-1])

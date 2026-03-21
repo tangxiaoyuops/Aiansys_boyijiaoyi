@@ -9,7 +9,7 @@
       <div class="header-actions">
         <el-tooltip content="清空对话" placement="bottom">
           <el-button 
-            v-if="store.messages.length > 0 || hasInitialContent"
+            v-if="messages.length > 0"
             :icon="Delete" 
             circle 
             size="small" 
@@ -21,57 +21,53 @@
 
     <!-- 消息列表 -->
     <div class="chat-messages" ref="messagesRef">
-      <!-- AI深度解析初始消息 -->
-      <div v-if="hasInitialContent && !store.messages.length" class="initial-analysis">
-        <div class="message-item assistant">
-          <div class="message-avatar">
-            <el-avatar :size="36" class="assistant">AI</el-avatar>
-          </div>
-          <div class="message-content full-width">
-            <div class="message-meta">
-              <span class="role-name">AI 解读</span>
-              <span class="message-time">八字分析报告</span>
-            </div>
-            <div v-if="loading" class="loading-content">
-              <el-skeleton :rows="8" animated />
-              <div class="loading-text">{{ progress || 'AI 正在分析...' }}</div>
-            </div>
-            <div v-else class="message-text analysis-content" v-html="renderMarkdown(initialMessage)"></div>
-          </div>
-        </div>
+      <!-- 无消息时的空状态 -->
+      <div v-if="messages.length === 0" class="empty-state">
+        <el-icon :size="48" color="#d4af37"><ChatDotRound /></el-icon>
+        <p>请先进行八字排盘分析</p>
       </div>
 
-      <!-- 对话消息列表 -->
+      <!-- 消息列表 -->
       <div 
-        v-for="message in store.messages" 
+        v-for="(message, index) in messages" 
         :key="message.id"
         class="message-item"
-        :class="message.role"
+        :class="[message.role, { 'analysis': message.type === 'analysis' }]"
       >
         <div class="message-avatar">
-          <el-avatar :size="32" :class="message.role">
+          <el-avatar :size="message.type === 'analysis' ? 36 : 32" :class="message.role">
             {{ message.role === 'user' ? '我' : 'AI' }}
           </el-avatar>
         </div>
-        <div class="message-content">
+        <div class="message-content" :class="{ 'full-width': message.type === 'analysis' }">
           <div class="message-meta">
-            <span class="role-name">{{ message.role === 'user' ? '我' : 'AI助手' }}</span>
+            <span class="role-name">{{ message.role === 'user' ? '我' : (message.type === 'analysis' ? 'AI 解读' : 'AI助手') }}</span>
             <span class="message-time">{{ formatTime(message.timestamp) }}</span>
           </div>
+          
+          <!-- 深度分析消息：内容为空或刚开始时显示loading -->
+          <div v-if="message.type === 'analysis' && !analysisHasContent" class="loading-content">
+            <el-skeleton :rows="8" animated />
+            <div class="loading-text">{{ llmProgress || 'AI 正在分析...' }}</div>
+          </div>
+          
+          <!-- 有内容时显示消息 -->
           <div 
+            v-else
             class="message-text" 
-            :class="{ 'streaming': message.role === 'assistant' && store.loading && isLastMessage(message) }"
-            v-html="renderMarkdown(message.content)"
+            :class="{ 
+              'analysis-content': message.type === 'analysis',
+              'streaming': message.role === 'assistant' && loading && index === messages.length - 1 
+            }"
+            v-html="renderMarkdown(message.content || '')"
           />
         </div>
       </div>
 
-      <!-- 加载状态 -->
-      <div v-if="store.loading" class="loading-indicator">
-        <div class="loading-dots">
-          <span></span><span></span><span></span>
-        </div>
-        <span>{{ store.progressMessage || '思考中...' }}</span>
+      <!-- 追问时的加载状态 -->
+      <div v-if="loading && hasContent" class="loading-indicator">
+        <div class="loading-dots"><span></span><span></span><span></span></div>
+        <span>{{ progressMessage || '思考中...' }}</span>
       </div>
     </div>
 
@@ -82,12 +78,12 @@
         type="textarea"
         :rows="2"
         :placeholder="inputPlaceholder"
-        :disabled="store.loading || !store.hasContext"
+        :disabled="loading || !hasContext"
         @keydown.enter.ctrl="handleSend"
         resize="none"
       />
       <div class="input-actions">
-        <div class="quick-questions" v-if="store.hasContext && !store.loading">
+        <div class="quick-questions" v-if="hasContext && !loading">
           <el-tag 
             v-for="(q, i) in quickQuestions" 
             :key="i" 
@@ -100,8 +96,8 @@
         </div>
         <el-button 
           type="primary" 
-          :loading="store.loading"
-          :disabled="!inputMessage.trim() || !store.hasContext"
+          :loading="loading"
+          :disabled="!inputMessage.trim() || !hasContext"
           @click="handleSend"
         >
           发送
@@ -118,18 +114,18 @@ import { ChatDotRound, Delete } from '@element-plus/icons-vue';
 import MarkdownIt from 'markdown-it';
 import { useBaziChatStore } from '../stores/baziChat';
 import { startBaziChatStream } from '../api/baziChat';
+import { storeToRefs } from 'pinia';
 
 const props = defineProps<{
-  initialMessage?: string;
-  loading?: boolean;
-  progress?: string;
-}>();
-
-const emit = defineEmits<{
-  clear: [];
+  llmLoading?: boolean;
+  llmProgress?: string;
 }>();
 
 const store = useBaziChatStore();
+
+// 使用 storeToRefs 解构响应式属性
+const { messages, loading, progressMessage, hasContext, analysisContentLength } = storeToRefs(store);
+
 const messagesRef = ref<HTMLDivElement | null>(null);
 const inputMessage = ref('');
 const stopStream = ref<(() => void) | null>(null);
@@ -138,12 +134,16 @@ const md = new MarkdownIt({ linkify: true, breaks: true, html: false });
 
 const quickQuestions = ['五行缺什么？', '适合什么行业？', '大运走势如何？', '婚姻运势'];
 
-const hasInitialContent = computed(() => !!props.initialMessage || props.loading);
-
 const inputPlaceholder = computed(() => {
-  if (!store.hasContext) return '请先进行八字排盘分析';
+  if (!hasContext.value) return '请先进行八字排盘分析';
   return '输入问题，按 Ctrl+Enter 发送';
 });
+
+// 检查是否有任何内容
+const hasContent = computed(() => messages.value.some(m => m.content && m.content.length > 0));
+
+// 检查分析消息是否有内容 - 使用 store 的 computed
+const analysisHasContent = computed(() => analysisContentLength.value > 0);
 
 const formatTime = (timestamp: number): string => {
   return new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -152,10 +152,6 @@ const formatTime = (timestamp: number): string => {
 const renderMarkdown = (text: string): string => {
   if (!text) return '';
   return md.render(text);
-};
-
-const isLastMessage = (message: any): boolean => {
-  return store.messages.length > 0 && store.messages[store.messages.length - 1].id === message.id;
 };
 
 const scrollToBottom = () => {
@@ -168,7 +164,7 @@ const scrollToBottom = () => {
 
 const handleSend = async () => {
   const message = inputMessage.value.trim();
-  if (!message || store.loading || !store.hasContext) return;
+  if (!message || loading.value || !hasContext.value) return;
 
   inputMessage.value = '';
   store.appendUserMessage(message);
@@ -228,13 +224,31 @@ const handleClearChat = async () => {
   try {
     await ElMessageBox.confirm('确定要清空对话记录吗？', '确认', { type: 'warning' });
     store.reset();
-    emit('clear');
   } catch {}
 };
 
-watch(() => store.messages.length, () => scrollToBottom());
-watch(() => props.initialMessage, () => scrollToBottom());
-onMounted(() => scrollToBottom());
+// 监听分析内容长度变化
+watch(
+  analysisContentLength,
+  (newLen) => {
+    console.log('[Panel] 分析内容长度变化:', newLen);
+    scrollToBottom();
+  }
+);
+
+// 监听消息数量变化
+watch(
+  () => messages.value.length,
+  (newLen) => {
+    console.log('[Panel] 消息数量变化:', newLen);
+    scrollToBottom();
+  }
+);
+
+onMounted(() => {
+  console.log('[Panel] 组件挂载, messages:', messages.value.length);
+  scrollToBottom();
+});
 </script>
 
 <style scoped>
@@ -242,7 +256,7 @@ onMounted(() => scrollToBottom());
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bazi-surface, rgba(255, 253, 250, 0.95));
+  background: rgba(255, 253, 250, 0.95);
   overflow: hidden;
 }
 
@@ -253,7 +267,7 @@ onMounted(() => scrollToBottom());
   justify-content: space-between;
   padding: 12px 20px;
   background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(193, 127, 89, 0.08) 100%);
-  border-bottom: 1px solid var(--bazi-border-light, rgba(180, 150, 100, 0.25));
+  border-bottom: 1px solid rgba(180, 150, 100, 0.25);
 }
 
 .header-title {
@@ -262,7 +276,7 @@ onMounted(() => scrollToBottom());
   gap: 10px;
   font-size: 17px;
   font-weight: 600;
-  color: var(--bazi-primary, #8B6914);
+  color: #8B6914;
 }
 
 .chat-messages {
@@ -272,10 +286,16 @@ onMounted(() => scrollToBottom());
   scroll-behavior: smooth;
 }
 
-/* 初始分析消息 */
-.initial-analysis {
-  margin-bottom: 20px;
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6B5D4D;
 }
+
+.empty-state p { margin-top: 16px; font-size: 14px; }
 
 .message-item {
   display: flex;
@@ -291,6 +311,10 @@ onMounted(() => scrollToBottom());
   align-items: flex-start;
 }
 
+.message-item.analysis {
+  margin-bottom: 24px;
+}
+
 .message-avatar .el-avatar {
   font-size: 13px;
   font-weight: 600;
@@ -303,7 +327,7 @@ onMounted(() => scrollToBottom());
 }
 
 .message-avatar .el-avatar.assistant {
-  background: linear-gradient(135deg, var(--bazi-secondary, #D4AF37) 0%, var(--bazi-accent, #C17F59) 100%);
+  background: linear-gradient(135deg, #D4AF37 0%, #C17F59 100%);
   color: white;
 }
 
@@ -326,16 +350,14 @@ onMounted(() => scrollToBottom());
   gap: 10px;
   margin-bottom: 6px;
   font-size: 13px;
-  color: var(--bazi-text-light, #6B5D4D);
+  color: #6B5D4D;
 }
 
 .message-item.user .message-meta {
   justify-content: flex-end;
 }
 
-.role-name {
-  font-weight: 600;
-}
+.role-name { font-weight: 600; }
 
 .message-text {
   padding: 14px 18px;
@@ -355,8 +377,8 @@ onMounted(() => scrollToBottom());
 
 .message-item.assistant .message-text {
   background: rgba(212, 175, 55, 0.06);
-  border: 1px solid var(--bazi-border-light, rgba(180, 150, 100, 0.2));
-  color: var(--bazi-text, #3D3226);
+  border: 1px solid rgba(180, 150, 100, 0.2);
+  color: #3D3226;
   border-bottom-left-radius: 4px;
 }
 
@@ -364,80 +386,71 @@ onMounted(() => scrollToBottom());
   background: rgba(255, 255, 255, 0.9);
   padding: 20px 24px;
   border-radius: 16px;
-  max-width: 100%;
   font-size: 15px;
   line-height: 1.9;
+  border: 1px solid rgba(180, 150, 100, 0.25);
 }
 
 .loading-content {
   padding: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  border: 1px solid rgba(180, 150, 100, 0.25);
+  width: 100%;
 }
 
 .loading-text {
   margin-top: 12px;
-  color: var(--bazi-text-light, #6B5D4D);
+  color: #6B5D4D;
   font-size: 14px;
 }
 
 .message-text.streaming::after {
   content: '▌';
   animation: blink 1s infinite;
-  color: var(--bazi-secondary, #D4AF37);
+  color: #D4AF37;
 }
 
-@keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
-}
+@keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
 
-/* 加载指示器 */
 .loading-indicator {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 16px;
-  color: var(--bazi-text-light, #6B5D4D);
+  color: #6B5D4D;
   font-size: 14px;
 }
 
-.loading-dots {
-  display: flex;
-  gap: 4px;
-}
-
+.loading-dots { display: flex; gap: 4px; }
 .loading-dots span {
   width: 6px;
   height: 6px;
-  background: var(--bazi-secondary, #D4AF37);
+  background: #D4AF37;
   border-radius: 50%;
   animation: dotPulse 1.4s infinite ease-in-out both;
 }
-
 .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
 .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
 
-@keyframes dotPulse {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
+@keyframes dotPulse { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 
-/* 输入区域 */
 .chat-input-area {
   flex-shrink: 0;
   padding: 14px 20px;
-  border-top: 1px solid var(--bazi-border-light, rgba(180, 150, 100, 0.25));
+  border-top: 1px solid rgba(180, 150, 100, 0.25);
   background: rgba(250, 248, 245, 0.6);
 }
 
 .chat-input-area :deep(.el-textarea__inner) {
   border-radius: 12px;
-  border-color: var(--bazi-border-light, rgba(180, 150, 100, 0.25));
+  border-color: rgba(180, 150, 100, 0.25);
   font-size: 15px;
   line-height: 1.6;
 }
 
 .chat-input-area :deep(.el-textarea__inner:focus) {
-  border-color: var(--bazi-secondary, #D4AF37);
+  border-color: #D4AF37;
 }
 
 .input-actions {
@@ -448,12 +461,7 @@ onMounted(() => scrollToBottom());
   gap: 10px;
 }
 
-.quick-questions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  flex: 1;
-}
+.quick-questions { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
 
 .quick-tag {
   cursor: pointer;
@@ -461,9 +469,9 @@ onMounted(() => scrollToBottom());
 }
 
 .quick-tag:hover {
-  background: var(--bazi-secondary, #D4AF37);
+  background: #D4AF37;
   color: white;
-  border-color: var(--bazi-secondary, #D4AF37);
+  border-color: #D4AF37;
 }
 
 .input-actions .el-button {
@@ -472,61 +480,24 @@ onMounted(() => scrollToBottom());
   flex-shrink: 0;
 }
 
-/* Markdown样式 - 优化长文本阅读 */
-.message-text :deep(p) { 
-  margin: 0 0 12px 0; 
-  line-height: 1.8;
-}
+/* Markdown样式 */
+.message-text :deep(p) { margin: 0 0 12px 0; line-height: 1.8; }
 .message-text :deep(p:last-child) { margin-bottom: 0; }
-.message-text :deep(ul), .message-text :deep(ol) { 
-  margin: 12px 0; 
-  padding-left: 24px; 
-}
-.message-text :deep(li) { 
-  margin-bottom: 8px; 
-  line-height: 1.7; 
-}
-.message-text :deep(strong) { 
-  color: var(--bazi-primary, #8B6914); 
-}
+.message-text :deep(ul), .message-text :deep(ol) { margin: 12px 0; padding-left: 24px; }
+.message-text :deep(li) { margin-bottom: 8px; line-height: 1.7; }
+.message-text :deep(strong) { color: #8B6914; }
 .message-text :deep(h1), .message-text :deep(h2), .message-text :deep(h3) { 
-  margin: 20px 0 12px; 
-  color: var(--bazi-text, #3D3226);
-  line-height: 1.4;
+  margin: 20px 0 12px; color: #3D3226; line-height: 1.4; 
 }
 .message-text :deep(h1) { font-size: 22px; }
-.message-text :deep(h2) { 
-  font-size: 18px; 
-  border-bottom: 1px solid var(--bazi-border-light); 
-  padding-bottom: 8px; 
-}
+.message-text :deep(h2) { font-size: 18px; border-bottom: 1px solid rgba(180, 150, 100, 0.25); padding-bottom: 8px; }
 .message-text :deep(h3) { font-size: 16px; }
-.message-text :deep(code) { 
-  background: rgba(0, 0, 0, 0.05); 
-  padding: 2px 8px; 
-  border-radius: 4px; 
-  font-size: 14px; 
-}
+.message-text :deep(code) { background: rgba(0, 0, 0, 0.05); padding: 2px 8px; border-radius: 4px; font-size: 14px; }
 .message-text :deep(blockquote) {
   margin: 14px 0;
   padding: 12px 18px;
-  border-left: 4px solid var(--bazi-secondary, #D4AF37);
+  border-left: 4px solid #D4AF37;
   background: rgba(212, 175, 55, 0.08);
   border-radius: 0 10px 10px 0;
-  font-style: italic;
-}
-.message-text :deep(table) {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 14px 0;
-}
-.message-text :deep(th), .message-text :deep(td) {
-  border: 1px solid var(--bazi-border-light);
-  padding: 8px 12px;
-  text-align: left;
-}
-.message-text :deep(th) {
-  background: rgba(212, 175, 55, 0.1);
-  font-weight: 600;
 }
 </style>

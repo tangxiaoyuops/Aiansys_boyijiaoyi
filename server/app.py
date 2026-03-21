@@ -1059,6 +1059,8 @@ class BaziChatRequest(BaseModel):
     analysis_style: str = 'classic'
     gender: str = '男'
     birth_info: Optional[Dict[str, Any]] = None
+    # 历史消息（前端传入）
+    chat_history: Optional[List[Dict[str, str]]] = None
 
 
 # 八字对话会话存储
@@ -1105,15 +1107,15 @@ async def bazi_chat(request: BaziChatRequest):
         # 更新会话中的八字上下文
         session["bazi_context"] = bazi_context
         
-        # 获取对话Agent
+# 获取对话Agent
         agent = get_bazi_dialogue_agent()
-        
+
         # 处理消息
         result = agent.process_message(
             conversation_id=conv_id,
             user_message=request.message,
             bazi_context=bazi_context,
-            stream=False
+            chat_history=request.chat_history
         )
         
         return {
@@ -1169,14 +1171,15 @@ async def bazi_chat_stream(request: BaziChatRequest):
             # 更新会话中的八字上下文
             session["bazi_context"] = bazi_context
             
-            # 获取对话Agent
+# 获取对话Agent
             agent = get_bazi_dialogue_agent()
-            
+
             # 流式处理消息
             for event in agent.process_message_stream(
                 conversation_id=conv_id,
                 user_message=request.message,
-                bazi_context=bazi_context
+                bazi_context=bazi_context,
+                chat_history=request.chat_history
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             

@@ -107,38 +107,24 @@
 
             <!-- 五行+十神+神煞 横向排列 -->
             <div class="analysis-row">
-              <!-- 五行分析 -->
               <div v-if="result.wuxing_analysis" class="result-card compact-card">
-                <h3 class="section-title">
-                  <el-icon><Star /></el-icon>
-                  五行
-                </h3>
+                <h3 class="section-title"><el-icon><Star /></el-icon>五行</h3>
                 <div class="wuxing-mini">
                   <span v-for="(count, name) in getWuxingData(result.wuxing_analysis)" :key="name" class="wx-item">
                     {{ name }}: {{ count }}
                   </span>
                 </div>
               </div>
-
-              <!-- 十神分析 -->
               <div v-if="result.shishen_analysis" class="result-card compact-card">
-                <h3 class="section-title">
-                  <el-icon><Grid /></el-icon>
-                  十神
-                </h3>
+                <h3 class="section-title"><el-icon><Grid /></el-icon>十神</h3>
                 <div class="shishen-mini">
                   <span v-for="(info, zhu) in result.shishen_analysis.shishen_data" :key="zhu" class="ss-item">
                     {{ zhuNameMap[zhu] }}: {{ info.gan_shishen || '-' }}/{{ info.zhi_shishen || '-' }}
                   </span>
                 </div>
               </div>
-
-              <!-- 大运分析 -->
               <div v-if="result.dayun_analysis" class="result-card compact-card">
-                <h3 class="section-title">
-                  <el-icon><Calendar /></el-icon>
-                  大运
-                </h3>
+                <h3 class="section-title"><el-icon><Calendar /></el-icon>大运</h3>
                 <div class="dayun-mini">
                   <span v-for="(dy, i) in (result.dayun_analysis.dayun_list || []).slice(0, 4)" :key="i" class="dy-item">
                     {{ dy.gan }}{{ dy.zhi }}
@@ -150,27 +136,14 @@
           </div>
 
           <!-- 可拖拽分割条 -->
-          <div 
-            class="resize-handle" 
-            @mousedown="startResize"
-            :class="{ 'resizing': isResizing }"
-          >
+          <div class="resize-handle" @mousedown="startResize" :class="{ 'resizing': isResizing }">
             <div class="resize-line"></div>
-            <div class="resize-hint">
-              <el-icon><DCaret /></el-icon>
-              拖拽调整
-            </div>
+            <div class="resize-hint"><el-icon><DCaret /></el-icon>拖拽调整</div>
           </div>
 
-          <!-- 下方：聊天面板（AI深度解析 + 追问对话） -->
+          <!-- 下方：聊天面板 -->
           <div class="chat-section" :style="{ height: `calc(100% - ${basicResultHeight + RESIZE_HANDLE_HEIGHT}px)` }">
-            <BaziChatPanel 
-              ref="chatPanelRef"
-              :initial-message="llmText"
-              :loading="llmLoading"
-              :progress="llmProgress"
-              @clear="handleClearChat"
-            />
+            <BaziChatPanel ref="chatPanelRef" :llm-loading="llmLoading" :llm-progress="llmProgress" />
           </div>
         </div>
       </div>
@@ -179,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, onUnmounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { MagicStick, Document, Star, Calendar, Grid, DCaret } from '@element-plus/icons-vue';
 import BaziChart from '../components/BaziChart.vue';
@@ -192,7 +165,7 @@ const chatPanelRef = ref<any>(null);
 const loading = ref(false);
 const result = ref<any>(null);
 
-const analysisStyles = ref<Array<{ value: string; name: string; description: string }>>([
+const analysisStyles = ref([
   { value: 'classic', name: '传统专业', description: '专业术语完整，分析深入全面' },
   { value: 'simple', name: '简明通俗', description: '语言生活化，适合零基础用户' },
   { value: 'life_guide', name: '人生指南', description: '更关注人生阶段与规划建议' },
@@ -202,7 +175,6 @@ const analysisStyles = ref<Array<{ value: string; name: string; description: str
 
 const llmLoading = ref(false);
 const llmProgress = ref('');
-const llmText = ref('');
 
 const form = reactive({
   year: new Date().getFullYear(),
@@ -223,18 +195,12 @@ const zhuNameMap: Record<string, string> = {
 
 const getWuxingData = (wuxing: any) => {
   const data = wuxing?.wuxing_data || {};
-  return {
-    '金': data.jin || 0,
-    '木': data.mu || 0,
-    '水': data.shui || 0,
-    '火': data.huo || 0,
-    '土': data.tu || 0,
-  };
+  return { '金': data.jin || 0, '木': data.mu || 0, '水': data.shui || 0, '火': data.huo || 0, '土': data.tu || 0 };
 };
 
-// 拖拽调整大小相关
+// 拖拽调整大小
 const RESIZE_HANDLE_HEIGHT = 24;
-const basicResultHeight = ref(200); // 默认基础结果高度
+const basicResultHeight = ref(200);
 const isResizing = ref(false);
 const startY = ref(0);
 const startHeight = ref(0);
@@ -252,9 +218,7 @@ const startResize = (e: MouseEvent) => {
 const onResize = (e: MouseEvent) => {
   if (!isResizing.value) return;
   const delta = e.clientY - startY.value;
-  const newHeight = startHeight.value + delta;
-  // 限制最小和最大高度
-  basicResultHeight.value = Math.max(150, Math.min(500, newHeight));
+  basicResultHeight.value = Math.max(150, Math.min(500, startHeight.value + delta));
 };
 
 const stopResize = () => {
@@ -275,11 +239,11 @@ onMounted(async () => {
     const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
     const response = await fetch(`${baseURL}/api/bazi/styles`);
     const data = await response.json();
-    if (response.ok && data.success && Array.isArray(data.styles) && data.styles.length) {
+    if (response.ok && data.success && Array.isArray(data.styles)) {
       analysisStyles.value = data.styles;
     }
   } catch (e) {
-    console.warn('获取八字风格列表失败，使用本地默认配置');
+    console.warn('获取风格列表失败');
   }
 });
 
@@ -291,9 +255,8 @@ const handleAnalyze = async () => {
 
   loading.value = true;
   result.value = null;
-  llmText.value = '';
+  baziChatStore.reset(); // 清空之前的对话
   llmProgress.value = '';
-  baziChatStore.reset();
 
   try {
     const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
@@ -310,9 +273,7 @@ const handleAnalyze = async () => {
     });
 
     const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.detail || data.error || '分析失败');
-    }
+    if (!response.ok || !data.success) throw new Error(data.detail || '分析失败');
 
     result.value = data;
     updateChatContext(data);
@@ -320,10 +281,8 @@ const handleAnalyze = async () => {
 
     // 自动开始AI深度解析
     startLLMStream();
-
   } catch (error: any) {
-    console.error('排盘失败:', error);
-    ElMessage.error(error.message || '排盘失败，请稍后重试');
+    ElMessage.error(error.message || '排盘失败');
   } finally {
     loading.value = false;
   }
@@ -332,6 +291,10 @@ const handleAnalyze = async () => {
 const startLLMStream = async () => {
   llmLoading.value = true;
   llmProgress.value = '';
+  
+  // 先添加一个占位的助手消息，用于流式更新
+  baziChatStore.appendAssistantMessage('', 'analysis');
+  console.log('[BaziView] 初始消息已添加, messages:', baziChatStore.messages.length);
 
   try {
     const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
@@ -344,7 +307,7 @@ const startLLMStream = async () => {
       }),
     });
 
-    if (!response.body) throw new Error('当前浏览器不支持流式输出');
+    if (!response.body) throw new Error('不支持流式输出');
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
@@ -365,15 +328,32 @@ const startLLMStream = async () => {
         if (!jsonStr) continue;
         try {
           const payload = JSON.parse(jsonStr);
-          if (payload.type === 'progress') llmProgress.value = payload.message || '';
-          else if (payload.type === 'content' && payload.content) llmText.value += payload.content;
-          else if (payload.type === 'done' && payload.full_content && !llmText.value) llmText.value = payload.full_content;
-        } catch { console.warn('解析LLM流式数据失败'); }
+          console.log('[BaziView] 收到事件:', payload.type, payload.content?.substring(0, 30));
+          
+          if (payload.type === 'progress') {
+            llmProgress.value = payload.message || '';
+          }
+          else if (payload.type === 'content' && payload.content) {
+            // 流式更新第一条助手消息（深度分析）
+            baziChatStore.updateFirstAssistantMessage(payload.content);
+          }
+          else if (payload.type === 'done') {
+            console.log('[BaziView] 流式完成');
+            if (payload.full_content) {
+              baziChatStore.updateFirstAssistantMessage(payload.full_content);
+            }
+          }
+        } catch (e) {
+          console.error('[BaziView] 解析错误:', e);
+        }
       }
     }
 
-    baziChatStore.setBaziContext({ llm_analysis: llmText.value });
-
+    // 更新聊天上下文中的llm_analysis
+    const firstMsg = baziChatStore.messages[0];
+    if (firstMsg) {
+      baziChatStore.setBaziContext({ llm_analysis: firstMsg.content });
+    }
   } catch (error: any) {
     console.error('LLM流式解析失败:', error);
   } finally {
@@ -394,17 +374,6 @@ const updateChatContext = (data: any) => {
     birth_info: { year: form.year, month: form.month, day: form.day, hour: form.hour },
   });
 };
-
-const handleClearChat = () => {
-  llmText.value = '';
-  baziChatStore.reset();
-};
-
-watch(llmText, (newText) => {
-  if (newText && result.value) {
-    baziChatStore.setBaziContext({ llm_analysis: newText });
-  }
-});
 </script>
 
 <style scoped>
@@ -435,16 +404,8 @@ watch(llmText, (newText) => {
   height: calc(100vh - 40px);
 }
 
-.left-panel {
-  width: 320px;
-  flex-shrink: 0;
-}
-
-.right-panel {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
+.left-panel { width: 320px; flex-shrink: 0; }
+.right-panel { flex: 1; min-width: 0; overflow: hidden; }
 
 .input-card {
   background: var(--bazi-surface);
@@ -483,7 +444,6 @@ watch(llmText, (newText) => {
   border: 1px solid var(--bazi-border-light);
 }
 
-/* 结果区域布局 */
 .result-wrapper {
   display: flex;
   flex-direction: column;
@@ -508,9 +468,7 @@ watch(llmText, (newText) => {
   border: 1px solid var(--bazi-border-light);
 }
 
-.compact-card {
-  padding: 12px 16px;
-}
+.compact-card { padding: 12px 16px; }
 
 .section-title {
   display: flex;
@@ -522,57 +480,17 @@ watch(llmText, (newText) => {
   color: var(--bazi-text);
 }
 
-.sizhu-info {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 10px;
-}
+.sizhu-info { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.info-item { font-size: 14px; }
+.info-item .label { color: var(--bazi-text-light); margin-right: 4px; }
+.info-item .value { font-weight: 600; color: var(--bazi-primary); }
 
-.info-item {
-  font-size: 14px;
-}
+.analysis-row { display: flex; gap: 12px; margin-top: 12px; }
+.analysis-row .result-card { flex: 1; }
+.wuxing-mini, .shishen-mini, .dayun-mini { display: flex; flex-wrap: wrap; gap: 6px; }
+.wx-item, .ss-item, .dy-item { padding: 3px 8px; background: rgba(212, 175, 55, 0.1); border-radius: 10px; font-size: 12px; }
+.dy-more { padding: 3px 6px; color: var(--bazi-text-light); font-size: 12px; }
 
-.info-item .label {
-  color: var(--bazi-text-light);
-  margin-right: 4px;
-}
-
-.info-item .value {
-  font-weight: 600;
-  color: var(--bazi-primary);
-}
-
-.analysis-row {
-  display: flex;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.analysis-row .result-card {
-  flex: 1;
-}
-
-.wuxing-mini, .shishen-mini, .dayun-mini {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.wx-item, .ss-item, .dy-item {
-  padding: 3px 8px;
-  background: rgba(212, 175, 55, 0.1);
-  border-radius: 10px;
-  font-size: 12px;
-}
-
-.dy-more {
-  padding: 3px 6px;
-  color: var(--bazi-text-light);
-  font-size: 12px;
-}
-
-/* 可拖拽分割条 */
 .resize-handle {
   height: 24px;
   display: flex;
@@ -609,18 +527,8 @@ watch(llmText, (newText) => {
   transition: opacity 0.2s;
 }
 
-.resize-handle:hover .resize-hint {
-  opacity: 1;
-}
+.resize-handle:hover .resize-hint { opacity: 1; }
 
-/* 聊天区域 */
-.chat-section {
-  flex: 1;
-  min-height: 200px;
-  overflow: hidden;
-}
-
-.chat-section :deep(.bazi-chat-panel) {
-  height: 100%;
-}
+.chat-section { flex: 1; min-height: 200px; overflow: hidden; }
+.chat-section :deep(.bazi-chat-panel) { height: 100%; }
 </style>
