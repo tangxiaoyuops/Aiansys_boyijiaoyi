@@ -268,7 +268,8 @@ def build_bazi_prompt(
     wuxing_analysis: Optional[Dict[str, Any]],
     shishen_analysis: Optional[Dict[str, Any]],
     dayun_analysis: Optional[Dict[str, Any]],
-    shensha_analysis: Optional[Dict[str, Any]]
+    shensha_analysis: Optional[Dict[str, Any]],
+    birth_year: Optional[int] = None
 ) -> str:
     """
     构建八字分析的提示词（用户消息部分）
@@ -279,11 +280,65 @@ def build_bazi_prompt(
         shishen_analysis: 十神分析结果
         dayun_analysis: 大运分析结果
         shensha_analysis: 神煞分析结果
+        birth_year: 出生年份（公历）
     
     Returns:
         提示词字符串
     """
+    from datetime import datetime
+    
+    # 获取当前时间信息
+    now = datetime.now()
+    current_year = now.year
+    current_month = now.month
+    current_day = now.day
+    current_date_str = now.strftime("%Y年%m月%d日")
+    
+    # 获取当前农历日期
+    current_lunar_str = ""
+    try:
+        from zhdate import ZhDate
+        lunar_now = ZhDate.from_datetime(now)
+        current_lunar_str = f"（农历{lunar_now.lunar_year}年{lunar_now.lunar_month}月{lunar_now.lunar_day}日）"
+    except Exception:
+        pass
+    
     lines = ["## 八字分析信息\n"]
+    
+    # 当前时间信息（关键：让LLM知道现在是什么时候）
+    lines.append("### ⏰ 当前时间参考")
+    lines.append(f"**当前日期：{current_date_str}{current_lunar_str}**")
+    
+    # 获取八字年份（以立春为界，可能与公历年份不同）
+    bazi_year = sizhu.get('bazi_year', birth_year)
+    
+    # 计算年龄和大运阶段
+    if bazi_year:
+        approximate_age = current_year - bazi_year
+        lines.append(f"**命主年龄：约 {approximate_age} 岁**（八字年份：{bazi_year}年）")
+        
+        # 如果八字年份与公历出生年份不同，说明是立春前出生
+        if birth_year and bazi_year != birth_year:
+            lines.append(f"**注意：命主出生于{birth_year}年立春前，八字年柱为{bazi_year}年**")
+        
+        # 判断当前大运阶段
+        if dayun_analysis:
+            dayun_list = dayun_analysis.get('dayun_list', [])
+            current_dayun = None
+            for dayun in dayun_list:
+                start_age = dayun.get('start_age', 0)
+                end_age = dayun.get('end_age', 0)
+                if start_age <= approximate_age < end_age:
+                    current_dayun = dayun
+                    break
+            
+            if current_dayun:
+                dayun_index = dayun_list.index(current_dayun) + 1
+                lines.append(f"**当前大运：第{dayun_index}步大运 {current_dayun.get('gan', '')}{current_dayun.get('zhi', '')}（{current_dayun.get('start_age', 0)}-{current_dayun.get('end_age', 0)}岁，{current_dayun.get('start_year', '')}-{current_dayun.get('end_year', '')}年）**")
+    else:
+        lines.append(f"**命主年龄：未知（请根据年柱推算出生年份）**")
+    
+    lines.append("")
     
     # 四柱信息
     lines.append("### 四柱信息")
@@ -295,6 +350,11 @@ def build_bazi_prompt(
     lines.append(f"月柱: {yue_zhu.get('tian_gan', '')}{yue_zhu.get('di_zhi', '')}")
     lines.append(f"日柱: {ri_zhu.get('tian_gan', '')}{ri_zhu.get('di_zhi', '')} (日主: {sizhu.get('ri_zhu_tiangan', '')})")
     lines.append(f"时柱: {shi_zhu.get('tian_gan', '')}{shi_zhu.get('di_zhi', '')}")
+    
+    # 农历信息
+    if sizhu.get('lunar_year'):
+        lines.append(f"农历: {sizhu.get('lunar_year')}年{sizhu.get('lunar_month')}月{sizhu.get('lunar_day')}日")
+    
     lines.append(f"性别: {sizhu.get('gender', '男')}")
     lines.append("")
     
@@ -302,7 +362,11 @@ def build_bazi_prompt(
     if wuxing_analysis:
         wuxing_data = wuxing_analysis.get('wuxing_data', {})
         lines.append("### 五行分布")
-        lines.append(f"金: {wuxing_data.get('jin', 0)}, 木: {wuxing_data.get('mu', 0)}, 水: {wuxing_data.get('shui', 0)}, 火: {wuxing_data.get('huo', 0)}, 土: {wuxing_data.get('tu', 0)}")
+        wuxing_count = wuxing_data.get('wuxing_count', {})
+        if wuxing_count:
+            lines.append(f"金: {wuxing_count.get('金', 0)}, 木: {wuxing_count.get('木', 0)}, 水: {wuxing_count.get('水', 0)}, 火: {wuxing_count.get('火', 0)}, 土: {wuxing_count.get('土', 0)}")
+        else:
+            lines.append(f"金: {wuxing_data.get('jin', 0)}, 木: {wuxing_data.get('mu', 0)}, 水: {wuxing_data.get('shui', 0)}, 火: {wuxing_data.get('huo', 0)}, 土: {wuxing_data.get('tu', 0)}")
         lines.append(f"日主五行: {wuxing_data.get('rizhu_wuxing', '')}")
         lines.append("")
     
@@ -325,7 +389,16 @@ def build_bazi_prompt(
         if dayun_list:
             lines.append("### 大运信息")
             for i, dayun in enumerate(dayun_list[:8], 1):
-                lines.append(f"第{i}步大运: {dayun.get('gan', '')}{dayun.get('zhi', '')} ({dayun.get('start_age', 0)}-{dayun.get('end_age', 0)}岁)")
+                gan = dayun.get('gan', '')
+                zhi = dayun.get('zhi', '')
+                start_age = dayun.get('start_age', 0)
+                end_age = dayun.get('end_age', 0)
+                start_year = dayun.get('start_year', '')
+                end_year = dayun.get('end_year', '')
+                if start_year and end_year:
+                    lines.append(f"第{i}步大运: {gan}{zhi} ({start_age}-{end_age}岁, {start_year}-{end_year}年)")
+                else:
+                    lines.append(f"第{i}步大运: {gan}{zhi} ({start_age}-{end_age}岁)")
             lines.append("")
     
     # 神煞信息
@@ -338,6 +411,13 @@ def build_bazi_prompt(
                 lines.append(f"{shensha.get('name', '')}: 位于{shensha.get('position', '')} ({shensha.get('type', '')}神)")
             lines.append("")
     
-    lines.append("请根据以上八字信息，按照你的分析框架进行详细解读。")
+    lines.append("---")
+    lines.append(f"**重要提示**：请根据以上八字信息，结合当前时间（{current_date_str}），分析命主当前所处的人生阶段和大运运势。")
+    lines.append("")
+    lines.append("**⚠️ 重要警告**：")
+    lines.append("- 以上所有信息（农历日期、四柱、大运等）都已精确计算，请直接引用")
+    lines.append("- 绝对不要自行推算或编造任何日期信息")
+    lines.append("- 所有农历日期、节气、大运时间均以系统提供为准")
+    lines.append("")
     
     return "\n".join(lines)

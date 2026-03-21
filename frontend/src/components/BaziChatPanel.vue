@@ -45,27 +45,31 @@
             <span class="message-time">{{ formatTime(message.timestamp) }}</span>
           </div>
           
-          <!-- 深度分析消息：内容为空或刚开始时显示loading -->
-          <div v-if="message.type === 'analysis' && !analysisHasContent" class="loading-content">
-            <el-skeleton :rows="8" animated />
-            <div class="loading-text">{{ llmProgress || 'AI 正在分析...' }}</div>
-          </div>
+          <!-- 深度分析消息：内容为空时显示loading -->
+          <template v-if="message.type === 'analysis'">
+            <div v-if="!message.content || message.content.length === 0" class="loading-content">
+              <el-skeleton :rows="8" animated />
+              <div class="loading-text">{{ llmProgress || 'AI 正在分析...' }}</div>
+            </div>
+            <div 
+              v-else
+              class="message-text analysis-content"
+              v-html="renderMarkdown(message.content)"
+            />
+          </template>
           
-          <!-- 有内容时显示消息 -->
+          <!-- 普通消息 -->
           <div 
             v-else
             class="message-text" 
-            :class="{ 
-              'analysis-content': message.type === 'analysis',
-              'streaming': message.role === 'assistant' && loading && index === messages.length - 1 
-            }"
+            :class="{ 'streaming': message.role === 'assistant' && loading && index === messages.length - 1 }"
             v-html="renderMarkdown(message.content || '')"
           />
         </div>
       </div>
 
       <!-- 追问时的加载状态 -->
-      <div v-if="loading && hasContent" class="loading-indicator">
+      <div v-if="loading && hasAnyContent" class="loading-indicator">
         <div class="loading-dots"><span></span><span></span><span></span></div>
         <span>{{ progressMessage || '思考中...' }}</span>
       </div>
@@ -122,9 +126,7 @@ const props = defineProps<{
 }>();
 
 const store = useBaziChatStore();
-
-// 使用 storeToRefs 解构响应式属性
-const { messages, loading, progressMessage, hasContext, analysisContentLength } = storeToRefs(store);
+const { messages, loading, progressMessage, hasContext } = storeToRefs(store);
 
 const messagesRef = ref<HTMLDivElement | null>(null);
 const inputMessage = ref('');
@@ -139,11 +141,10 @@ const inputPlaceholder = computed(() => {
   return '输入问题，按 Ctrl+Enter 发送';
 });
 
-// 检查是否有任何内容
-const hasContent = computed(() => messages.value.some(m => m.content && m.content.length > 0));
-
-// 检查分析消息是否有内容 - 使用 store 的 computed
-const analysisHasContent = computed(() => analysisContentLength.value > 0);
+// 是否有任何消息有内容
+const hasAnyContent = computed(() => {
+  return messages.value.some(m => m.content && m.content.length > 0);
+});
 
 const formatTime = (timestamp: number): string => {
   return new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -227,28 +228,17 @@ const handleClearChat = async () => {
   } catch {}
 };
 
-// 监听分析内容长度变化
+// 强制刷新视图
+const forceUpdateKey = ref(0);
 watch(
-  analysisContentLength,
-  (newLen) => {
-    console.log('[Panel] 分析内容长度变化:', newLen);
+  () => messages.value.map(m => m.content?.length || 0).join(','),
+  () => {
+    forceUpdateKey.value++;
     scrollToBottom();
   }
 );
 
-// 监听消息数量变化
-watch(
-  () => messages.value.length,
-  (newLen) => {
-    console.log('[Panel] 消息数量变化:', newLen);
-    scrollToBottom();
-  }
-);
-
-onMounted(() => {
-  console.log('[Panel] 组件挂载, messages:', messages.value.length);
-  scrollToBottom();
-});
+onMounted(() => scrollToBottom());
 </script>
 
 <style scoped>

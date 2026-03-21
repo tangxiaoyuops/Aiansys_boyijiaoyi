@@ -129,7 +129,7 @@ def bazi_complete_analysis(
         if include_llm:
             print(f"[完整分析] 步骤7: 开始LLM深度分析...")
             try:
-                llm_result = _build_llm_analysis(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, analysis_style)
+                llm_result = _build_llm_analysis(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, analysis_style, birth_year=year)
                 if llm_result.get('success'):
                     llm_analysis = llm_result
                     print(f"[完整分析] 步骤7完成: LLM深度分析成功")
@@ -175,7 +175,8 @@ def _build_llm_analysis(
     shishen_analysis: Optional[Dict[str, Any]],
     dayun_analysis: Optional[Dict[str, Any]],
     shensha_analysis: Optional[Dict[str, Any]],
-    analysis_style: str = 'classic'
+    analysis_style: str = 'classic',
+    birth_year: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     构建LLM分析
@@ -187,6 +188,7 @@ def _build_llm_analysis(
         dayun_analysis: 大运分析结果
         shensha_analysis: 神煞分析结果
         analysis_style: 分析风格
+        birth_year: 出生年份（公历）
     
     Returns:
         LLM分析结果
@@ -195,7 +197,7 @@ def _build_llm_analysis(
         from core.agents.bazi_prompt_styles import get_system_prompt, build_bazi_prompt
         
         system_prompt = get_system_prompt(analysis_style)
-        user_prompt = build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis)
+        user_prompt = build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, birth_year=birth_year)
         
         llm_response = call_llm(system_prompt, user_prompt, model=None, temperature=0.3)
         
@@ -234,13 +236,14 @@ def _build_bazi_prompt(
     wuxing_analysis: Optional[Dict[str, Any]],
     shishen_analysis: Optional[Dict[str, Any]],
     dayun_analysis: Optional[Dict[str, Any]],
-    shensha_analysis: Optional[Dict[str, Any]]
+    shensha_analysis: Optional[Dict[str, Any]],
+    birth_year: Optional[int] = None
 ) -> str:
     """
     构建八字分析的提示词（已迁移到 bazi_prompt_styles.py）
     保留此函数以保持向后兼容
     """
     from core.agents.bazi_prompt_styles import build_bazi_prompt
-    return build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis)
+    return build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, birth_year=birth_year)
 
 

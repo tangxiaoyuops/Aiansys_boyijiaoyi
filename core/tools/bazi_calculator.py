@@ -202,7 +202,9 @@ def hour_to_shi_chen(hour: int) -> str:
 def calculate_sizhu(year: int, month: int, day: int, hour: int) -> Dict[str, Any]:
     """
     计算四柱（年柱、月柱、日柱、时柱）
-    使用节气确定月柱，确保准确性
+    使用节气确定年柱和月柱，确保准确性
+    
+    重要：八字命理中，年柱以立春为界，而非公历新年
     
     Args:
         year: 公历年份
@@ -213,12 +215,33 @@ def calculate_sizhu(year: int, month: int, day: int, hour: int) -> Dict[str, Any
     Returns:
         四柱数据字典
     """
+    from datetime import datetime
+    
     # 转换为农历（用于显示）
     lunar_year, lunar_month, lunar_day = convert_to_lunar(year, month, day)
     
-    # 年柱
-    nian_gan = get_tian_gan(year)
-    nian_zhi = get_di_zhi(year)
+    # 确定八字年份：以立春为界
+    # 立春前出生的，年柱属于上一年；立春后出生的，年柱属于当年
+    from core.tools.solar_terms import get_solar_term_date
+    
+    birth_date = datetime(year, month, day, hour if hour else 12)
+    
+    # 获取当年的立春日期
+    this_year_lichun = get_solar_term_date(year, 0)  # 立春是第0个节气
+    
+    # 判断出生日期是否在立春之前
+    if birth_date < this_year_lichun:
+        # 立春前出生，年柱属于上一年
+        bazi_year = year - 1
+        logger.info(f"出生日期 {year}-{month}-{day} 在立春前，八字年份为 {bazi_year}")
+    else:
+        # 立春后出生，年柱属于当年
+        bazi_year = year
+        logger.info(f"出生日期 {year}-{month}-{day} 在立春后，八字年份为 {bazi_year}")
+    
+    # 年柱（使用八字年份）
+    nian_gan = get_tian_gan(bazi_year)
+    nian_zhi = get_di_zhi(bazi_year)
     
     # 月柱：使用节气确定（专业方法）
     from core.tools.solar_terms import get_month_zhi_by_solar_term, get_month_index_by_solar_term
@@ -244,6 +267,7 @@ def calculate_sizhu(year: int, month: int, day: int, hour: int) -> Dict[str, Any
         'lunar_month': lunar_month,
         'lunar_day': lunar_day,
         'month_index': month_index,  # 月份索引（1-12，基于节气）
+        'bazi_year': bazi_year,  # 八字年份（可能与公历年份不同）
     }
 
 def calculate_wuxing(sizhu: Dict[str, Any]) -> Dict[str, Any]:
@@ -448,44 +472,56 @@ def calculate_shishen(sizhu: Dict[str, Any], rizhu_tiangan: str) -> Dict[str, An
     
     return shishen_result
 
-def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str) -> List[Dict[str, Any]]:
+def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, bazi_year: Optional[int] = None) -> List[Dict[str, Any]]:
     """
     计算大运（精确计算起运年龄）
     根据年柱天干阴阳和性别确定顺逆，每10年一运
-    
+
     Args:
         year: 公历年份
         month: 公历月份
         day: 公历日期
         hour: 时辰（0-23）
         gender: 性别（'男' 或 '女'）
-    
+        bazi_year: 八字年份（可选，如果提供则使用，否则根据立春计算）
+
     Returns:
         大运列表（每10年一运，共8步大运）
     """
-    # 计算年柱
-    nian_gan = get_tian_gan(year)
-    nian_zhi = get_di_zhi(year)
-    nian_gan_yinyang = TIAN_GAN_YINYANG.get(nian_gan, '阳')
+    # 确定八字年份（以立春为界）
+    if bazi_year is None:
+        from core.tools.solar_terms import get_solar_term_date
+        birth_date = datetime(year, month, day, hour if hour else 12)
+        this_year_lichun = get_solar_term_date(year, 0)
+        
+        if birth_date < this_year_lichun:
+            bazi_year = year - 1
+        else:
+            bazi_year = year
     
+    # 计算年柱（使用八字年份）
+    nian_gan = get_tian_gan(bazi_year)
+    nian_zhi = get_di_zhi(bazi_year)
+    nian_gan_yinyang = TIAN_GAN_YINYANG.get(nian_gan, '阳')
+
     # 确定顺逆：阳年男顺，阴年女顺；阳年女逆，阴年男逆
     is_shun = (nian_gan_yinyang == '阳' and gender == '男') or (nian_gan_yinyang == '阴' and gender == '女')
-    
+
     # 精确计算起运年龄（根据节气）
     # 大运从立春开始，需要计算到下一个或上一个立春的天数
     from core.tools.solar_terms import get_solar_term_date
     from datetime import datetime
-    
+
     target_date = datetime(year, month, day, hour)
-    
+
     # 立春是第一个节气，索引0
     lichun_index = 0
-    
+
     # 获取今年和明年的立春日期
     this_year_lichun = get_solar_term_date(year, lichun_index)
     next_year_lichun = get_solar_term_date(year + 1, lichun_index)
     prev_year_lichun = get_solar_term_date(year - 1, lichun_index)
-    
+
     if is_shun:
         # 顺排：计算到下一个立春的天数
         # 如果当前日期在今年立春之后，下一个立春在明年
@@ -494,7 +530,7 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str) -> 
         else:
             # 当前日期在今年立春之前，下一个立春在今年
             next_lichun_date = this_year_lichun
-        
+
         delta = next_lichun_date - target_date
     else:
         # 逆排：计算到上一个立春的天数
@@ -504,11 +540,11 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str) -> 
         else:
             # 当前日期在今年立春之前，上一个立春在去年
             prev_lichun_date = prev_year_lichun
-        
+
         delta = target_date - prev_lichun_date
-    
+
     days_diff = delta.total_seconds() / 86400.0
-    
+
     # 如果天数差为负数或太大（超过400天），说明计算有误，使用默认值
     if days_diff < 0 or days_diff > 400:
         logger.warning(f"起运年龄计算异常: days_diff={days_diff}, target_date={target_date}, 使用默认值1岁")
@@ -516,7 +552,7 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str) -> 
     else:
         # 起运年龄计算：3天=1岁
         qiyun_age_years = days_diff / 3.0
-        
+
         # 如果起运年龄小于0.1岁，设置为0.1岁（最小起运年龄）
         if qiyun_age_years < 0.1:
             qiyun_age_years = 0.1
@@ -524,7 +560,7 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str) -> 
         elif qiyun_age_years > 10.0:
             logger.warning(f"起运年龄过大: {qiyun_age_years}岁, 使用默认值1岁")
             qiyun_age_years = 1.0
-    
+
     # 计算大运
     dayun_list = []
     current_zhi_index = get_di_zhi_index(nian_zhi)

@@ -867,13 +867,22 @@ class BaziLLMStreamRequest(BaseModel):
     hour: int
     gender: str = '男'
     analysis_style: str = 'classic'
+    # 可选：前端传来的排盘数据（避免重复排盘，保证数据一致性）
+    sizhu: Optional[Dict[str, Any]] = None
+    wuxing_analysis: Optional[Dict[str, Any]] = None
+    shishen_analysis: Optional[Dict[str, Any]] = None
+    dayun_analysis: Optional[Dict[str, Any]] = None
+    shensha_analysis: Optional[Dict[str, Any]] = None
 
 
 @app.post("/api/bazi/llm-stream")
 async def bazi_llm_stream(request: BaziLLMStreamRequest):
     """
     八字LLM流式分析接口
-    先进行基础排盘，然后流式输出LLM分析结果
+    
+    数据流：
+    1. 如果前端传来了排盘数据（sizhu等），直接使用这些数据进行LLM分析
+    2. 如果没有传来数据，则重新排盘（向后兼容）
     """
     import logging
     import json
@@ -881,55 +890,68 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
     
     async def generate():
         try:
-            # 发送进度：开始排盘
-            yield f"data: {json.dumps({'type': 'progress', 'stage': 'pan', 'message': '正在进行八字排盘...'}, ensure_ascii=False)}\n\n"
+            # 判断是否使用前端传来的排盘数据
+            use_frontend_data = request.sizhu is not None
             
-            # 基础排盘
-            from core.agents.bazi_pan_agent import bazi_pan_node
-            pan_result = bazi_pan_node(request.year, request.month, request.day, request.hour, request.gender)
+            if use_frontend_data:
+                # 使用前端传来的数据，避免重复排盘，保证数据一致性
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
+                
+                sizhu = request.sizhu
+                wuxing_analysis = request.wuxing_analysis
+                shishen_analysis = request.shishen_analysis
+                dayun_analysis = request.dayun_analysis
+                shensha_analysis = request.shensha_analysis
+            else:
+                # 没有前端数据，重新排盘（向后兼容）
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'pan', 'message': '正在进行八字排盘...'}, ensure_ascii=False)}\n\n"
+                
+                # 基础排盘
+                from core.agents.bazi_pan_agent import bazi_pan_node
+                pan_result = bazi_pan_node(request.year, request.month, request.day, request.hour, request.gender)
+                
+                if not pan_result.get('success'):
+                    yield f"data: {json.dumps({'type': 'error', 'message': pan_result.get('error', '排盘失败')}, ensure_ascii=False)}\n\n"
+                    return
+                
+                sizhu = pan_result['sizhu']
+                
+                # 发送进度：五行分析
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'wuxing', 'message': '正在分析五行...'}, ensure_ascii=False)}\n\n"
+                
+                # 五行分析
+                from core.agents.bazi_wuxing_agent import bazi_wuxing_node
+                wuxing_result = bazi_wuxing_node(sizhu)
+                wuxing_analysis = wuxing_result if wuxing_result.get('success') else None
+                
+                # 发送进度：十神分析
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'shishen', 'message': '正在分析十神...'}, ensure_ascii=False)}\n\n"
+                
+                # 十神分析
+                from core.agents.bazi_shishen_agent import bazi_shishen_node
+                shishen_result = bazi_shishen_node(sizhu)
+                shishen_analysis = shishen_result if shishen_result.get('success') else None
+                
+                # 发送进度：大运分析
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'dayun', 'message': '正在分析大运...'}, ensure_ascii=False)}\n\n"
+                
+                # 大运分析
+                from core.agents.bazi_dayun_agent import bazi_dayun_node
+                dayun_result = bazi_dayun_node(sizhu, request.year, request.month, request.day, request.hour, request.gender)
+                dayun_analysis = dayun_result if dayun_result.get('success') else None
+                
+                # 发送进度：神煞分析
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'shensha', 'message': '正在分析神煞...'}, ensure_ascii=False)}\n\n"
+                
+                # 神煞分析
+                from core.agents.bazi_shensha_agent import bazi_shensha_node
+                shensha_result = bazi_shensha_node(sizhu)
+                shensha_analysis = shensha_result if shensha_result.get('success') else None
+                
+                # 发送进度：开始AI分析
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
             
-            if not pan_result.get('success'):
-                yield f"data: {json.dumps({'type': 'error', 'message': pan_result.get('error', '排盘失败')}, ensure_ascii=False)}\n\n"
-                return
-            
-            sizhu = pan_result['sizhu']
-            
-            # 发送进度：五行分析
-            yield f"data: {json.dumps({'type': 'progress', 'stage': 'wuxing', 'message': '正在分析五行...'}, ensure_ascii=False)}\n\n"
-            
-            # 五行分析
-            from core.agents.bazi_wuxing_agent import bazi_wuxing_node
-            wuxing_result = bazi_wuxing_node(sizhu)
-            wuxing_analysis = wuxing_result if wuxing_result.get('success') else None
-            
-            # 发送进度：十神分析
-            yield f"data: {json.dumps({'type': 'progress', 'stage': 'shishen', 'message': '正在分析十神...'}, ensure_ascii=False)}\n\n"
-            
-            # 十神分析
-            from core.agents.bazi_shishen_agent import bazi_shishen_node
-            shishen_result = bazi_shishen_node(sizhu)
-            shishen_analysis = shishen_result if shishen_result.get('success') else None
-            
-            # 发送进度：大运分析
-            yield f"data: {json.dumps({'type': 'progress', 'stage': 'dayun', 'message': '正在分析大运...'}, ensure_ascii=False)}\n\n"
-            
-            # 大运分析
-            from core.agents.bazi_dayun_agent import bazi_dayun_node
-            dayun_result = bazi_dayun_node(sizhu, request.year, request.month, request.day, request.hour, request.gender)
-            dayun_analysis = dayun_result if dayun_result.get('success') else None
-            
-            # 发送进度：神煞分析
-            yield f"data: {json.dumps({'type': 'progress', 'stage': 'shensha', 'message': '正在分析神煞...'}, ensure_ascii=False)}\n\n"
-            
-            # 神煞分析
-            from core.agents.bazi_shensha_agent import bazi_shensha_node
-            shensha_result = bazi_shensha_node(sizhu)
-            shensha_analysis = shensha_result if shensha_result.get('success') else None
-            
-            # 发送进度：开始AI分析
-            yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
-            
-            # 发送基础数据
+            # 发送基础数据（供前端更新显示）
             yield f"data: {json.dumps({'type': 'data', 'sizhu': sizhu, 'wuxing_analysis': wuxing_analysis, 'shishen_analysis': shishen_analysis, 'dayun_analysis': dayun_analysis, 'shensha_analysis': shensha_analysis}, ensure_ascii=False)}\n\n"
             
             # 流式调用LLM
@@ -937,7 +959,7 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
             from core.tools.llm_client import call_llm_stream
             
             system_prompt = get_system_prompt(request.analysis_style)
-            user_prompt = build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis)
+            user_prompt = build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, birth_year=request.year)
             
             full_content = ""
             for chunk in call_llm_stream(system_prompt, user_prompt):

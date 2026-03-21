@@ -294,17 +294,30 @@ const startLLMStream = async () => {
   
   // 先添加一个占位的助手消息，用于流式更新
   baziChatStore.appendAssistantMessage('', 'analysis');
-  console.log('[BaziView] 初始消息已添加, messages:', baziChatStore.messages.length);
 
   try {
     const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+    
+    // 构建请求体：传递前端已排好的数据，避免后端重复排盘，保证数据一致性
+    const requestBody: any = {
+      year: form.year,
+      month: form.month,
+      day: form.day,
+      hour: form.hour,
+      gender: form.gender,
+      analysis_style: form.analysis_style,
+      // 传递前端已排好的数据
+      sizhu: result.value?.sizhu || null,
+      wuxing_analysis: result.value?.wuxing_analysis || null,
+      shishen_analysis: result.value?.shishen_analysis || null,
+      dayun_analysis: result.value?.dayun_analysis || null,
+      shensha_analysis: result.value?.shensha_analysis || null,
+    };
+    
     const response = await fetch(`${baseURL}/api/bazi/llm-stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        year: form.year, month: form.month, day: form.day, hour: form.hour,
-        gender: form.gender, analysis_style: form.analysis_style,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.body) throw new Error('不支持流式输出');
