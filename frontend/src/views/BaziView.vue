@@ -353,7 +353,8 @@ const startLLMStream = async () => {
           else if (payload.type === 'done') {
             console.log('[BaziView] 流式完成');
             if (payload.full_content) {
-              baziChatStore.updateFirstAssistantMessage(payload.full_content);
+              // 使用replace=true替换整个内容，避免重复
+              baziChatStore.updateFirstAssistantMessage(payload.full_content, true);
             }
           }
         } catch (e) {

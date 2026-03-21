@@ -97,13 +97,22 @@ export const useBaziChatStore = defineStore('baziChat', () => {
     }
   }
 
-  function updateFirstAssistantMessage(content: string) {
+  function updateFirstAssistantMessage(content: string, replace: boolean = false) {
     const idx = messages.value.findIndex(m => m.role === 'assistant' && m.type === 'analysis');
     
     if (idx >= 0) {
-      // 直接修改数组元素的content属性
-      messages.value[idx].content += content;
-      messages.value[idx].timestamp = Date.now();
+      if (replace) {
+        // 替换内容（用于done事件）
+        messages.value[idx] = {
+          ...messages.value[idx],
+          content: content,
+          timestamp: Date.now(),
+        };
+      } else {
+        // 追加内容（用于流式chunk）
+        messages.value[idx].content += content;
+        messages.value[idx].timestamp = Date.now();
+      }
       
       // 标记分析已开始
       if (messages.value[idx].content.length > 0) {
