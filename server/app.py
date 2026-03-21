@@ -1042,6 +1042,200 @@ async def divination_analyze(request: DivinationRequest):
         raise HTTPException(status_code=500, detail=f"六爻卜卦异常: {error_msg}")
 
 
+# ==================== 八字追问对话API ====================
+
+class BaziChatRequest(BaseModel):
+    """八字追问对话请求模型"""
+    message: str  # 用户追问消息
+    conversation_id: Optional[str] = None  # 会话ID（可选，用于多轮对话）
+    # 八字上下文
+    sizhu: Optional[Dict[str, Any]] = None
+    wuxing_analysis: Optional[Dict[str, Any]] = None
+    shishen_analysis: Optional[Dict[str, Any]] = None
+    dayun_analysis: Optional[Dict[str, Any]] = None
+    liunian_analysis: Optional[Dict[str, Any]] = None
+    shensha_analysis: Optional[Dict[str, Any]] = None
+    llm_analysis: Optional[str] = None
+    analysis_style: str = 'classic'
+    gender: str = '男'
+    birth_info: Optional[Dict[str, Any]] = None
+
+
+# 八字对话会话存储
+BAZI_CONVERSATIONS: Dict[str, Dict[str, Any]] = {}
+
+
+def get_or_create_bazi_conversation(conversation_id: Optional[str]) -> tuple:
+    """获取或创建八字对话会话"""
+    if not conversation_id or conversation_id not in BAZI_CONVERSATIONS:
+        new_id = conversation_id or str(uuid.uuid4())
+        BAZI_CONVERSATIONS[new_id] = {
+            "history": [],  # 对话历史
+            "bazi_context": None  # 八字上下文
+        }
+        return new_id, BAZI_CONVERSATIONS[new_id]
+    return conversation_id, BAZI_CONVERSATIONS[conversation_id]
+
+
+@app.post("/api/bazi/chat")
+async def bazi_chat(request: BaziChatRequest):
+    """
+    八字追问对话接口（非流式）
+    """
+    try:
+        from core.agents.bazi_dialogue_agent import get_bazi_dialogue_agent, BaziContext
+        
+        # 获取或创建会话
+        conv_id, session = get_or_create_bazi_conversation(request.conversation_id)
+        
+        # 构建八字上下文
+        bazi_context = BaziContext(
+            sizhu=request.sizhu or {},
+            wuxing_analysis=request.wuxing_analysis,
+            shishen_analysis=request.shishen_analysis,
+            dayun_analysis=request.dayun_analysis,
+            liunian_analysis=request.liunian_analysis,
+            shensha_analysis=request.shensha_analysis,
+            llm_analysis=request.llm_analysis,
+            analysis_style=request.analysis_style,
+            gender=request.gender,
+            birth_info=request.birth_info or {}
+        )
+        
+        # 更新会话中的八字上下文
+        session["bazi_context"] = bazi_context
+        
+        # 获取对话Agent
+        agent = get_bazi_dialogue_agent()
+        
+        # 处理消息
+        result = agent.process_message(
+            conversation_id=conv_id,
+            user_message=request.message,
+            bazi_context=bazi_context,
+            stream=False
+        )
+        
+        return {
+            "success": True,
+            "conversation_id": conv_id,
+            "response": result.get("response", ""),
+            "intent_type": result.get("intent_type"),
+            "tool_used": result.get("tool_used")
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"[八字对话API] 错误: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/bazi/chat/stream")
+async def bazi_chat_stream(request: BaziChatRequest):
+    """
+    八字追问对话流式接口
+    
+    流程：
+    1. 意图识别 - 识别用户追问的类型
+    2. 工具选择 - 根据意图选择合适的分析工具
+    3. 结合历史信息 + 工具响应输出结果
+    """
+    
+    async def generate():
+        try:
+            from core.agents.bazi_dialogue_agent import get_bazi_dialogue_agent, BaziContext
+            
+            # 获取或创建会话
+            conv_id, session = get_or_create_bazi_conversation(request.conversation_id)
+            
+            # 发送会话ID
+            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+            
+            # 构建八字上下文
+            bazi_context = BaziContext(
+                sizhu=request.sizhu or {},
+                wuxing_analysis=request.wuxing_analysis,
+                shishen_analysis=request.shishen_analysis,
+                dayun_analysis=request.dayun_analysis,
+                liunian_analysis=request.liunian_analysis,
+                shensha_analysis=request.shensha_analysis,
+                llm_analysis=request.llm_analysis,
+                analysis_style=request.analysis_style,
+                gender=request.gender,
+                birth_info=request.birth_info or {}
+            )
+            
+            # 更新会话中的八字上下文
+            session["bazi_context"] = bazi_context
+            
+            # 获取对话Agent
+            agent = get_bazi_dialogue_agent()
+            
+            # 流式处理消息
+            for event in agent.process_message_stream(
+                conversation_id=conv_id,
+                user_message=request.message,
+                bazi_context=bazi_context
+            ):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            error_msg = str(e)
+            import traceback
+            print(f"[八字对话流式API] 错误: {error_msg}")
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.get("/api/bazi/chat/history/{conversation_id}")
+async def get_bazi_chat_history(conversation_id: str):
+    """获取八字对话历史"""
+    from core.agents.bazi_dialogue_agent import get_bazi_dialogue_agent
+    
+    agent = get_bazi_dialogue_agent()
+    history = agent.get_conversation_history(conversation_id)
+    
+    return {
+        "success": True,
+        "conversation_id": conversation_id,
+        "history": history
+    }
+
+
+@app.delete("/api/bazi/chat/history/{conversation_id}")
+async def clear_bazi_chat_history(conversation_id: str):
+    """清除八字对话历史"""
+    from core.agents.bazi_dialogue_agent import get_bazi_dialogue_agent
+    
+    agent = get_bazi_dialogue_agent()
+    agent.clear_conversation(conversation_id)
+    
+    # 同时清除会话存储
+    if conversation_id in BAZI_CONVERSATIONS:
+        del BAZI_CONVERSATIONS[conversation_id]
+    
+    return {
+        "success": True,
+        "message": "对话历史已清除"
+    }
+
+
+@app.get("/api/bazi/intent/recognize")
+async def recognize_bazi_intent(message: str):
+    """识别八字追问意图"""
+    from core.agents.bazi_intent_agent import recognize_bazi_intent
+    
+    result = recognize_bazi_intent(message)
+    
+    return {
+        "success": True,
+        "intent": result
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
