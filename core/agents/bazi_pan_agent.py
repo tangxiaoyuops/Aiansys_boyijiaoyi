@@ -35,6 +35,9 @@ def bazi_pan_node(
         # 计算四柱
         sizhu = calculate_sizhu(year, month, day, hour)
         
+        # 将性别添加到sizhu字典中，以便后续分析使用
+        sizhu['gender'] = gender
+        
         result = {
             'sizhu': sizhu,
             'success': True,

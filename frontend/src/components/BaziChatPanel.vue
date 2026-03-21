@@ -20,7 +20,7 @@
     </div>
 
     <!-- 消息列表 -->
-    <div class="chat-messages" ref="messagesRef">
+    <div class="chat-messages" ref="messagesRef" @scroll="handleScroll" @wheel="handleWheel">
       <!-- 无消息时的空状态 -->
       <div v-if="messages.length === 0" class="empty-state">
         <el-icon :size="48" color="#d4af37"><ChatDotRound /></el-icon>
@@ -112,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { ChatDotRound, Delete } from '@element-plus/icons-vue';
 import MarkdownIt from 'markdown-it';
@@ -131,6 +131,11 @@ const { messages, loading, progressMessage, hasContext } = storeToRefs(store);
 const messagesRef = ref<HTMLDivElement | null>(null);
 const inputMessage = ref('');
 const stopStream = ref<(() => void) | null>(null);
+
+// 用户是否在底部附近（用于智能滚动）
+const isNearBottom = ref(true);
+// 是否应该自动滚动
+const shouldAutoScroll = ref(true);
 
 const md = new MarkdownIt({ linkify: true, breaks: true, html: false });
 
@@ -155,12 +160,49 @@ const renderMarkdown = (text: string): string => {
   return md.render(text);
 };
 
+// 检查用户是否在底部附近（距离底部100px以内）
+const checkIfNearBottom = () => {
+  if (messagesRef.value) {
+    const { scrollTop, scrollHeight, clientHeight } = messagesRef.value;
+    isNearBottom.value = scrollHeight - scrollTop - clientHeight < 100;
+  }
+};
+
+// 智能滚动：只有在用户位于底部附近时才自动滚动
+const scrollToBottomIfNear = () => {
+  nextTick(() => {
+    if (messagesRef.value && isNearBottom.value && shouldAutoScroll.value) {
+      messagesRef.value.scrollTop = messagesRef.value.scrollHeight;
+    }
+  });
+};
+
+// 强制滚动到底部（用于发送新消息时）
 const scrollToBottom = () => {
+  shouldAutoScroll.value = true;
+  isNearBottom.value = true;
   nextTick(() => {
     if (messagesRef.value) {
       messagesRef.value.scrollTop = messagesRef.value.scrollHeight;
     }
   });
+};
+
+// 监听滚动事件，更新用户位置
+const handleScroll = () => {
+  checkIfNearBottom();
+  // 如果用户手动滚动到底部，恢复自动滚动
+  if (isNearBottom.value) {
+    shouldAutoScroll.value = true;
+  }
+};
+
+// 用户向上滚动时，禁用自动滚动
+const handleWheel = (e: WheelEvent) => {
+  if (e.deltaY < 0) {
+    // 向上滚动
+    shouldAutoScroll.value = false;
+  }
 };
 
 const handleSend = async () => {
@@ -200,13 +242,13 @@ const handleStreamEvent = (event: any) => {
     case 'content':
       if (event.content) {
         store.updateLastAssistantMessage(event.content);
-        scrollToBottom();
+        scrollToBottomIfNear(); // 智能滚动
       }
       break;
     case 'done':
       store.setLoading(false);
       store.setProgressMessage('');
-      scrollToBottom();
+      scrollToBottomIfNear();
       break;
     case 'error':
       store.setLoading(false);
@@ -234,11 +276,28 @@ watch(
   () => messages.value.map(m => m.content?.length || 0).join(','),
   () => {
     forceUpdateKey.value++;
-    scrollToBottom();
+    // 只在深度分析内容变化时智能滚动
+    const analysisMsg = messages.value.find(m => m.type === 'analysis');
+    if (analysisMsg?.content) {
+      scrollToBottomIfNear();
+    }
   }
 );
 
-onMounted(() => scrollToBottom());
+onMounted(() => {
+  scrollToBottom();
+  if (messagesRef.value) {
+    messagesRef.value.addEventListener('scroll', handleScroll);
+    messagesRef.value.addEventListener('wheel', handleWheel);
+  }
+});
+
+onUnmounted(() => {
+  if (messagesRef.value) {
+    messagesRef.value.removeEventListener('scroll', handleScroll);
+    messagesRef.value.removeEventListener('wheel', handleWheel);
+  }
+});
 </script>
 
 <style scoped>

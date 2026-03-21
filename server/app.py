@@ -979,6 +979,131 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+# ==================== 八字合盘API ====================
+
+class BaziHepanRequest(BaseModel):
+    """八字合盘请求模型"""
+    # 命盘A
+    year_a: int
+    month_a: int
+    day_a: int
+    hour_a: int
+    gender_a: str = '男'
+    # 命盘B
+    year_b: int
+    month_b: int
+    day_b: int
+    hour_b: int
+    gender_b: str = '女'
+    # 分析选项
+    hepan_type: str = 'couple'  # 'couple' | 'business'
+    include_llm: bool = True
+    analysis_style: str = 'emotion'
+
+
+@app.post("/api/bazi/hepan")
+async def bazi_hepan(request: BaziHepanRequest):
+    """
+    八字合盘分析接口（非流式）
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        print(f"[八字合盘API] 收到合盘请求")
+        print(f"[八字合盘API] 命盘A: {request.year_a}年{request.month_a}月{request.day_a}日{request.hour_a}时, {request.gender_a}")
+        print(f"[八字合盘API] 命盘B: {request.year_b}年{request.month_b}月{request.day_b}日{request.hour_b}时, {request.gender_b}")
+        print(f"[八字合盘API] 合盘类型: {request.hepan_type}")
+        
+        from core.agents.hepan_analysis_agent import hepan_complete_analysis, hepan_llm_analysis
+        
+        # 执行合盘分析
+        result = hepan_complete_analysis(
+            year_a=request.year_a, month_a=request.month_a, day_a=request.day_a, hour_a=request.hour_a, gender_a=request.gender_a,
+            year_b=request.year_b, month_b=request.month_b, day_b=request.day_b, hour_b=request.hour_b, gender_b=request.gender_b,
+            hepan_type=request.hepan_type,
+            include_llm=False,  # 非流式不调用LLM
+        )
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=400, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[八字合盘API] 错误: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/bazi/hepan-stream")
+async def bazi_hepan_stream(request: BaziHepanRequest):
+    """
+    八字合盘LLM流式分析接口
+    """
+    import logging
+    import json
+    logger = logging.getLogger(__name__)
+    
+    async def generate():
+        try:
+            print(f"[八字合盘流式API] 开始合盘分析...")
+            
+            # 发送进度
+            yield f"data: {json.dumps({'type': 'progress', 'stage': 'hepan', 'message': '正在进行合盘分析...'}, ensure_ascii=False)}\n\n"
+            
+            from core.agents.hepan_analysis_agent import hepan_complete_analysis, hepan_llm_analysis_stream
+            
+            # 1. 执行合盘分析
+            result = hepan_complete_analysis(
+                year_a=request.year_a, month_a=request.month_a, day_a=request.day_a, hour_a=request.hour_a, gender_a=request.gender_a,
+                year_b=request.year_b, month_b=request.month_b, day_b=request.day_b, hour_b=request.hour_b, gender_b=request.gender_b,
+                hepan_type=request.hepan_type,
+                include_llm=False,
+            )
+            
+            if not result.get('success'):
+                yield f"data: {json.dumps({'type': 'error', 'message': result.get('error', '分析失败')}, ensure_ascii=False)}\n\n"
+                return
+            
+            # 2. 发送合盘数据
+            yield f"data: {json.dumps({'type': 'data', 'pan_a': result['pan_a'], 'pan_b': result['pan_b'], 'hepan': result['hepan']}, ensure_ascii=False)}\n\n"
+            
+            # 3. LLM流式分析
+            if request.include_llm:
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析合盘...'}, ensure_ascii=False)}\n\n"
+                
+                full_content = ""
+                for chunk in hepan_llm_analysis_stream(
+                    result['pan_a'],
+                    result['pan_b'],
+                    result['hepan'],
+                    request.hepan_type
+                ):
+                    full_content += chunk
+                    yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
+                
+                # 发送完成信号
+                yield f"data: {json.dumps({'type': 'done', 'full_content': full_content}, ensure_ascii=False)}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"[八字合盘流式API] 错误: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 # ==================== 六爻卜卦API ====================
 
 @app.get("/api/divination/test")
