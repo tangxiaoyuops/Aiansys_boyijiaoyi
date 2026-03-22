@@ -269,7 +269,8 @@ def build_bazi_prompt(
     shishen_analysis: Optional[Dict[str, Any]],
     dayun_analysis: Optional[Dict[str, Any]],
     shensha_analysis: Optional[Dict[str, Any]],
-    birth_year: Optional[int] = None
+    birth_year: Optional[int] = None,
+    name: Optional[str] = None
 ) -> str:
     """
     构建八字分析的提示词（用户消息部分）
@@ -281,6 +282,7 @@ def build_bazi_prompt(
         dayun_analysis: 大运分析结果
         shensha_analysis: 神煞分析结果
         birth_year: 出生年份（公历）
+        name: 姓名（可选，用于个性化报告）
     
     Returns:
         提示词字符串
@@ -304,6 +306,10 @@ def build_bazi_prompt(
         pass
     
     lines = ["## 八字分析信息\n"]
+    
+    # 如果有名字，显示名字
+    if name:
+        lines.append(f"### 👤 命主姓名：{name}\n")
     
     # 当前时间信息（关键：让LLM知道现在是什么时候）
     lines.append("### ⏰ 当前时间参考")
@@ -512,6 +518,8 @@ def build_hepan_prompt(
     hepan_type: str = 'couple',
     birth_info_a: Optional[Dict] = None,
     birth_info_b: Optional[Dict] = None,
+    name_a: Optional[str] = None,
+    name_b: Optional[str] = None,
 ) -> str:
     """
     构建合盘分析的用户提示词
@@ -523,6 +531,8 @@ def build_hepan_prompt(
         hepan_type: 合盘类型
         birth_info_a: 命盘A出生信息
         birth_info_b: 命盘B出生信息
+        name_a: 命盘A姓名（可选）
+        name_b: 命盘B姓名（可选）
     
     Returns:
         提示词字符串
@@ -530,7 +540,8 @@ def build_hepan_prompt(
     lines = ["## 八字合盘分析信息\n"]
     
     # 命盘A信息
-    lines.append("### 命盘A")
+    display_name_a = name_a if name_a else "命盘A"
+    lines.append(f"### {display_name_a}")
     sizhu_a = pan_a.get('sizhu', {})
     nian_a = sizhu_a.get('nian_zhu', {})
     yue_a = sizhu_a.get('yue_zhu', {})
@@ -558,7 +569,8 @@ def build_hepan_prompt(
     lines.append("")
     
     # 命盘B信息
-    lines.append("### 命盘B")
+    display_name_b = name_b if name_b else "命盘B"
+    lines.append(f"### {display_name_b}")
     sizhu_b = pan_b.get('sizhu', {})
     nian_b = sizhu_b.get('nian_zhu', {})
     yue_b = sizhu_b.get('yue_zhu', {})
@@ -601,6 +613,10 @@ def build_hepan_prompt(
         lines.append("**地支六合:**")
         for he in di_zhi['liu_he']:
             lines.append(f"- {he['desc']}")
+    if di_zhi.get('san_he'):
+        lines.append("**地支三合:**")
+        for san_he in di_zhi['san_he']:
+            lines.append(f"- {san_he['desc']}")
     if di_zhi.get('liu_chong'):
         lines.append("**地支六冲:**")
         for chong in di_zhi['liu_chong']:
@@ -622,6 +638,15 @@ def build_hepan_prompt(
         for rel in rizhu['relations']:
             lines.append(f"- {rel['desc']}")
     lines.append("")
+    
+    # 夫妻星匹配详情（仅情侣合婚）
+    if hepan_type == 'couple':
+        spouse_star = hepan_result.get('spouse_star_match', {})
+        if spouse_star and spouse_star.get('details'):
+            lines.append("**夫妻星匹配:**")
+            for detail in spouse_star['details']:
+                lines.append(f"- {detail.get('desc', '')}")
+            lines.append("")
     
     # 五行互补详情
     wuxing = hepan_result.get('wuxing_match', {})

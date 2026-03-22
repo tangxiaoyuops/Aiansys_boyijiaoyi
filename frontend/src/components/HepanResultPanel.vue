@@ -81,6 +81,20 @@
         </div>
       </div>
 
+      <!-- 地支三合 -->
+      <div v-if="hepanData?.di_zhi_relation?.san_he?.length" class="relation-card san-he">
+        <div class="relation-header">
+          <el-icon><Star /></el-icon>
+          <span>地支三合</span>
+          <el-tag size="small" type="success">大吉</el-tag>
+        </div>
+        <div class="relation-content">
+          <span v-for="(sanHe, i) in hepanData.di_zhi_relation.san_he" :key="i" class="relation-tag san-he-tag">
+            {{ sanHe.desc }}
+          </span>
+        </div>
+      </div>
+
       <!-- 天干五合 -->
       <div v-if="hepanData?.tian_gan_relation?.wu_he?.length" class="relation-card he">
         <div class="relation-header">
@@ -303,6 +317,7 @@ const scoreClass = computed(() => {
 
 .relation-card.he { border-left-color: #67c23a; }
 .relation-card.chong { border-left-color: #e6a23c; }
+.relation-card.san-he { border-left-color: #9b59b6; }
 .relation-card.complement { border-left-color: #409eff; }
 .relation-card.conflict { border-left-color: #f56c6c; }
 
@@ -331,6 +346,7 @@ const scoreClass = computed(() => {
 
 .he-tag { background: #f0f9eb; color: #67c23a; }
 .chong-tag { background: #fdf6ec; color: #e6a23c; }
+.san-he-tag { background: #f4ecf7; color: #9b59b6; }
 .sheng-tag { background: #f0f9eb; color: #67c23a; }
 .ke-tag { background: #fef0f0; color: #f56c6c; }
 .complement-tag { background: #ecf5ff; color: #409eff; }

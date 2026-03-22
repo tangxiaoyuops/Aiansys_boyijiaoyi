@@ -12,6 +12,7 @@ from core.agents.bazi_dayun_agent import bazi_dayun_node
 from core.agents.bazi_shensha_agent import bazi_shensha_node
 from core.tools.hepan_calculator import calculate_hepan
 from core.tools.llm_client import call_llm, call_llm_stream
+from core.agents.bazi_prompt_styles import get_hepan_system_prompt, build_hepan_prompt as build_hepan_prompt_from_styles
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def hepan_complete_analysis(
     # 分析选项
     hepan_type: str = 'couple',
     include_llm: bool = True,
-    analysis_style: str = 'emotion',
+    analysis_style: str = 'emotion',  # 保留以兼容前端，但合盘分析使用hepan_type决定风格
     include_dayun: bool = True,
     include_shensha: bool = True,
 ) -> Dict[str, Any]:
@@ -192,7 +193,7 @@ def build_hepan_prompt(
     hepan_type: str = 'couple'
 ) -> str:
     """
-    构建合盘分析提示词
+    构建合盘分析提示词（包装函数）
     
     Args:
         pan_a: 命盘A分析结果
@@ -203,158 +204,7 @@ def build_hepan_prompt(
     Returns:
         提示词字符串
     """
-    lines = ["## 八字合盘分析信息\n"]
-    
-    # 命盘A信息
-    lines.append("### 命盘A")
-    sizhu_a = pan_a.get('sizhu', {})
-    lines.append(f"四柱: {sizhu_a.get('nian_zhu', {}).get('tian_gan', '')}{sizhu_a.get('nian_zhu', {}).get('di_zhi', '')}年 "
-                f"{sizhu_a.get('yue_zhu', {}).get('tian_gan', '')}{sizhu_a.get('yue_zhu', {}).get('di_zhi', '')}月 "
-                f"{sizhu_a.get('ri_zhu', {}).get('tian_gan', '')}{sizhu_a.get('ri_zhu', {}).get('di_zhi', '')}日 "
-                f"{sizhu_a.get('shi_zhu', {}).get('tian_gan', '')}{sizhu_a.get('shi_zhu', {}).get('di_zhi', '')}时")
-    lines.append(f"日主: {sizhu_a.get('ri_zhu_tiangan', '')}")
-    lines.append(f"性别: {hepan_result.get('gender_a', '男')}")
-    if sizhu_a.get('lunar_year'):
-        lines.append(f"农历: {sizhu_a.get('lunar_year')}年{sizhu_a.get('lunar_month')}月{sizhu_a.get('lunar_day')}日")
-    lines.append("")
-    
-    # 命盘B信息
-    lines.append("### 命盘B")
-    sizhu_b = pan_b.get('sizhu', {})
-    lines.append(f"四柱: {sizhu_b.get('nian_zhu', {}).get('tian_gan', '')}{sizhu_b.get('nian_zhu', {}).get('di_zhi', '')}年 "
-                f"{sizhu_b.get('yue_zhu', {}).get('tian_gan', '')}{sizhu_b.get('yue_zhu', {}).get('di_zhi', '')}月 "
-                f"{sizhu_b.get('ri_zhu', {}).get('tian_gan', '')}{sizhu_b.get('ri_zhu', {}).get('di_zhi', '')}日 "
-                f"{sizhu_b.get('shi_zhu', {}).get('tian_gan', '')}{sizhu_b.get('shi_zhu', {}).get('di_zhi', '')}时")
-    lines.append(f"日主: {sizhu_b.get('ri_zhu_tiangan', '')}")
-    lines.append(f"性别: {hepan_result.get('gender_b', '女')}")
-    if sizhu_b.get('lunar_year'):
-        lines.append(f"农历: {sizhu_b.get('lunar_year')}年{sizhu_b.get('lunar_month')}月{sizhu_b.get('lunar_day')}日")
-    lines.append("")
-    
-    # 合盘匹配结果
-    lines.append("### 合盘匹配分析")
-    scores = hepan_result.get('scores', {})
-    lines.append(f"**总评分: {scores.get('total', 0)}分 ({scores.get('grade', '')})**")
-    lines.append(f"- 地支匹配: {scores.get('di_zhi', 0)}分 - {scores.get('di_zhi_desc', '')}")
-    lines.append(f"- 五行互补: {scores.get('wuxing', 0)}分 - {scores.get('wuxing_desc', '')}")
-    lines.append(f"- 日主关系: {scores.get('rizhu', 0)}分 - {scores.get('rizhu_desc', '')}")
-    lines.append(f"- 天干合化: {scores.get('tian_gan', 0)}分 - {scores.get('tian_gan_desc', '')}")
-    lines.append("")
-    
-    # 地支关系详情
-    di_zhi = hepan_result.get('di_zhi_relation', {})
-    if di_zhi.get('liu_he'):
-        lines.append("**地支六合:**")
-        for he in di_zhi['liu_he']:
-            lines.append(f"- {he['desc']}")
-    if di_zhi.get('liu_chong'):
-        lines.append("**地支六冲:**")
-        for chong in di_zhi['liu_chong']:
-            lines.append(f"- {chong['desc']}")
-    lines.append("")
-    
-    # 日主关系详情
-    rizhu = hepan_result.get('rizhu_relation', {})
-    if rizhu.get('relations'):
-        lines.append("**日主关系:**")
-        for rel in rizhu['relations']:
-            lines.append(f"- {rel['desc']}")
-    lines.append("")
-    
-    # 五行互补详情
-    wuxing = hepan_result.get('wuxing_match', {})
-    lines.append("**五行分布:**")
-    lines.append(f"- 命盘A: 金{wuxing.get('wuxing_a', {}).get('金', 0)} 木{wuxing.get('wuxing_a', {}).get('木', 0)} "
-                f"水{wuxing.get('wuxing_a', {}).get('水', 0)} 火{wuxing.get('wuxing_a', {}).get('火', 0)} "
-                f"土{wuxing.get('wuxing_a', {}).get('土', 0)}")
-    lines.append(f"- 命盘B: 金{wuxing.get('wuxing_b', {}).get('金', 0)} 木{wuxing.get('wuxing_b', {}).get('木', 0)} "
-                f"水{wuxing.get('wuxing_b', {}).get('水', 0)} 火{wuxing.get('wuxing_b', {}).get('火', 0)} "
-                f"土{wuxing.get('wuxing_b', {}).get('土', 0)}")
-    if wuxing.get('complement'):
-        lines.append("- 互补: " + ", ".join([c['desc'] for c in wuxing['complement']]))
-    lines.append("")
-    
-    # 建议
-    if hepan_result.get('suggestions'):
-        lines.append("**系统建议:**")
-        for sug in hepan_result['suggestions'][:5]:
-            lines.append(f"- {sug}")
-        lines.append("")
-    
-    lines.append("---")
-    if hepan_type == 'couple':
-        lines.append("请根据以上信息，进行专业的八字合婚分析，重点分析婚姻和谐度、性格互补、未来发展等。")
-    else:
-        lines.append("请根据以上信息，进行专业的商业合盘分析，重点分析合作契合度、财运互补、决策风格等。")
-    
-    return "\n".join(lines)
-
-
-def get_hepan_system_prompt(hepan_type: str = 'couple') -> str:
-    """
-    获取合盘分析的系统提示词
-    
-    Args:
-        hepan_type: 合盘类型
-    
-    Returns:
-        系统提示词
-    """
-    if hepan_type == 'couple':
-        return """你是一位精通传统命理学的专业合婚分析师，拥有深厚的理论功底和丰富的实战经验。
-
-请按照以下专业框架进行合婚分析：
-
-## 一、命盘概览
-- 双方四柱结构对比
-- 日主五行分析
-
-## 二、合盘匹配分析
-- 地支六合六冲解读
-- 天干合化影响
-- 五行互补情况
-- 日主关系详解
-
-## 三、婚姻运势分析
-- 感情契合度
-- 性格互补性
-- 沟通与相处
-- 家庭关系
-
-## 四、发展建议
-- 优势与机遇
-- 需要注意的问题
-- 趋吉避凶建议
-
-请使用专业术语，但需解释其含义。分析要全面深入，逻辑清晰，给出实用的建议。"""
-    
-    else:  # business
-        return """你是一位精通商业命理的专业顾问，擅长分析合作伙伴之间的命盘契合度。
-
-请按照以下专业框架进行商业合盘分析：
-
-## 一、命盘概览
-- 双方四柱结构对比
-- 日主五行分析
-
-## 二、合作契合度分析
-- 性格匹配度
-- 决策风格对比
-- 风险承受能力
-- 五行互补情况
-
-## 三、财运分析
-- 各自财运特点
-- 合财可能性
-- 投资风格差异
-
-## 四、合作建议
-- 优势互补点
-- 需要注意的问题
-- 最佳合作方式
-- 趋吉避凶建议
-
-请使用专业术语，但需解释其含义。分析要客观理性，给出实用的商业建议。"""
+    return build_hepan_prompt_from_styles(pan_a, pan_b, hepan_result, hepan_type)
 
 
 def hepan_llm_analysis(
@@ -389,7 +239,9 @@ def hepan_llm_analysis_stream(
     pan_a: Dict,
     pan_b: Dict,
     hepan_result: Dict,
-    hepan_type: str = 'couple'
+    hepan_type: str = 'couple',
+    name_a: Optional[str] = None,
+    name_b: Optional[str] = None
 ):
     """
     使用LLM进行合盘深度分析（流式）
@@ -399,12 +251,14 @@ def hepan_llm_analysis_stream(
         pan_b: 命盘B分析结果
         hepan_result: 合盘匹配结果
         hepan_type: 合盘类型
+        name_a: 命盘A姓名（可选）
+        name_b: 命盘B姓名（可选）
     
     Yields:
         LLM分析结果片段
     """
     system_prompt = get_hepan_system_prompt(hepan_type)
-    user_prompt = build_hepan_prompt(pan_a, pan_b, hepan_result, hepan_type)
+    user_prompt = build_hepan_prompt(pan_a, pan_b, hepan_result, hepan_type, name_a=name_a, name_b=name_b)
     
     try:
         for chunk in call_llm_stream(system_prompt, user_prompt, temperature=0.3):

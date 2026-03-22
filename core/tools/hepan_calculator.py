@@ -79,6 +79,28 @@ TIAN_GAN_YINYANG = {
     '壬': '阳', '癸': '阴',
 }
 
+# 十神定义（日主为中心）
+# 十神：正财、偏财、正官、偏官（七杀）、正印、偏印、比肩、劫财、食神、伤官
+SHISHEN_NAMES = {
+    ('同', '同'): '比肩',  # 同我者，阴阳相同
+    ('同', '异'): '劫财',  # 同我者，阴阳不同
+    ('生', '同'): '食神',  # 我生者，阴阳相同
+    ('生', '异'): '伤官',  # 我生者，阴阳不同
+    ('克', '同'): '偏财',  # 我克者，阴阳相同
+    ('克', '异'): '正财',  # 我克者，阴阳不同
+    ('克我', '同'): '偏官',  # 克我者，阴阳相同（七杀）
+    ('克我', '异'): '正官',  # 克我者，阴阳不同
+    ('生我', '同'): '偏印',  # 生我者，阴阳相同
+    ('生我', '异'): '正印',  # 生我者，阴阳不同
+}
+
+# 夫妻星定义
+# 男命以财星为妻星，女命以官星为夫星
+SPOUSE_STAR = {
+    '男': ['正财', '偏财'],  # 男命财星为妻
+    '女': ['正官', '偏官'],  # 女命官星为夫
+}
+
 
 # ==================== 核心计算函数 ====================
 
@@ -107,9 +129,135 @@ def get_all_gan_zhi(sizhu: Dict) -> Tuple[List[str], List[str]]:
     return gans, zhis
 
 
+def get_shishen_for_gan(rizhu_gan: str, target_gan: str) -> str:
+    """
+    根据日主天干和目标天干计算十神
+    
+    Args:
+        rizhu_gan: 日主天干
+        target_gan: 目标天干
+    
+    Returns:
+        十神名称
+    """
+    if rizhu_gan not in TIAN_GAN_WUXING or target_gan not in TIAN_GAN_WUXING:
+        return ''
+    
+    wx_rizhu = TIAN_GAN_WUXING[rizhu_gan]
+    wx_target = TIAN_GAN_WUXING[target_gan]
+    
+    # 判断阴阳关系
+    yinyang_rizhu = TIAN_GAN_YINYANG.get(rizhu_gan, '')
+    yinyang_target = TIAN_GAN_YINYANG.get(target_gan, '')
+    yinyang_rel = '同' if yinyang_rizhu == yinyang_target else '异'
+    
+    # 判断五行关系
+    if wx_rizhu == wx_target:
+        relation = '同'
+    elif WUXING_SHENG.get(wx_rizhu) == wx_target:
+        relation = '生'
+    elif WUXING_KE.get(wx_rizhu) == wx_target:
+        relation = '克'
+    elif WUXING_KE.get(wx_target) == wx_rizhu:
+        relation = '克我'
+    elif WUXING_SHENG.get(wx_target) == wx_rizhu:
+        relation = '生我'
+    else:
+        return ''
+    
+    return SHISHEN_NAMES.get((relation, yinyang_rel), '')
+
+
+def analyze_spouse_star_match(
+    sizhu_a: Dict, 
+    sizhu_b: Dict, 
+    gender_a: str = '男', 
+    gender_b: str = '女'
+) -> Dict[str, Any]:
+    """
+    分析夫妻星匹配（十神配合分析）
+    
+    传统合婚规则：
+    - 男命日主看对方的财星（妻星）
+    - 女命日主看对方的官星（夫星）
+    
+    Args:
+        sizhu_a: 命盘A的四柱数据
+        sizhu_b: 命盘B的四柱数据
+        gender_a: 命盘A性别
+        gender_b: 命盘B性别
+    
+    Returns:
+        夫妻星匹配分析结果
+    """
+    gans_a, _ = get_all_gan_zhi(sizhu_a)
+    gans_b, _ = get_all_gan_zhi(sizhu_b)
+    
+    rizhu_a = sizhu_a.get('ri_zhu_tiangan', '')
+    rizhu_b = sizhu_b.get('ri_zhu_tiangan', '')
+    
+    if not rizhu_a or not rizhu_b:
+        return {'score': 0, 'desc': '无法确定日主', 'details': []}
+    
+    details = []
+    score = 0
+    
+    # 分析命盘A对命盘B的夫妻星
+    spouse_stars_a = SPOUSE_STAR.get(gender_a, [])
+    for gan_b in gans_b:
+        shishen = get_shishen_for_gan(rizhu_a, gan_b)
+        if shishen in spouse_stars_a:
+            details.append({
+                'type': 'a_to_b',
+                'desc': f'命盘A日主{rizhu_a}见命盘B{gan_b}为{shishen}（{"妻星" if gender_a == "男" else "夫星"}）',
+                'positive': True
+            })
+            score += 4
+    
+    # 分析命盘B对命盘A的夫妻星
+    spouse_stars_b = SPOUSE_STAR.get(gender_b, [])
+    for gan_a in gans_a:
+        shishen = get_shishen_for_gan(rizhu_b, gan_a)
+        if shishen in spouse_stars_b:
+            details.append({
+                'type': 'b_to_a',
+                'desc': f'命盘B日主{rizhu_b}见命盘A{gan_a}为{shishen}（{"夫星" if gender_b == "女" else "妻星"}）',
+                'positive': True
+            })
+            score += 4
+    
+    # 分析日主相生关系（已有逻辑，此处补充十神视角）
+    wx_a = TIAN_GAN_WUXING.get(rizhu_a, '')
+    wx_b = TIAN_GAN_WUXING.get(rizhu_b, '')
+    
+    if wx_a and wx_b:
+        # 男命日主生女命日主，有情
+        if gender_a == '男' and WUXING_SHENG.get(wx_a) == wx_b:
+            details.append({
+                'type': 'rizhu_sheng',
+                'desc': f'男命日主{rizhu_a}生女命日主{rizhu_b}，夫对妻有情',
+                'positive': True
+            })
+            score += 3
+        # 女命日主生男命日主，也有情
+        elif gender_b == '女' and WUXING_SHENG.get(wx_b) == wx_a:
+            details.append({
+                'type': 'rizhu_sheng',
+                'desc': f'女命日主{rizhu_b}生男命日主{rizhu_a}，妻对夫有情',
+                'positive': True
+            })
+            score += 3
+    
+    return {
+        'score': min(15, score),
+        'desc': f'夫妻星匹配得分{min(15, score)}分',
+        'details': details
+    }
+
+
 def analyze_di_zhi_he_chong(zhis_a: List[str], zhis_b: List[str]) -> Dict[str, Any]:
     """
-    分析两个命盘地支之间的六合六冲关系
+    分析两个命盘地支之间的六合、六冲、三合关系
     
     Args:
         zhis_a: 命盘A的地支列表
@@ -120,6 +268,10 @@ def analyze_di_zhi_he_chong(zhis_a: List[str], zhis_b: List[str]) -> Dict[str, A
     """
     he_relations = []  # 六合关系
     chong_relations = []  # 六冲关系
+    san_he_relations = []  # 三合关系
+    
+    # 合并两个命盘的地支
+    all_zhis = set(zhis_a + zhis_b)
     
     # 检查六合
     for zhi_a in zhis_a:
@@ -155,11 +307,38 @@ def analyze_di_zhi_he_chong(zhis_a: List[str], zhis_b: List[str]) -> Dict[str, A
                     'desc': f'{zhi_a}{zhi_b}相冲'
                 })
     
+    # 检查三合（双方地支合并后检查）
+    for san_he_key, hua_wuxing in DI_ZHI_SAN_HE.items():
+        zhi_list = list(san_he_key)  # 例如 ['申', '子', '辰']
+        # 检查是否所有三个地支都存在于双方命盘中
+        if all(zhi in all_zhis for zhi in zhi_list):
+            # 分析每个地支来自哪个命盘
+            zhi_sources = []
+            for zhi in zhi_list:
+                in_a = zhi in zhis_a
+                in_b = zhi in zhis_b
+                if in_a and in_b:
+                    source = '双方都有'
+                elif in_a:
+                    source = '命盘A'
+                else:
+                    source = '命盘B'
+                zhi_sources.append({'zhi': zhi, 'source': source})
+            
+            san_he_relations.append({
+                'combination': san_he_key,
+                'hua': hua_wuxing,
+                'zhi_sources': zhi_sources,
+                'desc': f'{san_he_key}三合{hua_wuxing}局'
+            })
+    
     return {
         'liu_he': he_relations,
         'liu_chong': chong_relations,
+        'san_he': san_he_relations,
         'he_count': len(he_relations),
         'chong_count': len(chong_relations),
+        'san_he_count': len(san_he_relations),
     }
 
 
@@ -363,23 +542,25 @@ def calculate_hepan_score(
     tian_gan_result: Dict,
     wuxing_result: Dict,
     rizhu_result: Dict,
+    spouse_star_result: Dict = None,
     hepan_type: str = 'couple'
 ) -> Dict[str, Any]:
     """
     计算合盘匹配度得分
     
     评分权重：
-    - 地支六合六冲: 25%
+    - 地支六合六冲三合: 25%
     - 五行互补: 25%
     - 日主关系: 20%
     - 天干合化: 15%
-    - 十神配合: 15% (简化版，基于日主关系)
+    - 十神配合（夫妻星匹配）: 15%
     
     Args:
         di_zhi_result: 地支关系分析结果
         tian_gan_result: 天干合化分析结果
         wuxing_result: 五行互补分析结果
         rizhu_result: 日主关系分析结果
+        spouse_star_result: 夫妻星匹配结果（可选）
         hepan_type: 合盘类型 ('couple' | 'business')
     
     Returns:
@@ -387,14 +568,23 @@ def calculate_hepan_score(
     """
     scores = {}
     
-    # 1. 地支评分 (满分25分)
+    # 1. 地支评分 (满分25分) - 纳入三合
     he_count = di_zhi_result.get('he_count', 0)
     chong_count = di_zhi_result.get('chong_count', 0)
+    san_he_count = di_zhi_result.get('san_he_count', 0)
     
-    # 每个六合+5分，每个六冲-8分
-    di_zhi_score = min(25, max(0, 10 + he_count * 5 - chong_count * 8))
+    # 每个六合+5分，每个三合+6分，每个六冲-8分
+    di_zhi_score = min(25, max(0, 10 + he_count * 5 + san_he_count * 6 - chong_count * 8))
     scores['di_zhi'] = di_zhi_score
-    scores['di_zhi_desc'] = f'六合{he_count}组，六冲{chong_count}组'
+    
+    desc_parts = []
+    if he_count > 0:
+        desc_parts.append(f'六合{he_count}组')
+    if san_he_count > 0:
+        desc_parts.append(f'三合{san_he_count}组')
+    if chong_count > 0:
+        desc_parts.append(f'六冲{chong_count}组')
+    scores['di_zhi_desc'] = '，'.join(desc_parts) if desc_parts else '无明显组合'
     
     # 2. 五行互补评分 (满分25分)
     complement_count = wuxing_result.get('complement_count', 0)
@@ -424,12 +614,19 @@ def calculate_hepan_score(
     scores['tian_gan'] = tian_gan_score
     scores['tian_gan_desc'] = f'天干五合{gan_he_count}组'
     
-    # 5. 十神配合评分 (满分15分) - 简化版
-    # 根据日主相生关系加分
-    sheng_relations = [r for r in rizhu_result.get('relations', []) if r.get('type') == 'sheng']
-    shishen_score = min(15, len(sheng_relations) * 8)
-    scores['shishen'] = shishen_score
-    scores['shishen_desc'] = f'日主相生关系{len(sheng_relations)}组'
+    # 5. 十神配合评分 (满分15分) - 使用夫妻星匹配分析
+    if spouse_star_result and spouse_star_result.get('score', 0) > 0:
+        shishen_score = spouse_star_result.get('score', 0)
+        scores['shishen'] = shishen_score
+        scores['shishen_desc'] = spouse_star_result.get('desc', '')
+        scores['shishen_details'] = spouse_star_result.get('details', [])
+    else:
+        # 回退到简化版：根据日主相生关系加分
+        sheng_relations = [r for r in rizhu_result.get('relations', []) if r.get('type') == 'sheng']
+        shishen_score = min(15, len(sheng_relations) * 8)
+        scores['shishen'] = shishen_score
+        scores['shishen_desc'] = f'日主相生关系{len(sheng_relations)}组'
+        scores['shishen_details'] = []
     
     # 总分
     total = scores['di_zhi'] + scores['wuxing'] + scores['rizhu'] + scores['tian_gan'] + scores['shishen']
@@ -460,6 +657,7 @@ def generate_suggestions(
     di_zhi_result: Dict,
     wuxing_result: Dict,
     rizhu_result: Dict,
+    spouse_star_result: Dict = None,
     hepan_type: str = 'couple'
 ) -> List[str]:
     """
@@ -470,6 +668,7 @@ def generate_suggestions(
         di_zhi_result: 地支关系分析结果
         wuxing_result: 五行互补分析结果
         rizhu_result: 日主关系分析结果
+        spouse_star_result: 夫妻星匹配结果
         hepan_type: 合盘类型
     
     Returns:
@@ -482,6 +681,9 @@ def generate_suggestions(
         suggestions.append('地支有冲，建议在生活中多沟通，避免因小事争执')
     if di_zhi_result.get('he_count', 0) >= 2:
         suggestions.append('地支多组合，缘分深厚，感情基础稳固')
+    if di_zhi_result.get('san_he_count', 0) > 0:
+        san_he_desc = '、'.join([sh['desc'] for sh in di_zhi_result.get('san_he', [])])
+        suggestions.append(f'地支有三合局（{san_he_desc}），能量互助，合作默契')
     
     # 五行建议
     for comp in wuxing_result.get('complement', []):
@@ -495,6 +697,14 @@ def generate_suggestions(
         suggestions.append('日主相生，天然有默契，感情容易升温')
     elif overall == 'challenging':
         suggestions.append('日主相克，需要更多耐心和包容，学会换位思考')
+    
+    # 夫妻星建议（仅情侣合婚）
+    if hepan_type == 'couple' and spouse_star_result:
+        details = spouse_star_result.get('details', [])
+        if details:
+            has_spouse_star = any(d.get('positive') for d in details if '妻星' in d.get('desc', '') or '夫星' in d.get('desc', ''))
+            if has_spouse_star:
+                suggestions.append('命中见对方夫妻星，缘分注定，感情发展顺利')
     
     # 根据合盘类型给出特定建议
     if hepan_type == 'couple':
@@ -549,17 +759,24 @@ def calculate_hepan(
     # 4. 日主关系分析
     rizhu_result = analyze_rizhu_relation(sizhu_a, sizhu_b)
     
-    # 5. 计算评分
+    # 5. 夫妻星匹配分析（情侣合婚专用）
+    spouse_star_result = None
+    if hepan_type == 'couple':
+        spouse_star_result = analyze_spouse_star_match(sizhu_a, sizhu_b, gender_a, gender_b)
+    
+    # 6. 计算评分
     scores = calculate_hepan_score(
-        di_zhi_result, tian_gan_result, wuxing_result, rizhu_result, hepan_type
+        di_zhi_result, tian_gan_result, wuxing_result, rizhu_result, 
+        spouse_star_result, hepan_type
     )
     
-    # 6. 生成建议
+    # 7. 生成建议
     suggestions = generate_suggestions(
-        scores, di_zhi_result, wuxing_result, rizhu_result, hepan_type
+        scores, di_zhi_result, wuxing_result, rizhu_result, 
+        spouse_star_result, hepan_type
     )
     
-    return {
+    result = {
         'di_zhi_relation': di_zhi_result,
         'tian_gan_relation': tian_gan_result,
         'wuxing_match': wuxing_result,
@@ -570,3 +787,9 @@ def calculate_hepan(
         'gender_a': gender_a,
         'gender_b': gender_b,
     }
+    
+    # 添加夫妻星分析结果（仅情侣合婚）
+    if spouse_star_result:
+        result['spouse_star_match'] = spouse_star_result
+    
+    return result

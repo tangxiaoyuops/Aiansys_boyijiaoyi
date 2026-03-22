@@ -3,6 +3,7 @@ import { API_BASE_URL } from './index';
 export interface BaziChatPayload {
   message: string;
   conversation_id?: string | null;
+  name?: string;  // 姓名（可选）
   sizhu?: Record<string, any> | null;
   wuxing_analysis?: Record<string, any> | null;
   shishen_analysis?: Record<string, any> | null;
@@ -169,6 +170,143 @@ export async function clearBaziChatHistory(conversationId: string): Promise<{
       method: 'DELETE',
     }
   );
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// ==================== 合盘对话 API ====================
+
+export interface HepanChatPayload {
+  message: string;
+  conversation_id?: string | null;
+  hepan_type?: 'couple' | 'business';
+  // 命盘A
+  name_a?: string;  // 姓名（可选）
+  pan_a?: Record<string, any> | null;
+  birth_info_a?: Record<string, any> | null;
+  gender_a?: string;
+  // 命盘B
+  name_b?: string;  // 姓名（可选）
+  pan_b?: Record<string, any> | null;
+  birth_info_b?: Record<string, any> | null;
+  gender_b?: string;
+  // 合盘结果
+  hepan_result?: Record<string, any> | null;
+  llm_analysis?: string | null;
+  // 历史消息
+  chat_history?: Array<{ role: string; content: string; type?: string }>;
+}
+
+/**
+ * 合盘追问流式对话
+ */
+export function startHepanChatStream(
+  payload: HepanChatPayload,
+  onEvent: SSEEventHandler,
+  onError?: ErrorHandler
+): () => void {
+  const controller = new AbortController();
+  
+  const runStream = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/bazi/hepan-chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data:')) continue;
+          
+          const jsonStr = line.slice(5).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr) as SSEEvent;
+            onEvent(event);
+          } catch (parseError) {
+            console.warn('Failed to parse SSE event:', jsonStr, parseError);
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        const line = buffer.trim();
+        if (line.startsWith('data:')) {
+          const jsonStr = line.slice(5).trim();
+          if (jsonStr) {
+            try {
+              const event = JSON.parse(jsonStr) as SSEEvent;
+              onEvent(event);
+            } catch (parseError) {
+              console.warn('Failed to parse remaining SSE event:', jsonStr, parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        return;
+      }
+      console.error('SSE stream error:', error);
+      if (onError) {
+        onError(error as Error);
+      }
+    }
+  };
+
+  runStream();
+
+  return () => {
+    controller.abort();
+  };
+}
+
+/**
+ * 合盘追问非流式对话
+ */
+export async function hepanChat(payload: HepanChatPayload): Promise<{
+  success: boolean;
+  conversation_id: string;
+  response: string;
+}> {
+  const response = await fetch(`${API_BASE_URL}/api/bazi/hepan-chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);

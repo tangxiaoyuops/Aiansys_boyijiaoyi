@@ -738,6 +738,7 @@ async def ziwei_pan(request: ZiweiPanRequest):
 
 class BaziPanRequest(BaseModel):
     """八字排盘请求模型"""
+    name: Optional[str] = None  # 姓名（可选，用于个性化报告）
     year: int
     month: int
     day: int
@@ -861,6 +862,7 @@ async def bazi_pan(request: BaziPanRequest):
 
 class BaziLLMStreamRequest(BaseModel):
     """八字LLM流式分析请求模型"""
+    name: Optional[str] = None  # 姓名（可选，用于个性化报告）
     year: int
     month: int
     day: int
@@ -959,7 +961,7 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
             from core.tools.llm_client import call_llm_stream
             
             system_prompt = get_system_prompt(request.analysis_style)
-            user_prompt = build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, birth_year=request.year)
+            user_prompt = build_bazi_prompt(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, birth_year=request.year, name=request.name)
             
             full_content = ""
             for chunk in call_llm_stream(system_prompt, user_prompt):
@@ -981,15 +983,57 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
 
 # ==================== 八字合盘API ====================
 
+from datetime import datetime
+from calendar import monthrange
+
+def validate_birth_date(year: int, month: int, day: int, hour: int, label: str = "日期") -> tuple[bool, str]:
+    """
+    验证出生日期参数的有效性
+    
+    Args:
+        year: 年份
+        month: 月份
+        day: 日期
+        hour: 时辰（0-23）
+        label: 日期标签（用于错误提示）
+    
+    Returns:
+        (是否有效, 错误信息)
+    """
+    # 年份范围验证
+    if year < 1900 or year > 2100:
+        return False, f"{label}年份{year}不在有效范围内(1900-2100)"
+    
+    # 月份验证
+    if month < 1 or month > 12:
+        return False, f"{label}月份{month}不在有效范围内(1-12)"
+    
+    # 日期验证（考虑闰年）
+    try:
+        max_day = monthrange(year, month)[1]
+        if day < 1 or day > max_day:
+            return False, f"{label}{year}年{month}月没有{day}日，有效日期为1-{max_day}"
+    except ValueError as e:
+        return False, f"{label}日期无效: {str(e)}"
+    
+    # 时辰验证
+    if hour < 0 or hour > 23:
+        return False, f"{label}时辰{hour}不在有效范围内(0-23)"
+    
+    return True, ""
+
+
 class BaziHepanRequest(BaseModel):
     """八字合盘请求模型"""
     # 命盘A
+    name_a: Optional[str] = None  # 姓名（可选）
     year_a: int
     month_a: int
     day_a: int
     hour_a: int
     gender_a: str = '男'
     # 命盘B
+    name_b: Optional[str] = None  # 姓名（可选）
     year_b: int
     month_b: int
     day_b: int
@@ -1014,6 +1058,19 @@ async def bazi_hepan(request: BaziHepanRequest):
         print(f"[八字合盘API] 命盘A: {request.year_a}年{request.month_a}月{request.day_a}日{request.hour_a}时, {request.gender_a}")
         print(f"[八字合盘API] 命盘B: {request.year_b}年{request.month_b}月{request.day_b}日{request.hour_b}时, {request.gender_b}")
         print(f"[八字合盘API] 合盘类型: {request.hepan_type}")
+        
+        # 参数验证
+        valid_a, error_a = validate_birth_date(request.year_a, request.month_a, request.day_a, request.hour_a, "命盘A")
+        if not valid_a:
+            raise HTTPException(status_code=400, detail=error_a)
+        
+        valid_b, error_b = validate_birth_date(request.year_b, request.month_b, request.day_b, request.hour_b, "命盘B")
+        if not valid_b:
+            raise HTTPException(status_code=400, detail=error_b)
+        
+        # 合盘类型验证
+        if request.hepan_type not in ['couple', 'business']:
+            raise HTTPException(status_code=400, detail=f"合盘类型'{request.hepan_type}'无效，仅支持'couple'或'business'")
         
         from core.agents.hepan_analysis_agent import hepan_complete_analysis, hepan_llm_analysis
         
@@ -1055,6 +1112,23 @@ async def bazi_hepan_stream(request: BaziHepanRequest):
         try:
             print(f"[八字合盘流式API] 开始合盘分析...")
             
+            # 参数验证
+            valid_a, error_a = validate_birth_date(request.year_a, request.month_a, request.day_a, request.hour_a, "命盘A")
+            if not valid_a:
+                yield f"data: {json.dumps({'type': 'error', 'message': error_a}, ensure_ascii=False)}\n\n"
+                return
+            
+            valid_b, error_b = validate_birth_date(request.year_b, request.month_b, request.day_b, request.hour_b, "命盘B")
+            if not valid_b:
+                yield f"data: {json.dumps({'type': 'error', 'message': error_b}, ensure_ascii=False)}\n\n"
+                return
+            
+            # 合盘类型验证
+            if request.hepan_type not in ['couple', 'business']:
+                error_msg = f"合盘类型'{request.hepan_type}'无效，仅支持'couple'或'business'"
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+                return
+            
             # 发送进度
             yield f"data: {json.dumps({'type': 'progress', 'stage': 'hepan', 'message': '正在进行合盘分析...'}, ensure_ascii=False)}\n\n"
             
@@ -1084,7 +1158,9 @@ async def bazi_hepan_stream(request: BaziHepanRequest):
                     result['pan_a'],
                     result['pan_b'],
                     result['hepan'],
-                    request.hepan_type
+                    request.hepan_type,
+                    name_a=request.name_a,
+                    name_b=request.name_b
                 ):
                     full_content += chunk
                     yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
@@ -1097,6 +1173,143 @@ async def bazi_hepan_stream(request: BaziHepanRequest):
         except Exception as e:
             error_msg = str(e)
             print(f"[八字合盘流式API] 错误: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ==================== 合盘追问对话API ====================
+
+class HepanChatRequest(BaseModel):
+    """合盘追问对话请求模型"""
+    message: str  # 用户追问消息
+    conversation_id: Optional[str] = None  # 会话ID（可选，用于多轮对话）
+    # 合盘上下文
+    hepan_type: str = 'couple'  # 'couple' | 'business'
+    # 命盘A
+    name_a: Optional[str] = None  # 姓名（可选）
+    pan_a: Optional[Dict[str, Any]] = None
+    birth_info_a: Optional[Dict[str, Any]] = None
+    gender_a: str = '男'
+    # 命盘B
+    name_b: Optional[str] = None  # 姓名（可选）
+    pan_b: Optional[Dict[str, Any]] = None
+    birth_info_b: Optional[Dict[str, Any]] = None
+    gender_b: str = '女'
+    # 合盘结果
+    hepan_result: Optional[Dict[str, Any]] = None
+    llm_analysis: Optional[str] = None
+    # 历史消息（前端传入）
+    chat_history: Optional[List[Dict[str, str]]] = None
+
+
+@app.post("/api/bazi/hepan-chat")
+async def hepan_chat(request: HepanChatRequest):
+    """
+    合盘追问对话接口（非流式）
+    """
+    try:
+        from core.agents.hepan_dialogue_agent import get_hepan_dialogue_agent, HepanContext
+        
+        # 获取对话Agent
+        agent = get_hepan_dialogue_agent()
+        
+        # 构建合盘上下文
+        hepan_context = HepanContext(
+            hepan_type=request.hepan_type,
+            name_a=request.name_a,
+            pan_a=request.pan_a or {},
+            birth_info_a=request.birth_info_a or {},
+            gender_a=request.gender_a,
+            name_b=request.name_b,
+            pan_b=request.pan_b or {},
+            birth_info_b=request.birth_info_b or {},
+            gender_b=request.gender_b,
+            hepan_result=request.hepan_result or {},
+            llm_analysis=request.llm_analysis
+        )
+        
+        # 生成会话ID
+        conv_id = request.conversation_id or str(uuid.uuid4())
+        
+        # 处理消息
+        result = agent.process_message(
+            conversation_id=conv_id,
+            user_message=request.message,
+            hepan_context=hepan_context,
+            chat_history=request.chat_history
+        )
+        
+        return {
+            "success": True,
+            "conversation_id": conv_id,
+            "response": result.get("response", "")
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"[合盘对话API] 错误: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/bazi/hepan-chat/stream")
+async def hepan_chat_stream(request: HepanChatRequest):
+    """
+    合盘追问对话流式接口
+    """
+    
+    async def generate():
+        try:
+            from core.agents.hepan_dialogue_agent import get_hepan_dialogue_agent, HepanContext
+            
+            # 获取对话Agent
+            agent = get_hepan_dialogue_agent()
+            
+            # 构建合盘上下文
+            hepan_context = HepanContext(
+                hepan_type=request.hepan_type,
+                name_a=request.name_a,
+                pan_a=request.pan_a or {},
+                birth_info_a=request.birth_info_a or {},
+                gender_a=request.gender_a,
+                name_b=request.name_b,
+                pan_b=request.pan_b or {},
+                birth_info_b=request.birth_info_b or {},
+                gender_b=request.gender_b,
+                hepan_result=request.hepan_result or {},
+                llm_analysis=request.llm_analysis
+            )
+            
+            # 生成会话ID
+            conv_id = request.conversation_id or str(uuid.uuid4())
+            
+            # 发送会话ID
+            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+            
+            # 流式处理消息
+            for event in agent.process_message_stream(
+                conversation_id=conv_id,
+                user_message=request.message,
+                hepan_context=hepan_context,
+                chat_history=request.chat_history
+            ):
+                event_type = event.get('type')
+                
+                if event_type == 'progress':
+                    yield f"data: {json.dumps({'type': 'progress', 'message': event.get('message', '')}, ensure_ascii=False)}\n\n"
+                elif event_type == 'content':
+                    yield f"data: {json.dumps({'type': 'content', 'content': event.get('content', '')}, ensure_ascii=False)}\n\n"
+                elif event_type == 'done':
+                    yield f"data: {json.dumps({'type': 'done', 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+                elif event_type == 'error':
+                    yield f"data: {json.dumps({'type': 'error', 'message': event.get('message', '')}, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"[合盘对话流式API] 错误: {error_msg}")
             import traceback
             traceback.print_exc()
             yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"

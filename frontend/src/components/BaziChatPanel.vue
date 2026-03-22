@@ -24,7 +24,7 @@
       <!-- 无消息时的空状态 -->
       <div v-if="messages.length === 0" class="empty-state">
         <el-icon :size="48" color="#d4af37"><ChatDotRound /></el-icon>
-        <p>请先进行八字排盘分析</p>
+        <p>{{ emptyStateText }}</p>
       </div>
 
       <!-- 消息列表 -->
@@ -49,7 +49,7 @@
           <template v-if="message.type === 'analysis'">
             <div v-if="!message.content || message.content.length === 0" class="loading-content">
               <el-skeleton :rows="8" animated />
-              <div class="loading-text">{{ llmProgress || 'AI 正在分析...' }}</div>
+              <div class="loading-text">{{ progressMessage || 'AI 正在分析...' }}</div>
             </div>
             <div 
               v-else
@@ -82,12 +82,12 @@
         type="textarea"
         :rows="2"
         :placeholder="inputPlaceholder"
-        :disabled="loading || !hasContext"
+        :disabled="loading || !hasValidContext"
         @keydown.enter.ctrl="handleSend"
         resize="none"
       />
       <div class="input-actions">
-        <div class="quick-questions" v-if="hasContext && !loading">
+        <div class="quick-questions" v-if="hasValidContext && !loading">
           <el-tag 
             v-for="(q, i) in quickQuestions" 
             :key="i" 
@@ -101,7 +101,7 @@
         <el-button 
           type="primary" 
           :loading="loading"
-          :disabled="!inputMessage.trim() || !hasContext"
+          :disabled="!inputMessage.trim() || !hasValidContext"
           @click="handleSend"
         >
           发送
@@ -117,16 +117,17 @@ import { ElMessageBox } from 'element-plus';
 import { ChatDotRound, Delete } from '@element-plus/icons-vue';
 import MarkdownIt from 'markdown-it';
 import { useBaziChatStore } from '../stores/baziChat';
-import { startBaziChatStream } from '../api/baziChat';
+import { startBaziChatStream, startHepanChatStream } from '../api/baziChat';
 import { storeToRefs } from 'pinia';
 
 const props = defineProps<{
   llmLoading?: boolean;
   llmProgress?: string;
+  mode?: 'single' | 'hepan';  // 单人分析或合盘分析
 }>();
 
 const store = useBaziChatStore();
-const { messages, loading, progressMessage, hasContext } = storeToRefs(store);
+const { messages, loading, progressMessage, hasContext, hasHepanContext } = storeToRefs(store);
 
 const messagesRef = ref<HTMLDivElement | null>(null);
 const inputMessage = ref('');
@@ -139,11 +140,35 @@ const shouldAutoScroll = ref(true);
 
 const md = new MarkdownIt({ linkify: true, breaks: true, html: false });
 
-const quickQuestions = ['五行缺什么？', '适合什么行业？', '大运走势如何？', '婚姻运势'];
+// 根据模式使用不同的快捷问题
+const quickQuestions = computed(() => {
+  if (props.mode === 'hepan') {
+    return ['感情走势如何？', '性格互补吗？', '需要注意什么？', '未来发展建议'];
+  }
+  return ['五行缺什么？', '适合什么行业？', '大运走势如何？', '婚姻运势'];
+});
+
+// 根据模式检查是否有上下文
+const hasValidContext = computed(() => {
+  if (props.mode === 'hepan') {
+    return hasHepanContext.value;
+  }
+  return hasContext.value;
+});
 
 const inputPlaceholder = computed(() => {
-  if (!hasContext.value) return '请先进行八字排盘分析';
+  if (!hasValidContext.value) {
+    return props.mode === 'hepan' ? '请先进行合盘分析' : '请先进行八字排盘分析';
+  }
   return '输入问题，按 Ctrl+Enter 发送';
+});
+
+// 空状态提示文本
+const emptyStateText = computed(() => {
+  if (props.mode === 'hepan') {
+    return '请先进行双人合盘分析';
+  }
+  return '请先进行八字排盘分析';
 });
 
 // 是否有任何消息有内容
@@ -207,7 +232,7 @@ const handleWheel = (e: WheelEvent) => {
 
 const handleSend = async () => {
   const message = inputMessage.value.trim();
-  if (!message || loading.value || !hasContext.value) return;
+  if (!message || loading.value || !hasValidContext.value) return;
 
   inputMessage.value = '';
   store.appendUserMessage(message);
@@ -216,17 +241,34 @@ const handleSend = async () => {
 
   if (stopStream.value) stopStream.value();
 
-  const payload = store.buildPayload(message);
-  store.appendAssistantMessage('', 'content');
+  // 根据模式选择不同的 API
+  if (props.mode === 'hepan') {
+    // 合盘对话
+    const payload = store.buildHepanPayload(message);
+    store.appendAssistantMessage('', 'content');
 
-  stopStream.value = startBaziChatStream(
-    payload,
-    (event) => handleStreamEvent(event),
-    (error) => {
-      console.error('Stream error:', error);
-      store.setLoading(false);
-    }
-  );
+    stopStream.value = startHepanChatStream(
+      payload,
+      (event) => handleStreamEvent(event),
+      (error) => {
+        console.error('Stream error:', error);
+        store.setLoading(false);
+      }
+    );
+  } else {
+    // 单人八字对话
+    const payload = store.buildPayload(message);
+    store.appendAssistantMessage('', 'content');
+
+    stopStream.value = startBaziChatStream(
+      payload,
+      (event) => handleStreamEvent(event),
+      (error) => {
+        console.error('Stream error:', error);
+        store.setLoading(false);
+      }
+    );
+  }
 
   scrollToBottom();
 };

@@ -3,7 +3,7 @@
 实现四柱、五行、十神、大运、流年、神煞的计算
 """
 from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -215,8 +215,6 @@ def calculate_sizhu(year: int, month: int, day: int, hour: int) -> Dict[str, Any
     Returns:
         四柱数据字典
     """
-    from datetime import datetime
-    
     # 转换为农历（用于显示）
     lunar_year, lunar_month, lunar_day = convert_to_lunar(year, month, day)
     
@@ -508,40 +506,57 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, baz
     is_shun = (nian_gan_yinyang == '阳' and gender == '男') or (nian_gan_yinyang == '阴' and gender == '女')
 
     # 精确计算起运年龄（根据节气）
-    # 大运从立春开始，需要计算到下一个或上一个立春的天数
-    from core.tools.solar_terms import get_solar_term_date
-    from datetime import datetime
+    # 起运年龄计算规则：
+    # 1. 24节气分为"节"和"气"，只有"节"用于起运计算
+    # 2. "节"的索引：0(立春), 2(惊蛰), 4(清明), 6(立夏), 8(芒种), 10(小暑),
+    #              12(立秋), 14(白露), 16(寒露), 18(立冬), 20(大雪), 22(小寒)
+    # 3. 顺排：计算到下一个"节"的天数
+    # 4. 逆排：计算到上一个"节"的天数
+    # 5. 3天=1岁
+
+    from core.tools.solar_terms import get_solar_term_date, SOLAR_TERMS
 
     target_date = datetime(year, month, day, hour)
 
-    # 立春是第一个节气，索引0
-    lichun_index = 0
+    # "节"的索引列表（偶数索引）
+    JIE_TERMS = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]  # 立春、惊蛰、清明、立夏、芒种、小暑、立秋、白露、寒露、立冬、大雪、小寒
 
-    # 获取今年和明年的立春日期
-    this_year_lichun = get_solar_term_date(year, lichun_index)
-    next_year_lichun = get_solar_term_date(year + 1, lichun_index)
-    prev_year_lichun = get_solar_term_date(year - 1, lichun_index)
+    def get_next_jie(target_date, current_year):
+        """获取下一个节"""
+        for year_offset in range(-1, 3):  # 查找前一年到后两年的范围
+            check_year = current_year + year_offset
+            for jie_idx in JIE_TERMS:
+                jie_date = get_solar_term_date(check_year, jie_idx)
+                if jie_date > target_date:
+                    return jie_date
+        return None
+
+    def get_prev_jie(target_date, current_year):
+        """获取上一个节"""
+        for year_offset in range(2, -2, -1):  # 查找后两年到前一年的范围（倒序）
+            check_year = current_year + year_offset
+            for jie_idx in reversed(JIE_TERMS):  # 从最后一个节开始倒序查找
+                jie_date = get_solar_term_date(check_year, jie_idx)
+                if jie_date <= target_date:
+                    return jie_date
+        return None
 
     if is_shun:
-        # 顺排：计算到下一个立春的天数
-        # 如果当前日期在今年立春之后，下一个立春在明年
-        if target_date >= this_year_lichun:
-            next_lichun_date = next_year_lichun
+        # 顺排：计算到下一个"节"的天数
+        next_jie_date = get_next_jie(target_date, year)
+        if next_jie_date:
+            delta = next_jie_date - target_date
         else:
-            # 当前日期在今年立春之前，下一个立春在今年
-            next_lichun_date = this_year_lichun
-
-        delta = next_lichun_date - target_date
+            # 找不到时使用默认值
+            delta = timedelta(days=3)
     else:
-        # 逆排：计算到上一个立春的天数
-        # 如果当前日期在今年立春之后，上一个立春在今年
-        if target_date >= this_year_lichun:
-            prev_lichun_date = this_year_lichun
+        # 逆排：计算到上一个"节"的天数
+        prev_jie_date = get_prev_jie(target_date, year)
+        if prev_jie_date:
+            delta = target_date - prev_jie_date
         else:
-            # 当前日期在今年立春之前，上一个立春在去年
-            prev_lichun_date = prev_year_lichun
-
-        delta = target_date - prev_lichun_date
+            # 找不到时使用默认值
+            delta = timedelta(days=3)
 
     days_diff = delta.total_seconds() / 86400.0
 

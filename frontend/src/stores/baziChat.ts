@@ -12,6 +12,7 @@ export interface BaziChatMessage {
 }
 
 export interface BaziContext {
+  name: string;  // 姓名（可选）
   sizhu: Record<string, any> | null;
   wuxing_analysis: Record<string, any> | null;
   shishen_analysis: Record<string, any> | null;
@@ -28,11 +29,15 @@ export interface BaziContext {
 export interface HepanContext {
   hepan_type: 'couple' | 'business';
   // 命盘A
+  name_a: string;  // 姓名（可选）
   pan_a: Record<string, any> | null;
   birth_info_a: Record<string, any> | null;
+  gender_a: string;
   // 命盘B
+  name_b: string;  // 姓名（可选）
   pan_b: Record<string, any> | null;
   birth_info_b: Record<string, any> | null;
+  gender_b: string;
   // 合盘结果
   hepan_result: Record<string, any> | null;
   llm_analysis: string | null;
@@ -41,6 +46,7 @@ export interface HepanContext {
 const randomId = () => Math.random().toString(36).slice(2);
 
 const defaultBaziContext: BaziContext = {
+  name: '',
   sizhu: null,
   wuxing_analysis: null,
   shishen_analysis: null,
@@ -55,10 +61,14 @@ const defaultBaziContext: BaziContext = {
 
 const defaultHepanContext: HepanContext = {
   hepan_type: 'couple',
+  name_a: '',
   pan_a: null,
   birth_info_a: null,
+  gender_a: '男',
+  name_b: '',
   pan_b: null,
   birth_info_b: null,
+  gender_b: '女',
   hepan_result: null,
   llm_analysis: null,
 };
@@ -233,6 +243,37 @@ export const useBaziChatStore = defineStore('baziChat', () => {
     };
   }
 
+  // 构建合盘对话请求载荷
+  function buildHepanPayload(message: string): Record<string, any> {
+    return {
+      message,
+      conversation_id: conversationId.value,
+      hepan_type: hepanContext.value.hepan_type,
+      // 命盘A
+      name_a: hepanContext.value.name_a,
+      pan_a: hepanContext.value.pan_a,
+      birth_info_a: hepanContext.value.birth_info_a,
+      gender_a: hepanContext.value.birth_info_a?.gender || '男',
+      // 命盘B
+      name_b: hepanContext.value.name_b,
+      pan_b: hepanContext.value.pan_b,
+      birth_info_b: hepanContext.value.birth_info_b,
+      gender_b: hepanContext.value.birth_info_b?.gender || '女',
+      // 合盘结果
+      hepan_result: hepanContext.value.hepan_result,
+      llm_analysis: hepanContext.value.llm_analysis,
+      // 历史消息
+      chat_history: messages.value.map(m => ({
+        role: m.role,
+        content: m.content,
+        type: m.type || 'content'
+      }))
+    };
+  }
+
+  // 是否有合盘上下文
+  const hasHepanContext = computed(() => hepanContext.value.pan_a !== null && hepanContext.value.pan_b !== null);
+
   return {
     // State
     messages,
@@ -245,6 +286,7 @@ export const useBaziChatStore = defineStore('baziChat', () => {
     analysisContentLength,
     // Getters
     hasContext,
+    hasHepanContext,
     messageCount,
     lastMessage,
     analysisMessage,
@@ -264,5 +306,6 @@ export const useBaziChatStore = defineStore('baziChat', () => {
     reset,
     fullReset,
     buildPayload,
+    buildHepanPayload,
   };
 });

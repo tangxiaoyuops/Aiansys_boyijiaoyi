@@ -17,6 +17,9 @@
             <h2 class="card-title">排盘信息</h2>
             <div class="form-hint">请输入公历日期</div>
             <el-form :model="form" label-width="90px" class="bazi-form">
+            <el-form-item label="姓名">
+              <el-input v-model="form.name" placeholder="可选，用于个性化报告" clearable />
+            </el-form-item>
             <el-form-item label="出生年份">
               <el-input-number v-model="form.year" :min="1900" :max="2100" style="width: 100%" />
             </el-form-item>
@@ -80,10 +83,13 @@
               <el-collapse-item name="A">
                 <template #title>
                   <span class="pan-title">
-                    命盘A ({{ hepanForm.gender_a }}) - {{ hepanForm.year_a }}年{{ hepanForm.month_a }}月{{ hepanForm.day_a }}日
+                    {{ hepanForm.name_a || '命盘A' }} ({{ hepanForm.gender_a }}) - {{ hepanForm.year_a }}年{{ hepanForm.month_a }}月{{ hepanForm.day_a }}日
                   </span>
                 </template>
                 <el-form :model="hepanForm" label-width="80px" class="hepan-form">
+                  <el-form-item label="姓名">
+                    <el-input v-model="hepanForm.name_a" placeholder="可选" clearable />
+                  </el-form-item>
                   <el-form-item label="出生年份">
                     <el-input-number v-model="hepanForm.year_a" :min="1900" :max="2100" style="width: 100%" />
                   </el-form-item>
@@ -121,10 +127,13 @@
               <el-collapse-item name="B">
                 <template #title>
                   <span class="pan-title">
-                    命盘B ({{ hepanForm.gender_b }}) - {{ hepanForm.year_b }}年{{ hepanForm.month_b }}月{{ hepanForm.day_b }}日
+                    {{ hepanForm.name_b || '命盘B' }} ({{ hepanForm.gender_b }}) - {{ hepanForm.year_b }}年{{ hepanForm.month_b }}月{{ hepanForm.day_b }}日
                   </span>
                 </template>
                 <el-form :model="hepanForm" label-width="80px" class="hepan-form">
+                  <el-form-item label="姓名">
+                    <el-input v-model="hepanForm.name_b" placeholder="可选" clearable />
+                  </el-form-item>
                   <el-form-item label="出生年份">
                     <el-input-number v-model="hepanForm.year_b" :min="1900" :max="2100" style="width: 100%" />
                   </el-form-item>
@@ -300,22 +309,13 @@
             <div class="resize-hint"><el-icon><DCaret /></el-icon>拖拽调整</div>
           </div>
 
-          <!-- 下方：AI深度解读 -->
+          <!-- 下方：AI对话面板 -->
           <div class="hepan-llm-section" :style="{ height: `calc(100% - ${hepanResultHeight + RESIZE_HANDLE_HEIGHT}px)` }">
-            <div v-if="hepanLlmLoading" class="llm-loading">
-              <el-skeleton :rows="6" animated />
-              <div class="progress-text">{{ hepanLlmProgress }}</div>
-            </div>
-            <div v-else-if="hepanLlmContent" class="llm-content">
-              <div class="content-header">
-                <el-icon><Document /></el-icon>
-                <span>AI 深度解读</span>
-              </div>
-              <div class="markdown-body" v-html="renderMarkdown(hepanLlmContent)"></div>
-            </div>
-            <div v-else class="llm-empty">
-              <el-empty description="点击上方开始合盘分析获取AI解读" :image-size="60" />
-            </div>
+            <BaziChatPanel 
+              mode="hepan"
+              :llm-loading="hepanLlmLoading" 
+              :llm-progress="hepanLlmProgress" 
+            />
           </div>
         </div>
       </div>
@@ -324,7 +324,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { MagicStick, Document, Star, Calendar, Grid, DCaret, Connection } from '@element-plus/icons-vue';
 import BaziChart from '../components/BaziChart.vue';
@@ -347,6 +347,27 @@ const hepanLlmLoading = ref(false);
 const hepanLlmProgress = ref('');
 const hepanLlmContent = ref('');
 
+// 监听模式切换，清理另一模式的数据
+watch(analysisMode, (newMode) => {
+  if (newMode === 'single') {
+    // 切换到单人模式时，清理合盘数据
+    hepanResult.value = null;
+    hepanLlmContent.value = '';
+    hepanLlmProgress.value = '';
+    hepanLoading.value = false;
+    hepanLlmLoading.value = false;
+    baziChatStore.clearHepanContext();
+    baziChatStore.clearMessages();
+  } else {
+    // 切换到合盘模式时，清理单人分析数据
+    result.value = null;
+    llmLoading.value = false;
+    llmProgress.value = '';
+    baziChatStore.clearBaziContext();
+    baziChatStore.clearMessages();
+  }
+});
+
 const analysisStyles = ref([
   { value: 'classic', name: '传统专业', description: '专业术语完整，分析深入全面' },
   { value: 'simple', name: '简明通俗', description: '语言生活化，适合零基础用户' },
@@ -359,6 +380,7 @@ const llmLoading = ref(false);
 const llmProgress = ref('');
 
 const form = reactive({
+  name: '',  // 可选的名字
   year: new Date().getFullYear(),
   month: new Date().getMonth() + 1,
   day: new Date().getDate(),
@@ -372,11 +394,13 @@ const form = reactive({
 });
 
 const hepanForm = reactive({
+  name_a: '',  // 命盘A名字（可选）
   year_a: 1990,
   month_a: 1,
   day_a: 1,
   hour_a: 11,
   gender_a: '男',
+  name_b: '',  // 命盘B名字（可选）
   year_b: 1992,
   month_b: 5,
   day_b: 15,
@@ -493,6 +517,7 @@ const handleAnalyze = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        name: form.name,
         year: form.year, month: form.month, day: form.day, hour: form.hour,
         gender: form.gender,
         include_wuxing: form.include_wuxing, include_shishen: form.include_shishen,
@@ -520,6 +545,7 @@ const handleAnalyze = async () => {
 const startLLMStream = async () => {
   llmLoading.value = true;
   llmProgress.value = '';
+  baziChatStore.setLoading(true);
   
   // 先添加一个占位的助手消息，用于流式更新
   baziChatStore.appendAssistantMessage('', 'analysis');
@@ -529,6 +555,7 @@ const startLLMStream = async () => {
     
     // 构建请求体：传递前端已排好的数据，避免后端重复排盘，保证数据一致性
     const requestBody: any = {
+      name: form.name,
       year: form.year,
       month: form.month,
       day: form.day,
@@ -574,6 +601,7 @@ const startLLMStream = async () => {
           
           if (payload.type === 'progress') {
             llmProgress.value = payload.message || '';
+            baziChatStore.setProgressMessage(payload.message || '');
           }
           else if (payload.type === 'content' && payload.content) {
             // 流式更新第一条助手消息（深度分析）
@@ -601,11 +629,13 @@ const startLLMStream = async () => {
     console.error('LLM流式解析失败:', error);
   } finally {
     llmLoading.value = false;
+    baziChatStore.setLoading(false);
   }
 };
 
 const updateChatContext = (data: any) => {
   baziChatStore.setBaziContext({
+    name: form.name,
     sizhu: data.sizhu || null,
     wuxing_analysis: data.wuxing_analysis || null,
     shishen_analysis: data.shishen_analysis || null,
@@ -629,6 +659,9 @@ const handleHepanAnalyze = async () => {
   hepanResult.value = null;
   hepanLlmContent.value = '';
   hepanLlmProgress.value = '';
+  
+  // 清空之前的对话消息
+  baziChatStore.clearMessages();
 
   try {
     const baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
@@ -638,11 +671,13 @@ const handleHepanAnalyze = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        name_a: hepanForm.name_a,
         year_a: hepanForm.year_a,
         month_a: hepanForm.month_a,
         day_a: hepanForm.day_a,
         hour_a: hepanForm.hour_a,
         gender_a: hepanForm.gender_a,
+        name_b: hepanForm.name_b,
         year_b: hepanForm.year_b,
         month_b: hepanForm.month_b,
         day_b: hepanForm.day_b,
@@ -678,6 +713,8 @@ const handleHepanAnalyze = async () => {
           
           if (payload.type === 'progress') {
             hepanLlmProgress.value = payload.message || '';
+            // 同步更新store中的进度消息，用于对话面板显示
+            baziChatStore.setProgressMessage(payload.message || '');
           }
           else if (payload.type === 'data') {
             hepanResult.value = {
@@ -701,19 +738,61 @@ const handleHepanAnalyze = async () => {
               },
             };
             hepanLlmLoading.value = true;
+            // 同步设置store的loading状态
+            baziChatStore.setLoading(true);
+            
+            // 保存合盘上下文到 store
+            baziChatStore.setHepanContext({
+              hepan_type: hepanForm.hepan_type,
+              name_a: hepanForm.name_a,
+              pan_a: payload.pan_a,
+              birth_info_a: {
+                year: hepanForm.year_a,
+                month: hepanForm.month_a,
+                day: hepanForm.day_a,
+                hour: hepanForm.hour_a,
+                gender: hepanForm.gender_a,
+              },
+              gender_a: hepanForm.gender_a,
+              name_b: hepanForm.name_b,
+              pan_b: payload.pan_b,
+              birth_info_b: {
+                year: hepanForm.year_b,
+                month: hepanForm.month_b,
+                day: hepanForm.day_b,
+                hour: hepanForm.hour_b,
+                gender: hepanForm.gender_b,
+              },
+              gender_b: hepanForm.gender_b,
+              hepan_result: payload.hepan,
+              llm_analysis: null,
+            });
+            
+            // 添加一条空的助手消息，用于流式输出深度分析
+            baziChatStore.appendAssistantMessage('', 'analysis');
           }
           else if (payload.type === 'content' && payload.content) {
             hepanLlmContent.value += payload.content;
+            // 更新对话面板中的分析内容
+            baziChatStore.updateFirstAssistantMessage(payload.content);
           }
           else if (payload.type === 'done') {
             if (payload.full_content) {
               hepanLlmContent.value = payload.full_content;
+              // 更新对话面板中的完整分析内容
+              baziChatStore.updateFirstAssistantMessage(payload.full_content, true);
+              // 更新 store 中的 llm_analysis
+              baziChatStore.setHepanContext({
+                llm_analysis: payload.full_content,
+              });
             }
             hepanLlmLoading.value = false;
+            baziChatStore.setLoading(false);
           }
           else if (payload.type === 'error') {
             ElMessage.error(payload.message || '分析失败');
             hepanLlmLoading.value = false;
+            baziChatStore.setLoading(false);
           }
         } catch (e) {
           console.error('[HepanView] 解析错误:', e);
@@ -727,6 +806,7 @@ const handleHepanAnalyze = async () => {
   } finally {
     hepanLoading.value = false;
     hepanLlmLoading.value = false;
+    baziChatStore.setLoading(false);
   }
 };
 
