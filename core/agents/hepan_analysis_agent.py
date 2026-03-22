@@ -190,7 +190,9 @@ def build_hepan_prompt(
     pan_a: Dict,
     pan_b: Dict,
     hepan_result: Dict,
-    hepan_type: str = 'couple'
+    hepan_type: str = 'couple',
+    name_a: Optional[str] = None,
+    name_b: Optional[str] = None
 ) -> str:
     """
     构建合盘分析提示词（包装函数）
@@ -200,18 +202,22 @@ def build_hepan_prompt(
         pan_b: 命盘B分析结果
         hepan_result: 合盘匹配分析结果
         hepan_type: 合盘类型
+        name_a: 命盘A姓名（可选）
+        name_b: 命盘B姓名（可选）
     
     Returns:
         提示词字符串
     """
-    return build_hepan_prompt_from_styles(pan_a, pan_b, hepan_result, hepan_type)
+    return build_hepan_prompt_from_styles(pan_a, pan_b, hepan_result, hepan_type, name_a=name_a, name_b=name_b)
 
 
 def hepan_llm_analysis(
     pan_a: Dict,
     pan_b: Dict,
     hepan_result: Dict,
-    hepan_type: str = 'couple'
+    hepan_type: str = 'couple',
+    name_a: Optional[str] = None,
+    name_b: Optional[str] = None
 ) -> str:
     """
     使用LLM进行合盘深度分析（非流式）
@@ -221,12 +227,14 @@ def hepan_llm_analysis(
         pan_b: 命盘B分析结果
         hepan_result: 合盘匹配结果
         hepan_type: 合盘类型
+        name_a: 命盘A姓名（可选）
+        name_b: 命盘B姓名（可选）
     
     Returns:
         LLM分析结果
     """
     system_prompt = get_hepan_system_prompt(hepan_type)
-    user_prompt = build_hepan_prompt(pan_a, pan_b, hepan_result, hepan_type)
+    user_prompt = build_hepan_prompt(pan_a, pan_b, hepan_result, hepan_type, name_a=name_a, name_b=name_b)
     
     try:
         return call_llm(system_prompt, user_prompt, temperature=0.3)
