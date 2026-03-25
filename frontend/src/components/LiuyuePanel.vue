@@ -32,7 +32,7 @@
         :class="getCardClass(item)"
       >
         <div class="card-header">
-          <span class="month-label">{{ item.year }}年{{ item.month }}月</span>
+          <span class="month-label">{{ getMonthDisplay(item) }}</span>
           <span class="level-badge" :class="getLevelClass(item)">
             {{ getAuspiciousLevel(item) }}
           </span>
@@ -110,6 +110,8 @@ interface LiuyueItem {
   gan_zhi: string;
   gan: string;
   zhi: string;
+  lunar_month_name?: string;  // 农历月份名称
+  is_lunar?: boolean;         // 是否为农历
   wuxing?: {
     gan: string;
     zhi: string;
@@ -198,6 +200,14 @@ const getLevelClass = (item: LiuyueItem) => {
 
 const getAuspiciousLevel = (item: LiuyueItem) => {
   return item.auspicious?.level || '平';
+};
+
+// 获取月份显示文本（使用农历月份名称）
+const getMonthDisplay = (item: LiuyueItem) => {
+  const lunarMonthNames = ['正月', '二月', '三月', '四月', '五月', '六月',
+                           '七月', '八月', '九月', '十月', '冬月', '腊月'];
+  const monthName = item.lunar_month_name || lunarMonthNames[item.month - 1] || `${item.month}月`;
+  return `${item.year}年${monthName}`;
 };
 
 const getWuxingClass = (wuxing: string | undefined) => {
