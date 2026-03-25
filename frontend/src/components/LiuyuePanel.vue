@@ -18,6 +18,12 @@
       </div>
     </div>
 
+    <!-- 计算说明 -->
+    <div class="calculation-note" v-if="calculationNote">
+      <el-icon><InfoFilled /></el-icon>
+      <span>{{ calculationNote }}</span>
+    </div>
+
     <div class="liuyue-grid">
       <div
         v-for="item in liuyueList"
@@ -128,6 +134,10 @@ interface Props {
     is_rizhu_qiang: boolean;
   } | null;
   llmAnalysis?: string;
+  calculationDay?: number;         // 农历计算日期
+  includeCurrentMonth?: boolean;  // 是否包含当月
+  solarDate?: string;             // 公历日期
+  lunarDate?: string;             // 农历日期
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -135,6 +145,22 @@ const props = withDefaults(defineProps<Props>(), {
   monthsCount: 6,
   wuxingXiJi: null,
   llmAnalysis: '',
+  calculationDay: 0,
+  includeCurrentMonth: false,
+  solarDate: '',
+  lunarDate: '',
+});
+
+const calculationNote = computed(() => {
+  if (props.calculationDay === 0) return '';
+  const dateInfo = props.solarDate && props.lunarDate 
+    ? `公历${props.solarDate}，农历${props.lunarDate}。` 
+    : '';
+  if (props.includeCurrentMonth) {
+    return `${dateInfo}农历${props.calculationDay}日（15日及之前），已包含当月运势`;
+  } else {
+    return `${dateInfo}农历${props.calculationDay}日（16日及之后），从下月开始推演`;
+  }
 });
 
 const summary = computed(() => {
@@ -208,9 +234,26 @@ const formatMarkdown = (text: string) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   padding-bottom: 15px;
   border-bottom: 1px solid #ebeef5;
+}
+
+.calculation-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #fdf6ec;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #e6a23c;
+  border: 1px solid #faecd8;
+}
+
+.calculation-note .el-icon {
+  font-size: 16px;
 }
 
 .panel-title {

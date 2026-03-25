@@ -318,6 +318,10 @@ def build_bazi_prompt(
     # 获取八字年份（以立春为界，可能与公历年份不同）
     bazi_year = sizhu.get('bazi_year', birth_year)
     
+    # 明确显示公历出生年份和八字年份
+    if birth_year:
+        lines.append(f"**公历出生年份：{birth_year}年**")
+    
     # 计算年龄和大运阶段
     if bazi_year:
         approximate_age = current_year - bazi_year
@@ -325,7 +329,7 @@ def build_bazi_prompt(
         
         # 如果八字年份与公历出生年份不同，说明是立春前出生
         if birth_year and bazi_year != birth_year:
-            lines.append(f"**注意：命主出生于{birth_year}年立春前，八字年柱为{bazi_year}年**")
+            lines.append(f"**重要：命主公历出生于{birth_year}年，但因在立春前，八字年柱为{bazi_year}年**")
         
         # 判断当前大运阶段
         if dayun_analysis:
@@ -420,10 +424,15 @@ def build_bazi_prompt(
     lines.append("---")
     lines.append(f"**重要提示**：请根据以上八字信息，结合当前时间（{current_date_str}），分析命主当前所处的人生阶段和大运运势。")
     lines.append("")
-    lines.append("**⚠️ 重要警告**：")
+    lines.append("**⚠️ 关键数据（请严格遵守）**：")
+    if birth_year:
+        lines.append(f"- 命主公历出生年份：{birth_year}年（这是确定的出生年份，请直接引用）")
+    if bazi_year:
+        lines.append(f"- 八字年柱年份：{bazi_year}年（因为立春前出生，八字年份与公历年份不同）")
     lines.append("- 以上所有信息（农历日期、四柱、大运等）都已精确计算，请直接引用")
-    lines.append("- 绝对不要自行推算或编造任何日期信息")
+    lines.append("- 绝对不要自行推算或编造任何年份、日期信息")
     lines.append("- 所有农历日期、节气、大运时间均以系统提供为准")
+    lines.append("- 如果您的计算与上述信息不符，请以上述信息为准")
     lines.append("")
     
     return "\n".join(lines)

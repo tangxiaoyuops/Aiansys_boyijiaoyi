@@ -1306,18 +1306,20 @@ def calculate_liuyue_list(
     birth_year: int = None,
     gender: str = '男',
     wuxing_analysis: Dict[str, Any] = None,
+    is_lunar: bool = True,
 ) -> Dict[str, Any]:
     """
     计算未来N个月的流月列表
     
     Args:
         sizhu: 四柱数据
-        start_year: 起始年份
-        start_month: 起始月份(1-12)
+        start_year: 起始年份（农历或公历）
+        start_month: 起始月份(1-12，农历或公历)
         months_count: 推演月数
         birth_year: 出生年份（用于确定当前大运）
         gender: 性别
         wuxing_analysis: 五行分析结果
+        is_lunar: 是否为农历时间（默认True）
     
     Returns:
         流月列表数据
@@ -1345,14 +1347,25 @@ def calculate_liuyue_list(
     current_month = start_month
     
     for i in range(months_count):
-        # 计算流年
+        # 计算流年干支
+        # 八字流年以立春为界，农历正月（寅月）开始为新年
+        # 农历月份：1=寅月, 2=卯月, ..., 11=子月, 12=丑月
+        # 流年干支：寅月到丑月都使用当前农历年份的干支
+        
+        # 农历年份直接对应流年干支（因为农历正月就是寅月，立春后）
         liunian_gan = get_tian_gan(current_year)
         liunian_zhi = get_di_zhi(current_year)
         liunian_data = {
             'year': current_year,
             'gan': liunian_gan,
             'zhi': liunian_zhi,
+            'is_lunar': is_lunar,
         }
+        
+        # 农历月份名称
+        lunar_month_names = ['正月', '二月', '三月', '四月', '五月', '六月',
+                           '七月', '八月', '九月', '十月', '冬月', '腊月']
+        lunar_month_name = lunar_month_names[current_month - 1] if 1 <= current_month <= 12 else f'{current_month}月'
         
         # 计算流月
         liuyue = calculate_liuyue(
@@ -1365,9 +1378,11 @@ def calculate_liuyue_list(
             liunian_data=liunian_data,
         )
         liuyue['year'] = current_year
+        liuyue['lunar_month_name'] = lunar_month_name
+        liuyue['is_lunar'] = is_lunar
         liuyue_list.append(liuyue)
         
-        # 递增月份
+        # 递增月份（农历月份循环）
         current_month += 1
         if current_month > 12:
             current_month = 1
@@ -1381,5 +1396,6 @@ def calculate_liuyue_list(
         'wuxing_xi_ji': wuxing_xi_ji,
         'current_dayun': current_dayun,
         'liuyue_list': liuyue_list,
+        'is_lunar': is_lunar,
     }
 

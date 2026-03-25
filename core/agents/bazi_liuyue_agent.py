@@ -39,10 +39,35 @@ def bazi_liuyue_analysis(
     try:
         logger.info(f"开始流月推演分析: 推演{months_count}个月")
         
-        # 获取当前时间
+        # 获取当前公历时间
         now = datetime.now()
-        start_year = now.year
-        start_month = now.month
+        current_year = now.year
+        current_month = now.month
+        current_day = now.day
+        
+        # 转换为农历时间（流月计算需要农历）
+        try:
+            from core.tools.ziwei_calculator import convert_to_lunar
+            lunar_year, lunar_month, lunar_day = convert_to_lunar(current_year, current_month, current_day)
+            logger.info(f"公历 {current_year}-{current_month}-{current_day} 转换为农历 {lunar_year}-{lunar_month}-{lunar_day}")
+        except Exception as e:
+            logger.warning(f"农历转换失败，使用公历月份: {e}")
+            lunar_year = current_year
+            lunar_month = current_month
+            lunar_day = current_day
+        
+        # 判断起始月份：农历15日及之前包含当月，16日及之后从下月开始
+        if lunar_day <= 15:
+            # 包含当月
+            start_year = lunar_year
+            start_month = lunar_month
+        else:
+            # 从下月开始
+            start_year = lunar_year
+            start_month = lunar_month + 1
+            if start_month > 12:
+                start_month = 1
+                start_year += 1
         
         # 计算流月列表
         result = calculate_liuyue_list(
@@ -55,6 +80,14 @@ def bazi_liuyue_analysis(
             wuxing_analysis=wuxing_analysis,
         )
         
+        # 添加当前日期信息（供前端显示）
+        result['calculation_day'] = lunar_day
+        result['include_current_month'] = lunar_day <= 15
+        result['current_year'] = start_year
+        result['current_month'] = start_month
+        result['solar_date'] = f"{current_year}年{current_month}月{current_day}日"
+        result['lunar_date'] = f"{lunar_year}年{lunar_month}月{lunar_day}日"
+        
         # LLM深度分析
         if include_llm and result.get('liuyue_list'):
             try:
@@ -62,6 +95,8 @@ def bazi_liuyue_analysis(
                     sizhu=sizhu,
                     liuyue_result=result,
                     analysis_style=analysis_style,
+                    gender=gender,
+                    birth_year=birth_year,
                 )
                 if llm_result.get('success'):
                     result['llm_analysis'] = llm_result.get('analysis', '')
@@ -70,9 +105,6 @@ def bazi_liuyue_analysis(
             except Exception as e:
                 logger.error(f"LLM流月分析异常: {e}")
                 result['llm_analysis_error'] = str(e)
-        
-        result['current_year'] = start_year
-        result['current_month'] = start_month
         
         logger.info(f"流月推演分析完成: {len(result.get('liuyue_list', []))}个月")
         return result
@@ -89,6 +121,8 @@ def _build_liuyue_llm_analysis(
     sizhu: Dict[str, Any],
     liuyue_result: Dict[str, Any],
     analysis_style: str = 'classic',
+    gender: str = '男',
+    birth_year: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     构建流月LLM分析
@@ -97,6 +131,8 @@ def _build_liuyue_llm_analysis(
         sizhu: 四柱数据
         liuyue_result: 流月计算结果
         analysis_style: 分析风格
+        gender: 性别
+        birth_year: 公历出生年份
     
     Returns:
         LLM分析结果
@@ -106,7 +142,7 @@ def _build_liuyue_llm_analysis(
         from core.tools.llm_client import call_llm
         
         system_prompt = get_system_prompt(analysis_style)
-        user_prompt = _build_liuyue_prompt(sizhu, liuyue_result)
+        user_prompt = _build_liuyue_prompt(sizhu, liuyue_result, gender, birth_year)
         
         llm_response = call_llm(system_prompt, user_prompt, model=None, temperature=0.3)
         
@@ -132,19 +168,24 @@ def _build_liuyue_llm_analysis(
         }
 
 
-def _build_liuyue_prompt(sizhu: Dict[str, Any], liuyue_result: Dict[str, Any]) -> str:
+def _build_liuyue_prompt(sizhu: Dict[str, Any], liuyue_result: Dict[str, Any], gender: str = '男', birth_year: Optional[int] = None) -> str:
     """
     构建流月分析提示词
     
     Args:
         sizhu: 四柱数据
         liuyue_result: 流月计算结果
+        gender: 性别
+        birth_year: 公历出生年份
     
     Returns:
         提示词字符串
     """
     rizhu_gan = sizhu.get('ri_zhu_tiangan', '')
     rizhu_zhi = sizhu.get('ri_zhu', {}).get('di_zhi', '')
+    
+    # 获取八字年份
+    bazi_year = sizhu.get('bazi_year', birth_year)
     
     # 五行喜忌
     wuxing_xi_ji = liuyue_result.get('wuxing_xi_ji', {})
@@ -155,25 +196,56 @@ def _build_liuyue_prompt(sizhu: Dict[str, Any], liuyue_result: Dict[str, Any]) -
     # 当前大运
     current_dayun = liuyue_result.get('current_dayun', {})
     
+    # 年柱信息
+    nian_zhu = sizhu.get('nian_zhu', {})
+    nian_gan = nian_zhu.get('tian_gan', '')
+    nian_zhi = nian_zhu.get('di_zhi', '')
+    
     prompt_parts = [
         "## 流月推演分析",
         "",
         "### 命主基本信息",
+        f"- 性别：{gender}",
+        f"- 年柱：{nian_gan}{nian_zhi}",
         f"- 日主：{rizhu_gan}{rizhu_zhi}",
-        f"- 五行分析：日主{'偏强' if is_rizhu_qiang else '偏弱'}，喜{','.join(xi_wuxing) if xi_wuxing else '暂无'}，忌{','.join(ji_wuxing) if ji_wuxing else '暂无'}",
     ]
+    
+    # 添加出生年份信息（关键：防止LLM幻觉）
+    if birth_year:
+        prompt_parts.append(f"- 公历出生年份：{birth_year}年")
+    if bazi_year and bazi_year != birth_year:
+        prompt_parts.append(f"- 八字年柱年份：{bazi_year}年（因立春前出生，八字年份与公历年份不同）")
+    
+    prompt_parts.append(f"- 五行分析：日主{'偏强' if is_rizhu_qiang else '偏弱'}，喜{','.join(xi_wuxing) if xi_wuxing else '暂无'}，忌{','.join(ji_wuxing) if ji_wuxing else '暂无'}")
     
     if current_dayun:
         prompt_parts.append(f"- 当前大运：{current_dayun.get('gan', '')}{current_dayun.get('zhi', '')} ({current_dayun.get('start_age', 0)}-{current_dayun.get('end_age', 0)}岁)")
+    
+    # 添加日期信息
+    solar_date = liuyue_result.get('solar_date', '')
+    lunar_date = liuyue_result.get('lunar_date', '')
+    if solar_date and lunar_date:
+        prompt_parts.append(f"- 计算日期：公历{solar_date}，农历{lunar_date}")
+    
+    # 添加计算说明
+    include_current = liuyue_result.get('include_current_month', False)
+    calculation_day = liuyue_result.get('calculation_day', 1)
+    if include_current:
+        prompt_parts.append(f"- 说明：农历{calculation_day}日（15日及之前），包含当月运势")
+    else:
+        prompt_parts.append(f"- 说明：农历{calculation_day}日（16日及之后），从下月开始推演")
     
     prompt_parts.append("")
     prompt_parts.append("### 流月详情")
     prompt_parts.append("")
     
     liuyue_list = liuyue_result.get('liuyue_list', [])
+    is_lunar = liuyue_result.get('is_lunar', True)
+    
     for liuyue in liuyue_list:
         year = liuyue.get('year', '')
         month = liuyue.get('month', '')
+        lunar_month_name = liuyue.get('lunar_month_name', f'{month}月')
         gan_zhi = liuyue.get('gan_zhi', '')
         shishen = liuyue.get('shishen_to_rizhu', {})
         auspicious = liuyue.get('auspicious', {})
@@ -181,7 +253,11 @@ def _build_liuyue_prompt(sizhu: Dict[str, Any], liuyue_result: Dict[str, Any]) -
         score = auspicious.get('score', 50) if auspicious else 50
         suggestions = auspicious.get('suggestions', []) if auspicious else []
         
-        prompt_parts.append(f"#### {year}年{month}月（{gan_zhi}）")
+        # 使用农历月份名称显示
+        if is_lunar:
+            prompt_parts.append(f"#### {year}年{lunar_month_name}（{gan_zhi}）")
+        else:
+            prompt_parts.append(f"#### {year}年{month}月（{gan_zhi}）")
         prompt_parts.append(f"- 十神关系：天干{shishen.get('gan_shishen', '')}，地支{shishen.get('zhi_shishen', '')}")
         prompt_parts.append(f"- 吉凶评级：{level}（{score}分）")
         if suggestions:
@@ -205,8 +281,18 @@ def _build_liuyue_prompt(sizhu: Dict[str, Any], liuyue_result: Dict[str, Any]) -
         "   - 针对有利月份给出把握建议",
         "   - 针对不利月份给出化解方案",
         "",
-        "**特别提醒**：请用通俗易通的语言进行分析，避免过度专业术语，注重实用性和可操作性。",
     ])
+    
+    # 添加关键数据警告
+    prompt_parts.append("**⚠️ 关键数据（请严格遵守）**：")
+    if birth_year:
+        prompt_parts.append(f"- 命主公历出生年份：{birth_year}年（这是确定的出生年份，请直接引用）")
+    if bazi_year and bazi_year != birth_year:
+        prompt_parts.append(f"- 八字年柱年份：{bazi_year}年（因立春前出生，八字年份与公历年份不同）")
+    prompt_parts.append("- 以上所有信息（流月干支、十神、吉凶等）都已精确计算，请直接引用")
+    prompt_parts.append("- 绝对不要自行推算或编造任何年份、日期信息")
+    prompt_parts.append("")
+    prompt_parts.append("**特别提醒**：请用通俗易通的语言进行分析，避免过度专业术语，注重实用性和可操作性。")
     
     return "\n".join(prompt_parts)
 
@@ -269,7 +355,7 @@ def bazi_liuyue_stream_analysis(
     
     # LLM流式分析
     system_prompt = get_system_prompt(analysis_style)
-    user_prompt = _build_liuyue_prompt(sizhu, result)
+    user_prompt = _build_liuyue_prompt(sizhu, result, gender, birth_year)
     
     full_analysis = []
     for chunk in call_llm_stream(system_prompt, user_prompt):

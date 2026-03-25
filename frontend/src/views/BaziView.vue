@@ -288,6 +288,10 @@
                   :months-count="result.liuyue_analysis.months_count"
                   :wuxing-xi-ji="result.liuyue_analysis.wuxing_xi_ji"
                   :llm-analysis="result.liuyue_analysis.llm_analysis"
+                  :calculation-day="result.liuyue_analysis.calculation_day"
+                  :include-current-month="result.liuyue_analysis.include_current_month"
+                  :solar-date="result.liuyue_analysis.solar_date"
+                  :lunar-date="result.liuyue_analysis.lunar_date"
                 />
               </div>
             </el-tab-pane>
