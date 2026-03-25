@@ -855,3 +855,531 @@ def calculate_shensha(sizhu: Dict[str, Any]) -> Dict[str, Any]:
         'count': len(shensha_list),
     }
 
+# ==================== 地支关系常量（用于流月分析） ====================
+
+# 地支六合
+DI_ZHI_LIU_HE = {
+    '子': '丑', '丑': '子',
+    '寅': '亥', '亥': '寅',
+    '卯': '戌', '戌': '卯',
+    '辰': '酉', '酉': '辰',
+    '巳': '申', '申': '巳',
+    '午': '未', '未': '午',
+}
+
+# 地支六冲
+DI_ZHI_LIU_CHONG = {
+    '子': '午', '午': '子',
+    '丑': '未', '未': '丑',
+    '寅': '申', '申': '寅',
+    '卯': '酉', '酉': '卯',
+    '辰': '戌', '戌': '辰',
+    '巳': '亥', '亥': '巳',
+}
+
+# 地支三刑
+DI_ZHI_SAN_XING = [
+    {'寅', '巳', '申'},  # 寅巳申三刑
+    {'丑', '戌', '未'},  # 丑戌未三刑
+    {'子', '卯'},        # 子卯相刑
+]
+
+# 地支三合
+DI_ZHI_SAN_HE = [
+    {'申', '子', '辰'},  # 申子辰合水
+    {'寅', '午', '戌'},  # 寅午戌合火
+    {'巳', '酉', '丑'},  # 巳酉丑合金
+    {'亥', '卯', '未'},  # 亥卯未合木
+]
+
+# 天干合化
+TIAN_GAN_HE = {
+    '甲': ('己', '土'), '己': ('甲', '土'),
+    '乙': ('庚', '金'), '庚': ('乙', '金'),
+    '丙': ('辛', '水'), '辛': ('丙', '水'),
+    '丁': ('壬', '木'), '壬': ('丁', '木'),
+    '戊': ('癸', '火'), '癸': ('戊', '火'),
+}
+
+# ==================== 流月计算函数 ====================
+
+def get_single_shishen(rizhu_tiangan: str, target_gan: str = None, target_zhi: str = None) -> Dict[str, str]:
+    """
+    计算单个天干或地支与日主的十神关系
+    
+    Args:
+        rizhu_tiangan: 日主天干
+        target_gan: 目标天干（可选）
+        target_zhi: 目标地支（可选）
+    
+    Returns:
+        十神关系字典
+    """
+    rizhu_wuxing = TIAN_GAN_WUXING.get(rizhu_tiangan, '')
+    rizhu_yinyang = TIAN_GAN_YINYANG.get(rizhu_tiangan, '')
+    
+    result = {}
+    
+    # 计算天干十神
+    if target_gan:
+        target_wuxing = TIAN_GAN_WUXING.get(target_gan, '')
+        target_yinyang = TIAN_GAN_YINYANG.get(target_gan, '')
+        
+        if target_wuxing == rizhu_wuxing:
+            result['gan_shishen'] = '比肩' if target_yinyang == rizhu_yinyang else '劫财'
+        elif WUXING_SHENG.get(rizhu_wuxing) == target_wuxing:
+            result['gan_shishen'] = '食神' if target_yinyang == rizhu_yinyang else '伤官'
+        elif WUXING_SHENG.get(target_wuxing) == rizhu_wuxing:
+            result['gan_shishen'] = '偏印' if target_yinyang == rizhu_yinyang else '正印'
+        elif WUXING_KE.get(rizhu_wuxing) == target_wuxing:
+            result['gan_shishen'] = '偏财' if target_yinyang == rizhu_yinyang else '正财'
+        elif WUXING_KE.get(target_wuxing) == rizhu_wuxing:
+            result['gan_shishen'] = '七杀' if target_yinyang == rizhu_yinyang else '正官'
+    
+    # 计算地支十神（使用地支本气）
+    if target_zhi and target_zhi in DI_ZHI_CANG_GAN:
+        cang_gan = DI_ZHI_CANG_GAN[target_zhi][0]  # 本气
+        cang_gan_wuxing = TIAN_GAN_WUXING.get(cang_gan, '')
+        cang_gan_yinyang = TIAN_GAN_YINYANG.get(cang_gan, '')
+        
+        if cang_gan_wuxing == rizhu_wuxing:
+            result['zhi_shishen'] = '比肩' if cang_gan_yinyang == rizhu_yinyang else '劫财'
+        elif WUXING_SHENG.get(rizhu_wuxing) == cang_gan_wuxing:
+            result['zhi_shishen'] = '食神' if cang_gan_yinyang == rizhu_yinyang else '伤官'
+        elif WUXING_SHENG.get(cang_gan_wuxing) == rizhu_wuxing:
+            result['zhi_shishen'] = '偏印' if cang_gan_yinyang == rizhu_yinyang else '正印'
+        elif WUXING_KE.get(rizhu_wuxing) == cang_gan_wuxing:
+            result['zhi_shishen'] = '偏财' if cang_gan_yinyang == rizhu_yinyang else '正财'
+        elif WUXING_KE.get(cang_gan_wuxing) == rizhu_wuxing:
+            result['zhi_shishen'] = '七杀' if cang_gan_yinyang == rizhu_yinyang else '正官'
+    
+    return result
+
+def analyze_zhi_relation(zhi1: str, zhi2: str) -> Dict[str, Any]:
+    """
+    分析两个地支之间的关系
+    
+    Args:
+        zhi1: 第一个地支
+        zhi2: 第二个地支
+    
+    Returns:
+        关系字典
+    """
+    relations = []
+    
+    # 六合
+    if DI_ZHI_LIU_HE.get(zhi1) == zhi2:
+        relations.append({'type': '六合', 'desc': f'{zhi1}{zhi2}合'})
+    
+    # 六冲
+    if DI_ZHI_LIU_CHONG.get(zhi1) == zhi2:
+        relations.append({'type': '六冲', 'desc': f'{zhi1}{zhi2}冲'})
+    
+    # 检查三刑
+    for xing_set in DI_ZHI_SAN_XING:
+        if zhi1 in xing_set and zhi2 in xing_set:
+            relations.append({'type': '相刑', 'desc': f'{zhi1}{zhi2}相刑'})
+            break
+    
+    return {'relations': relations, 'has_he': any(r['type'] == '六合' for r in relations), 
+            'has_chong': any(r['type'] == '六冲' for r in relations)}
+
+def analyze_gan_relation(gan1: str, gan2: str) -> Dict[str, Any]:
+    """
+    分析两个天干之间的关系
+    
+    Args:
+        gan1: 第一个天干
+        gan2: 第二个天干
+    
+    Returns:
+        关系字典
+    """
+    relations = []
+    
+    # 天干合化
+    if TIAN_GAN_HE.get(gan1, (None, None))[0] == gan2:
+        hua_wuxing = TIAN_GAN_HE[gan1][1]
+        relations.append({'type': '天干合', 'desc': f'{gan1}{gan2}合化{hua_wuxing}'})
+    
+    # 天干相克
+    wuxing1 = TIAN_GAN_WUXING.get(gan1, '')
+    wuxing2 = TIAN_GAN_WUXING.get(gan2, '')
+    if wuxing1 and wuxing2:
+        if WUXING_KE.get(wuxing1) == wuxing2:
+            relations.append({'type': '天干克', 'desc': f'{gan1}克{gan2}'})
+    
+    return {'relations': relations}
+
+def calculate_wuxing_xi_ji(sizhu: Dict[str, Any], wuxing_analysis: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    计算五行喜忌（基于日主强弱和五行分布）
+    
+    Args:
+        sizhu: 四柱数据
+        wuxing_analysis: 五行分析结果（可选）
+    
+    Returns:
+        五行喜忌字典
+    """
+    rizhu_gan = sizhu.get('ri_zhu_tiangan', '')
+    rizhu_wuxing = TIAN_GAN_WUXING.get(rizhu_gan, '')
+    
+    # 获取五行分布
+    if wuxing_analysis:
+        wuxing_count = wuxing_analysis.get('wuxing_count_detail', {})
+    else:
+        wuxing_count = calculate_wuxing(sizhu).get('wuxing_count_detail', {})
+    
+    # 简化判断：根据日主五行和五行分布判断喜忌
+    # 日主五行统计
+    rizhu_count = wuxing_count.get(rizhu_wuxing, 0)
+    
+    # 生我（印星）的五行
+    sheng_wo_wuxing = None
+    for wuxing, sheng in WUXING_SHENG.items():
+        if sheng == rizhu_wuxing:
+            sheng_wo_wuxing = wuxing
+            break
+    
+    # 我生（食伤）的五行
+    wo_sheng_wuxing = WUXING_SHENG.get(rizhu_wuxing, '')
+    
+    # 克我（官杀）的五行
+    ke_wo_wuxing = WUXING_KE.get(rizhu_wuxing, '')
+    
+    # 我克（财星）的五行
+    wo_ke_wuxing = None
+    for wuxing, ke in WUXING_KE.items():
+        if ke == rizhu_wuxing:
+            wo_ke_wuxing = wuxing
+            break
+    
+    # 简化规则：日主弱喜印比，日主强喜食财官
+    # 判断日主强弱（简化：同五行+生我五行 > 3 为强）
+    same_wuxing_count = rizhu_count
+    if sheng_wo_wuxing:
+        same_wuxing_count += wuxing_count.get(sheng_wo_wuxing, 0)
+    
+    is_rizhu_qiang = same_wuxing_count > 3
+    
+    xi_wuxing = []  # 喜用五行
+    ji_wuxing = []  # 忌讳五行
+    
+    if is_rizhu_qiang:
+        # 日主强：喜泄耗克（食伤、财、官杀）
+        if wo_sheng_wuxing:
+            xi_wuxing.append(wo_sheng_wuxing)
+        if wo_ke_wuxing:
+            xi_wuxing.append(wo_ke_wuxing)
+        if ke_wo_wuxing:
+            xi_wuxing.append(ke_wo_wuxing)
+        # 忌生扶
+        if sheng_wo_wuxing:
+            ji_wuxing.append(sheng_wo_wuxing)
+        ji_wuxing.append(rizhu_wuxing)
+    else:
+        # 日主弱：喜生扶（印、比劫）
+        if sheng_wo_wuxing:
+            xi_wuxing.append(sheng_wo_wuxing)
+        xi_wuxing.append(rizhu_wuxing)
+        # 忌泄耗克
+        if wo_sheng_wuxing:
+            ji_wuxing.append(wo_sheng_wuxing)
+        if wo_ke_wuxing:
+            ji_wuxing.append(wo_ke_wuxing)
+        if ke_wo_wuxing:
+            ji_wuxing.append(ke_wo_wuxing)
+    
+    return {
+        'rizhu_wuxing': rizhu_wuxing,
+        'is_rizhu_qiang': is_rizhu_qiang,
+        'xi_wuxing': list(set(xi_wuxing)),
+        'ji_wuxing': list(set(ji_wuxing)),
+        'sheng_wo_wuxing': sheng_wo_wuxing,
+        'wo_sheng_wuxing': wo_sheng_wuxing,
+        'ke_wo_wuxing': ke_wo_wuxing,
+        'wo_ke_wuxing': wo_ke_wuxing,
+    }
+
+def evaluate_auspicious(
+    liuyue_data: Dict[str, Any],
+    sizhu: Dict[str, Any],
+    wuxing_xi_ji: Dict[str, Any],
+    dayun_data: Dict[str, Any] = None,
+    liunian_data: Dict[str, Any] = None,
+) -> Dict[str, Any]:
+    """
+    评估流月吉凶
+    
+    Args:
+        liuyue_data: 流月数据
+        sizhu: 四柱数据
+        wuxing_xi_ji: 五行喜忌
+        dayun_data: 当前大运数据（可选）
+        liunian_data: 流年数据（可选）
+    
+    Returns:
+        吉凶评估结果
+    """
+    liuyue_gan = liuyue_data['gan']
+    liuyue_zhi = liuyue_data['zhi']
+    liuyue_gan_wuxing = TIAN_GAN_WUXING.get(liuyue_gan, '')
+    liuyue_zhi_wuxing = DI_ZHI_WUXING.get(liuyue_zhi, '')
+    
+    xi_wuxing = wuxing_xi_ji.get('xi_wuxing', [])
+    ji_wuxing = wuxing_xi_ji.get('ji_wuxing', [])
+    
+    score = 50  # 基础分50
+    factors = []
+    
+    # 1. 流月天干五行喜忌
+    if liuyue_gan_wuxing in xi_wuxing:
+        score += 15
+        factors.append({'factor': '天干五行', 'impact': '吉', 'desc': f'流月天干{liuyue_gan}属{liuyue_gan_wuxing}，为喜用五行'})
+    elif liuyue_gan_wuxing in ji_wuxing:
+        score -= 10
+        factors.append({'factor': '天干五行', 'impact': '凶', 'desc': f'流月天干{liuyue_gan}属{liuyue_gan_wuxing}，为忌讳五行'})
+    
+    # 2. 流月地支五行喜忌
+    if liuyue_zhi_wuxing in xi_wuxing:
+        score += 10
+        factors.append({'factor': '地支五行', 'impact': '吉', 'desc': f'流月地支{liuyue_zhi}属{liuyue_zhi_wuxing}，为喜用五行'})
+    elif liuyue_zhi_wuxing in ji_wuxing:
+        score -= 8
+        factors.append({'factor': '地支五行', 'impact': '凶', 'desc': f'流月地支{liuyue_zhi}属{liuyue_zhi_wuxing}，为忌讳五行'})
+    
+    # 3. 与原局地支的关系
+    for zhu_name in ['nian_zhu', 'yue_zhu', 'ri_zhu', 'shi_zhu']:
+        zhi = sizhu.get(zhu_name, {}).get('di_zhi', '')
+        if zhi:
+            relation = analyze_zhi_relation(liuyue_zhi, zhi)
+            if relation['has_he']:
+                score += 8
+                factors.append({'factor': f'与{zhu_name}地支', 'impact': '吉', 'desc': f'流月{liuyue_zhi}与{zhu_name}{zhi}相合'})
+            if relation['has_chong']:
+                score -= 10
+                factors.append({'factor': f'与{zhu_name}地支', 'impact': '凶', 'desc': f'流月{liuyue_zhi}与{zhu_name}{zhi}相冲'})
+    
+    # 4. 与大运的关系
+    if dayun_data:
+        dayun_gan = dayun_data.get('gan', '')
+        dayun_zhi = dayun_data.get('zhi', '')
+        
+        # 天干关系
+        if dayun_gan:
+            gan_rel = analyze_gan_relation(liuyue_gan, dayun_gan)
+            for rel in gan_rel['relations']:
+                if rel['type'] == '天干合':
+                    score += 5
+                    factors.append({'factor': '与大运天干', 'impact': '吉', 'desc': rel['desc']})
+        
+        # 地支关系
+        if dayun_zhi:
+            zhi_rel = analyze_zhi_relation(liuyue_zhi, dayun_zhi)
+            if zhi_rel['has_he']:
+                score += 8
+                factors.append({'factor': '与大运地支', 'impact': '吉', 'desc': f'流月{liuyue_zhi}与大运{dayun_zhi}相合'})
+            if zhi_rel['has_chong']:
+                score -= 10
+                factors.append({'factor': '与大运地支', 'impact': '凶', 'desc': f'流月{liuyue_zhi}与大运{dayun_zhi}相冲'})
+    
+    # 5. 与流年的关系
+    if liunian_data:
+        liunian_gan = liunian_data.get('gan', '')
+        liunian_zhi = liunian_data.get('zhi', '')
+        
+        # 天干关系
+        if liunian_gan:
+            gan_rel = analyze_gan_relation(liuyue_gan, liunian_gan)
+            for rel in gan_rel['relations']:
+                if rel['type'] == '天干合':
+                    score += 5
+                    factors.append({'factor': '与流年天干', 'impact': '吉', 'desc': rel['desc']})
+        
+        # 地支关系
+        if liunian_zhi:
+            zhi_rel = analyze_zhi_relation(liuyue_zhi, liunian_zhi)
+            if zhi_rel['has_he']:
+                score += 8
+                factors.append({'factor': '与流年地支', 'impact': '吉', 'desc': f'流月{liuyue_zhi}与流年{liunian_zhi}相合'})
+            if zhi_rel['has_chong']:
+                score -= 10
+                factors.append({'factor': '与流年地支', 'impact': '凶', 'desc': f'流月{liuyue_zhi}与流年{liunian_zhi}相冲'})
+    
+    # 确定吉凶等级
+    if score >= 75:
+        level = '大吉'
+    elif score >= 60:
+        level = '中吉'
+    elif score >= 45:
+        level = '平'
+    elif score >= 30:
+        level = '中凶'
+    else:
+        level = '大凶'
+    
+    # 生成建议
+    suggestions = []
+    good_factors = [f for f in factors if f['impact'] == '吉']
+    bad_factors = [f for f in factors if f['impact'] == '凶']
+    
+    if good_factors:
+        suggestions.append(f"有利因素：{'；'.join([f['desc'] for f in good_factors[:3]])}")
+    if bad_factors:
+        suggestions.append(f"注意事项：{'；'.join([f['desc'] for f in bad_factors[:3]])}")
+    
+    return {
+        'score': max(0, min(100, score)),
+        'level': level,
+        'factors': factors,
+        'suggestions': suggestions,
+    }
+
+def calculate_liuyue(
+    liunian_gan: str,
+    month: int,
+    rizhu_tiangan: str,
+    sizhu: Dict[str, Any] = None,
+    wuxing_xi_ji: Dict[str, Any] = None,
+    dayun_data: Dict[str, Any] = None,
+    liunian_data: Dict[str, Any] = None,
+) -> Dict[str, Any]:
+    """
+    计算单个月份的流月信息
+    
+    Args:
+        liunian_gan: 流年天干
+        month: 月份(1-12)
+        rizhu_tiangan: 日主天干
+        sizhu: 四柱数据（用于吉凶评估）
+        wuxing_xi_ji: 五行喜忌分析结果
+        dayun_data: 当前大运数据（可选）
+        liunian_data: 流年数据（可选）
+    
+    Returns:
+        流月信息字典
+    """
+    # 流月地支（固定）
+    liuyue_zhi = MONTH_TO_DI_ZHI.get(month, '寅')
+    
+    # 流月天干（根据流年天干查表）
+    liuyue_gan = YUE_GAN_TABLE.get(liunian_gan, {}).get(month, '丙')
+    
+    # 流月干支
+    gan_zhi = f"{liuyue_gan}{liuyue_zhi}"
+    
+    # 五行属性
+    gan_wuxing = TIAN_GAN_WUXING.get(liuyue_gan, '')
+    zhi_wuxing = DI_ZHI_WUXING.get(liuyue_zhi, '')
+    
+    # 与日主的十神关系
+    shishen_result = get_single_shishen(rizhu_tiangan, liuyue_gan, liuyue_zhi)
+    
+    result = {
+        'month': month,
+        'gan': liuyue_gan,
+        'zhi': liuyue_zhi,
+        'gan_zhi': gan_zhi,
+        'wuxing': {
+            'gan': gan_wuxing,
+            'zhi': zhi_wuxing,
+        },
+        'shishen_to_rizhu': shishen_result,
+    }
+    
+    # 吉凶评估
+    if sizhu and wuxing_xi_ji:
+        auspicious_result = evaluate_auspicious(
+            result, sizhu, wuxing_xi_ji, dayun_data, liunian_data
+        )
+        result['auspicious'] = auspicious_result
+    
+    return result
+
+def calculate_liuyue_list(
+    sizhu: Dict[str, Any],
+    start_year: int,
+    start_month: int,
+    months_count: int,
+    birth_year: int = None,
+    gender: str = '男',
+    wuxing_analysis: Dict[str, Any] = None,
+) -> Dict[str, Any]:
+    """
+    计算未来N个月的流月列表
+    
+    Args:
+        sizhu: 四柱数据
+        start_year: 起始年份
+        start_month: 起始月份(1-12)
+        months_count: 推演月数
+        birth_year: 出生年份（用于确定当前大运）
+        gender: 性别
+        wuxing_analysis: 五行分析结果
+    
+    Returns:
+        流月列表数据
+    """
+    rizhu_tiangan = sizhu.get('ri_zhu_tiangan', '')
+    
+    # 计算五行喜忌
+    wuxing_xi_ji = calculate_wuxing_xi_ji(sizhu, wuxing_analysis)
+    
+    # 获取当前大运
+    current_dayun = None
+    if birth_year:
+        from datetime import datetime
+        current_year = datetime.now().year
+        current_age = current_year - birth_year
+        
+        dayun_list = calculate_dayun(birth_year, 1, 1, 12, gender, sizhu.get('bazi_year'))
+        for dayun in dayun_list:
+            if dayun['start_age'] <= current_age <= dayun['end_age']:
+                current_dayun = dayun
+                break
+    
+    liuyue_list = []
+    current_year = start_year
+    current_month = start_month
+    
+    for i in range(months_count):
+        # 计算流年
+        liunian_gan = get_tian_gan(current_year)
+        liunian_zhi = get_di_zhi(current_year)
+        liunian_data = {
+            'year': current_year,
+            'gan': liunian_gan,
+            'zhi': liunian_zhi,
+        }
+        
+        # 计算流月
+        liuyue = calculate_liuyue(
+            liunian_gan=liunian_gan,
+            month=current_month,
+            rizhu_tiangan=rizhu_tiangan,
+            sizhu=sizhu,
+            wuxing_xi_ji=wuxing_xi_ji,
+            dayun_data=current_dayun,
+            liunian_data=liunian_data,
+        )
+        liuyue['year'] = current_year
+        liuyue_list.append(liuyue)
+        
+        # 递增月份
+        current_month += 1
+        if current_month > 12:
+            current_month = 1
+            current_year += 1
+    
+    return {
+        'success': True,
+        'start_year': start_year,
+        'start_month': start_month,
+        'months_count': months_count,
+        'wuxing_xi_ji': wuxing_xi_ji,
+        'current_dayun': current_dayun,
+        'liuyue_list': liuyue_list,
+    }
+

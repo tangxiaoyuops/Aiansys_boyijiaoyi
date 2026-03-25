@@ -752,6 +752,8 @@ class BaziPanRequest(BaseModel):
     include_llm: bool = False  # 是否包含LLM深度分析（默认关闭，需要用户明确勾选）
     target_year: Optional[int] = None  # 目标年份（用于流年分析）
     analysis_style: str = 'classic'  # 分析风格：classic/simple/life_guide/business/emotion
+    include_liuyue: bool = False  # 是否包含流月推演
+    liuyue_months: int = 6  # 流月推演月数（默认6个月）
 
 
 @app.get("/api/bazi/styles")
@@ -817,6 +819,8 @@ async def bazi_pan(request: BaziPanRequest):
             include_llm=request.include_llm,
             target_year=request.target_year,
             analysis_style=request.analysis_style,
+            include_liuyue=request.include_liuyue,
+            liuyue_months=request.liuyue_months,
         )
         
         print(f"[八字排盘API] 分析函数返回结果: success={result.get('success')}")
@@ -836,6 +840,7 @@ async def bazi_pan(request: BaziPanRequest):
         print(f"  - 流年分析: {result.get('liunian_analysis') is not None}")
         print(f"  - 神煞分析: {result.get('shensha_analysis') is not None}")
         print(f"  - LLM分析: {result.get('llm_analysis') is not None}")
+        print(f"  - 流月推演: {result.get('liuyue_analysis') is not None}")
         logger.info("完整分析成功")
         
         return {
@@ -847,6 +852,7 @@ async def bazi_pan(request: BaziPanRequest):
             "liunian_analysis": result.get('liunian_analysis'),
             "shensha_analysis": result.get('shensha_analysis'),
             "llm_analysis": result.get('llm_analysis'),
+            "liuyue_analysis": result.get('liuyue_analysis'),
         }
         
     except HTTPException:
@@ -1597,6 +1603,124 @@ async def recognize_bazi_intent(message: str):
         "success": True,
         "intent": result
     }
+
+
+# ==================== 流月推演API ====================
+
+class BaziLiuyueRequest(BaseModel):
+    """八字流月推演请求模型"""
+    year: int  # 出生年份
+    month: int  # 出生月份
+    day: int  # 出生日期
+    hour: int  # 出生时辰
+    gender: str = '男'
+    months_count: int = 6  # 推演月数
+    include_llm: bool = True  # 是否包含LLM深度分析
+    analysis_style: str = 'classic'
+    # 可选：前端传来的排盘数据
+    sizhu: Optional[Dict[str, Any]] = None
+    wuxing_analysis: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/bazi/liuyue")
+async def bazi_liuyue(request: BaziLiuyueRequest):
+    """
+    八字流月推演接口
+    计算未来N个月的运势走向
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        print(f"[流月推演API] 收到请求: 推演{request.months_count}个月")
+        
+        from core.agents.bazi_liuyue_agent import bazi_liuyue_analysis
+        from core.agents.bazi_pan_agent import bazi_pan_node
+        from core.agents.bazi_wuxing_agent import bazi_wuxing_node
+        
+        # 如果没有传入sizhu，需要计算
+        sizhu = request.sizhu
+        wuxing_analysis = request.wuxing_analysis
+        
+        if not sizhu:
+            pan_result = bazi_pan_node(request.year, request.month, request.day, request.hour, request.gender)
+            if not pan_result.get('success'):
+                raise HTTPException(status_code=500, detail="排盘失败")
+            sizhu = pan_result['sizhu']
+        
+        if not wuxing_analysis:
+            wuxing_result = bazi_wuxing_node(sizhu)
+            wuxing_analysis = wuxing_result if wuxing_result.get('success') else None
+        
+        # 执行流月分析
+        result = bazi_liuyue_analysis(
+            sizhu=sizhu,
+            months_count=request.months_count,
+            birth_year=request.year,
+            gender=request.gender,
+            wuxing_analysis=wuxing_analysis,
+            include_llm=request.include_llm,
+            analysis_style=request.analysis_style,
+        )
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '流月分析失败'))
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"流月推演失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"流月推演失败: {str(e)}")
+
+
+@app.post("/api/bazi/liuyue-stream")
+async def bazi_liuyue_stream(request: BaziLiuyueRequest):
+    """
+    八字流月推演流式接口
+    支持LLM流式输出
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    async def generate():
+        try:
+            from core.agents.bazi_liuyue_agent import bazi_liuyue_stream_analysis
+            from core.agents.bazi_pan_agent import bazi_pan_node
+            from core.agents.bazi_wuxing_agent import bazi_wuxing_node
+            
+            # 如果没有传入sizhu，需要计算
+            sizhu = request.sizhu
+            wuxing_analysis = request.wuxing_analysis
+            
+            if not sizhu:
+                pan_result = bazi_pan_node(request.year, request.month, request.day, request.hour, request.gender)
+                if not pan_result.get('success'):
+                    yield f"data: {json.dumps({'error': '排盘失败'}, ensure_ascii=False)}\n\n"
+                    return
+                sizhu = pan_result['sizhu']
+            
+            if not wuxing_analysis:
+                wuxing_result = bazi_wuxing_node(sizhu)
+                wuxing_analysis = wuxing_result if wuxing_result.get('success') else None
+            
+            # 执行流式分析
+            for chunk in bazi_liuyue_stream_analysis(
+                sizhu=sizhu,
+                months_count=request.months_count,
+                birth_year=request.year,
+                gender=request.gender,
+                wuxing_analysis=wuxing_analysis,
+                analysis_style=request.analysis_style,
+            ):
+                yield chunk
+                
+        except Exception as e:
+            logger.error(f"流月流式分析失败: {e}")
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 if __name__ == "__main__":

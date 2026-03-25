@@ -68,6 +68,14 @@
               <el-checkbox v-model="form.include_dayun">大运分析</el-checkbox>
               <el-checkbox v-model="form.include_shensha">神煞分析</el-checkbox>
             </el-form-item>
+            <el-divider content-position="left">流月推演（可选）</el-divider>
+            <el-form-item>
+              <el-checkbox v-model="form.include_liuyue">启用流月推演</el-checkbox>
+            </el-form-item>
+            <el-form-item v-if="form.include_liuyue" label="推演月数">
+              <el-input-number v-model="form.liuyue_months" :min="1" :max="24" style="width: 120px" />
+              <span style="margin-left: 10px; color: #909399;">个月</span>
+            </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="loading" @click="handleAnalyze" style="width: 100%">
                 <el-icon><MagicStick /></el-icon>
@@ -209,114 +217,125 @@
 
         <!-- 单人模式结果 -->
         <div v-if="analysisMode === 'single' && result && !loading" class="result-wrapper">
-          <!-- 上方：基础分析结果 -->
-          <div class="basic-result-section" :style="{ height: basicResultHeight + 'px' }">
-            <!-- 四柱信息 -->
-            <div v-if="result.sizhu" class="result-card compact-card">
-              <h3 class="section-title">
-                <el-icon><Document /></el-icon>
-                四柱八字
-              </h3>
-              <BaziChart :sizhu="result.sizhu" :wuxing-analysis="result.wuxing_analysis" :shishen-analysis="result.shishen_analysis" />
-              <div class="sizhu-info">
-                <div class="info-item">
-                  <span class="label">年柱：</span>
-                  <span class="value">{{ result.sizhu.nian_zhu?.tian_gan }}{{ result.sizhu.nian_zhu?.di_zhi }}</span>
+          <!-- 标签页切换 -->
+          <el-tabs v-model="activeResultTab" class="result-tabs">
+            <!-- 基础分析标签 -->
+            <el-tab-pane label="命盘分析" name="basic">
+              <div class="basic-result-content">
+                <!-- 四柱信息 -->
+                <div v-if="result.sizhu" class="result-card compact-card">
+                  <h3 class="section-title">
+                    <el-icon><Document /></el-icon>
+                    四柱八字
+                  </h3>
+                  <BaziChart :sizhu="result.sizhu" :wuxing-analysis="result.wuxing_analysis" :shishen-analysis="result.shishen_analysis" />
+                  <div class="sizhu-info">
+                    <div class="info-item">
+                      <span class="label">年柱：</span>
+                      <span class="value">{{ result.sizhu.nian_zhu?.tian_gan }}{{ result.sizhu.nian_zhu?.di_zhi }}</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="label">月柱：</span>
+                      <span class="value">{{ result.sizhu.yue_zhu?.tian_gan }}{{ result.sizhu.yue_zhu?.di_zhi }}</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="label">日柱：</span>
+                      <span class="value">{{ result.sizhu.ri_zhu?.tian_gan }}{{ result.sizhu.ri_zhu?.di_zhi }} (日主)</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="label">时柱：</span>
+                      <span class="value">{{ result.sizhu.shi_zhu?.tian_gan }}{{ result.sizhu.shi_zhu?.di_zhi }}</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="info-item">
-                  <span class="label">月柱：</span>
-                  <span class="value">{{ result.sizhu.yue_zhu?.tian_gan }}{{ result.sizhu.yue_zhu?.di_zhi }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">日柱：</span>
-                  <span class="value">{{ result.sizhu.ri_zhu?.tian_gan }}{{ result.sizhu.ri_zhu?.di_zhi }} (日主)</span>
-                </div>
-                <div class="info-item">
-                  <span class="label">时柱：</span>
-                  <span class="value">{{ result.sizhu.shi_zhu?.tian_gan }}{{ result.sizhu.shi_zhu?.di_zhi }}</span>
-                </div>
-              </div>
-            </div>
 
-            <!-- 五行+十神+神煞 横向排列 -->
-            <div class="analysis-row">
-              <div v-if="result.wuxing_analysis" class="result-card compact-card">
-                <h3 class="section-title"><el-icon><Star /></el-icon>五行</h3>
-                <div class="wuxing-mini">
-                  <span v-for="(count, name) in getWuxingData(result.wuxing_analysis)" :key="name" class="wx-item">
-                    {{ name }}: {{ count }}
-                  </span>
+                <!-- 五行+十神+神煞 横向排列 -->
+                <div class="analysis-row">
+                  <div v-if="result.wuxing_analysis" class="result-card compact-card">
+                    <h3 class="section-title"><el-icon><Star /></el-icon>五行</h3>
+                    <div class="wuxing-mini">
+                      <span v-for="(count, name) in getWuxingData(result.wuxing_analysis)" :key="name" class="wx-item">
+                        {{ name }}: {{ count }}
+                      </span>
+                    </div>
+                  </div>
+                  <div v-if="result.shishen_analysis" class="result-card compact-card">
+                    <h3 class="section-title"><el-icon><Grid /></el-icon>十神</h3>
+                    <div class="shishen-mini">
+                      <span v-for="(info, zhu) in result.shishen_analysis.shishen_data" :key="zhu" class="ss-item">
+                        {{ zhuNameMap[zhu] }}: {{ info.gan_shishen || '-' }}/{{ info.zhi_shishen || '-' }}
+                      </span>
+                    </div>
+                  </div>
+                  <div v-if="result.dayun_analysis" class="result-card compact-card">
+                    <h3 class="section-title"><el-icon><Calendar /></el-icon>大运</h3>
+                    <div class="dayun-mini">
+                      <span v-for="(dy, i) in (result.dayun_analysis.dayun_list || []).slice(0, 4)" :key="i" class="dy-item">
+                        {{ dy.gan }}{{ dy.zhi }}
+                      </span>
+                      <span v-if="result.dayun_analysis.dayun_list?.length > 4" class="dy-more">...</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div v-if="result.shishen_analysis" class="result-card compact-card">
-                <h3 class="section-title"><el-icon><Grid /></el-icon>十神</h3>
-                <div class="shishen-mini">
-                  <span v-for="(info, zhu) in result.shishen_analysis.shishen_data" :key="zhu" class="ss-item">
-                    {{ zhuNameMap[zhu] }}: {{ info.gan_shishen || '-' }}/{{ info.zhi_shishen || '-' }}
-                  </span>
-                </div>
-              </div>
-              <div v-if="result.dayun_analysis" class="result-card compact-card">
-                <h3 class="section-title"><el-icon><Calendar /></el-icon>大运</h3>
-                <div class="dayun-mini">
-                  <span v-for="(dy, i) in (result.dayun_analysis.dayun_list || []).slice(0, 4)" :key="i" class="dy-item">
-                    {{ dy.gan }}{{ dy.zhi }}
-                  </span>
-                  <span v-if="result.dayun_analysis.dayun_list?.length > 4" class="dy-more">...</span>
-                </div>
-              </div>
-            </div>
-          </div>
+            </el-tab-pane>
 
-          <!-- 可拖拽分割条 -->
-          <div class="resize-handle" @mousedown="startResize" :class="{ 'resizing': isResizing }">
-            <div class="resize-line"></div>
-            <div class="resize-hint"><el-icon><DCaret /></el-icon>拖拽调整</div>
-          </div>
+            <!-- 流月推演标签 -->
+            <el-tab-pane label="流月推演" name="liuyue" v-if="result.liuyue_analysis?.liuyue_list?.length">
+              <div class="liuyue-tab-content">
+                <LiuyuePanel
+                  :liuyue-list="result.liuyue_analysis.liuyue_list"
+                  :months-count="result.liuyue_analysis.months_count"
+                  :wuxing-xi-ji="result.liuyue_analysis.wuxing_xi_ji"
+                  :llm-analysis="result.liuyue_analysis.llm_analysis"
+                />
+              </div>
+            </el-tab-pane>
 
-          <!-- 下方：聊天面板 -->
-          <div class="chat-section" :style="{ height: `calc(100% - ${basicResultHeight + RESIZE_HANDLE_HEIGHT}px)` }">
-            <BaziChatPanel ref="chatPanelRef" :llm-loading="llmLoading" :llm-progress="llmProgress" />
-          </div>
+            <!-- AI对话标签 -->
+            <el-tab-pane label="AI解读" name="chat">
+              <div class="chat-tab-content">
+                <BaziChatPanel ref="chatPanelRef" :llm-loading="llmLoading" :llm-progress="llmProgress" />
+              </div>
+            </el-tab-pane>
+          </el-tabs>
         </div>
 
         <!-- 合盘模式结果 -->
         <div v-if="analysisMode === 'hepan' && hepanResult && !hepanLoading" class="result-wrapper hepan-result-wrapper">
-          <!-- 上方：合盘匹配结果 -->
-          <div class="hepan-basic-section" :style="{ height: hepanResultHeight + 'px' }">
-            <!-- 双方四柱对比 -->
-            <div class="dual-sizhu-row">
-              <div class="sizhu-card">
-                <h4 class="sizhu-title">命盘A ({{ hepanResult.birth_info_a?.gender }})</h4>
-                <BaziChart :sizhu="hepanResult.pan_a?.sizhu" :compact="true" />
+          <el-tabs v-model="activeHepenTab" class="result-tabs">
+            <!-- 合盘分析标签 -->
+            <el-tab-pane label="合盘分析" name="hepan">
+              <div class="hepan-tab-content">
+                <!-- 双方四柱对比 -->
+                <div class="dual-sizhu-row">
+                  <div class="sizhu-card">
+                    <h4 class="sizhu-title">命盘A ({{ hepanResult.birth_info_a?.gender }})</h4>
+                    <BaziChart :sizhu="hepanResult.pan_a?.sizhu" :compact="true" />
+                  </div>
+                  <div class="vs-divider">
+                    <span class="vs-text">VS</span>
+                  </div>
+                  <div class="sizhu-card">
+                    <h4 class="sizhu-title">命盘B ({{ hepanResult.birth_info_b?.gender }})</h4>
+                    <BaziChart :sizhu="hepanResult.pan_b?.sizhu" :compact="true" />
+                  </div>
+                </div>
+                <!-- 合盘匹配分析 -->
+                <HepanResultPanel :hepan-data="hepanResult.hepan" />
               </div>
-              <div class="vs-divider">
-                <span class="vs-text">VS</span>
+            </el-tab-pane>
+            <!-- AI对话标签 -->
+            <el-tab-pane label="AI解读" name="chat">
+              <div class="chat-tab-content">
+                <BaziChatPanel 
+                  mode="hepan"
+                  :llm-loading="hepanLlmLoading" 
+                  :llm-progress="hepanLlmProgress" 
+                />
               </div>
-              <div class="sizhu-card">
-                <h4 class="sizhu-title">命盘B ({{ hepanResult.birth_info_b?.gender }})</h4>
-                <BaziChart :sizhu="hepanResult.pan_b?.sizhu" :compact="true" />
-              </div>
-            </div>
-
-            <!-- 合盘匹配分析 -->
-            <HepanResultPanel :hepan-data="hepanResult.hepan" />
-          </div>
-
-          <!-- 可拖拽分割条 -->
-          <div class="resize-handle" @mousedown="startHepanResize" :class="{ 'resizing': isHepanResizing }">
-            <div class="resize-line"></div>
-            <div class="resize-hint"><el-icon><DCaret /></el-icon>拖拽调整</div>
-          </div>
-
-          <!-- 下方：AI对话面板 -->
-          <div class="hepan-llm-section" :style="{ height: `calc(100% - ${hepanResultHeight + RESIZE_HANDLE_HEIGHT}px)` }">
-            <BaziChatPanel 
-              mode="hepan"
-              :llm-loading="hepanLlmLoading" 
-              :llm-progress="hepanLlmProgress" 
-            />
-          </div>
+            </el-tab-pane>
+          </el-tabs>
         </div>
       </div>
     </div>
@@ -330,6 +349,7 @@ import { MagicStick, Document, Star, Calendar, Grid, DCaret, Connection } from '
 import BaziChart from '../components/BaziChart.vue';
 import BaziChatPanel from '../components/BaziChatPanel.vue';
 import HepanResultPanel from '../components/HepanResultPanel.vue';
+import LiuyuePanel from '../components/LiuyuePanel.vue';
 import { useBaziChatStore } from '../stores/baziChat';
 
 const baziChatStore = useBaziChatStore();
@@ -339,6 +359,8 @@ const loading = ref(false);
 const result = ref<any>(null);
 
 const analysisMode = ref<'single' | 'hepan'>('single');
+const activeResultTab = ref<'basic' | 'liuyue' | 'chat'>('basic');  // 单人模式结果标签页
+const activeHepenTab = ref<'hepan' | 'chat'>('hepan');  // 合盘模式结果标签页
 const activePanels = ref(['A', 'B']);
 
 const hepanLoading = ref(false);
@@ -391,6 +413,8 @@ const form = reactive({
   include_dayun: true,
   include_shensha: true,
   analysis_style: 'classic',
+  include_liuyue: false,  // 是否包含流月推演
+  liuyue_months: 6,  // 推演月数
 });
 
 const hepanForm = reactive({
@@ -522,7 +546,10 @@ const handleAnalyze = async () => {
         gender: form.gender,
         include_wuxing: form.include_wuxing, include_shishen: form.include_shishen,
         include_dayun: form.include_dayun, include_shensha: form.include_shensha,
-        include_llm: false, analysis_style: form.analysis_style,
+        include_llm: false,  // 主命盘LLM使用流式，但流月LLM会单独调用
+        analysis_style: form.analysis_style,
+        include_liuyue: form.include_liuyue,
+        liuyue_months: form.liuyue_months,
       }),
     });
 
@@ -903,11 +930,103 @@ const renderMarkdown = (content: string): string => {
   overflow: hidden;
 }
 
-.basic-result-section {
-  flex-shrink: 0;
+/* 标签页样式 */
+.result-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-tabs :deep(.el-tabs__header) {
+  margin: 0;
+  padding: 0 16px;
+  background: rgba(212, 175, 55, 0.05);
+  border-bottom: 1px solid var(--bazi-border-light);
+}
+
+.result-tabs :deep(.el-tabs__nav-wrap) {
+  padding: 8px 0;
+}
+
+.result-tabs :deep(.el-tabs__item) {
+  font-size: 14px;
+  padding: 0 20px;
+  height: 36px;
+  line-height: 36px;
+}
+
+.result-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--bazi-primary);
+  font-weight: 600;
+}
+
+.result-tabs :deep(.el-tabs__active-bar) {
+  background-color: var(--bazi-primary);
+}
+
+.result-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+}
+
+.result-tabs :deep(.el-tab-pane) {
+  height: 100%;
   overflow-y: auto;
+}
+
+.basic-result-content {
   padding: 16px;
-  min-height: 150px;
+}
+
+.liuyue-tab-content {
+  padding: 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.chat-tab-content {
+  height: 100%;
+}
+
+.chat-tab-content :deep(.bazi-chat-panel) {
+  height: 100%;
+}
+
+.hepan-tab-content {
+  padding: 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.dual-sizhu-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.sizhu-card {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.sizhu-title {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--bazi-text-light);
+  text-align: center;
+}
+
+.vs-divider {
+  padding: 0 8px;
+}
+
+.vs-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bazi-primary);
 }
 
 .result-card {

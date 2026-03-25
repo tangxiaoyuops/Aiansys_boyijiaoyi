@@ -30,6 +30,8 @@ def bazi_complete_analysis(
     include_llm: bool = False,
     target_year: Optional[int] = None,
     analysis_style: str = 'classic',
+    include_liuyue: bool = False,
+    liuyue_months: int = 6,
 ) -> Dict[str, Any]:
     """
     完整的八字分析
@@ -48,6 +50,8 @@ def bazi_complete_analysis(
         include_llm: 是否包含LLM深度分析
         target_year: 目标年份（用于流年分析）
         analysis_style: 分析风格（classic/simple/life_guide/business/emotion）
+        include_liuyue: 是否包含流月推演
+        liuyue_months: 流月推演月数
     
     Returns:
         完整的分析结果
@@ -56,7 +60,7 @@ def bazi_complete_analysis(
         print(f"[完整分析] ========== 开始八字完整分析 ==========")
         print(f"[完整分析] 参数: {year}年{month}月{day}日{hour}时, 性别={gender}")
         print(f"[完整分析] 分析风格: {analysis_style}")
-        print(f"[完整分析] 分析选项: 五行={include_wuxing}, 十神={include_shishen}, 大运={include_dayun}, 流年={include_liunian}, 神煞={include_shensha}, LLM={include_llm}")
+        print(f"[完整分析] 分析选项: 五行={include_wuxing}, 十神={include_shishen}, 大运={include_dayun}, 流年={include_liunian}, 神煞={include_shensha}, LLM={include_llm}, 流月={include_liuyue}")
         logger.info(f"开始完整分析: {year}年{month}月{day}日{hour}时, 风格={analysis_style}")
         
         # 1. 基础排盘
@@ -124,19 +128,46 @@ def bazi_complete_analysis(
             else:
                 print(f"[完整分析] 步骤6失败: {shensha_result.get('error', '未知错误')}")
         
-        # 7. LLM深度分析
+        # 7. 流月推演
+        liuyue_analysis = None
+        if include_liuyue:
+            print(f"[完整分析] 步骤7: 开始流月推演...")
+            try:
+                from core.agents.bazi_liuyue_agent import bazi_liuyue_analysis
+                liuyue_result = bazi_liuyue_analysis(
+                    sizhu=sizhu,
+                    months_count=liuyue_months,
+                    birth_year=year,
+                    gender=gender,
+                    wuxing_analysis=wuxing_analysis,
+                    include_llm=True,  # 流月始终启用LLM分析
+                    analysis_style=analysis_style,
+                )
+                if liuyue_result.get('success'):
+                    liuyue_analysis = liuyue_result
+                    print(f"[完整分析] 步骤7完成: 流月推演成功")
+                else:
+                    print(f"[完整分析] 步骤7失败: {liuyue_result.get('error', '未知错误')}")
+            except Exception as e:
+                print(f"[完整分析] 步骤7异常: {e}")
+                liuyue_analysis = {
+                    'success': False,
+                    'error': str(e),
+                }
+        
+        # 8. LLM深度分析
         llm_analysis = None
         if include_llm:
-            print(f"[完整分析] 步骤7: 开始LLM深度分析...")
+            print(f"[完整分析] 步骤8: 开始LLM深度分析...")
             try:
                 llm_result = _build_llm_analysis(sizhu, wuxing_analysis, shishen_analysis, dayun_analysis, shensha_analysis, analysis_style, birth_year=year)
                 if llm_result.get('success'):
                     llm_analysis = llm_result
-                    print(f"[完整分析] 步骤7完成: LLM深度分析成功")
+                    print(f"[完整分析] 步骤8完成: LLM深度分析成功")
                 else:
-                    print(f"[完整分析] 步骤7失败: {llm_result.get('error', '未知错误')}")
+                    print(f"[完整分析] 步骤8失败: {llm_result.get('error', '未知错误')}")
             except Exception as e:
-                print(f"[完整分析] 步骤7异常: {e}")
+                print(f"[完整分析] 步骤8异常: {e}")
                 llm_analysis = {
                     'success': False,
                     'error': str(e),
@@ -151,6 +182,7 @@ def bazi_complete_analysis(
             'dayun_analysis': dayun_analysis,
             'liunian_analysis': liunian_analysis,
             'shensha_analysis': shensha_analysis,
+            'liuyue_analysis': liuyue_analysis,
             'llm_analysis': llm_analysis,
         }
         
