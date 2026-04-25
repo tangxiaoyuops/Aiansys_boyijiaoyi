@@ -10,6 +10,7 @@
         <TypeWriter 
           v-if="scene.animation === 'typewriter'" 
           :text="textContent" 
+          :speed="80"
           @complete="onComplete"
         />
         <span v-else>{{ textContent }}</span>
@@ -22,6 +23,7 @@
         <TypeWriter 
           v-if="scene.animation === 'typewriter'" 
           :text="textContent" 
+          :speed="80"
           @complete="onComplete"
         />
         <span v-else>{{ textContent }}</span>
@@ -35,6 +37,7 @@
         <TypeWriter 
           v-if="scene.animation === 'typewriter'" 
           :text="textContent" 
+          :speed="50"
           @complete="onComplete"
         />
         <span v-else>{{ textContent }}</span>
@@ -48,7 +51,7 @@
         <li 
           v-for="(item, index) in listContent" 
           :key="index"
-          :style="{ animationDelay: `${(scene.delay || 300) * index}ms` }"
+          :style="{ animationDelay: `${(scene.delay || 400) * index}ms` }"
           class="list-item"
         >
           {{ item }}
@@ -97,10 +100,10 @@ const listContent = computed(() => {
   return [];
 });
 
-// 文本样式 - 春日草木风格默认配色
+// 文本样式 - 全屏大字体
 const textStyle = computed<Partial<SceneStyle>>(() => ({
-  fontSize: props.scene.style?.fontSize || '24px',
-  color: props.scene.style?.color || '#1b5e20',
+  fontSize: props.scene.style?.fontSize || '36px',
+  color: props.scene.style?.color || '#0d47a1',
   textAlign: props.scene.style?.textAlign || 'center',
   fontWeight: props.scene.style?.fontWeight || '400'
 }));
@@ -113,10 +116,10 @@ const containerStyle = computed(() => ({
 
 // 卡片样式
 const cardStyle = computed(() => ({
-  background: props.scene.style?.background || 'rgba(255, 255, 255, 0.9)',
-  borderRadius: '16px',
-  padding: '24px',
-  boxShadow: '0 4px 20px rgba(46, 125, 50, 0.1)'
+  background: props.scene.style?.background || 'rgba(255, 255, 255, 0.95)',
+  borderRadius: '24px',
+  padding: '48px',
+  boxShadow: '0 8px 40px rgba(21, 101, 192, 0.15)'
 }));
 
 // 动画类名
@@ -142,12 +145,10 @@ const onComplete = () => {
 };
 
 onMounted(() => {
-  // 延迟显示实现入场动画
   setTimeout(() => {
     isVisible.value = true;
   }, props.scene.delay || 0);
   
-  // 非打字机动画，自动触发完成
   if (props.scene.animation !== 'typewriter') {
     setTimeout(() => {
       onComplete();
@@ -155,7 +156,6 @@ onMounted(() => {
   }
 });
 
-// 监听场景变化
 watch(() => props.scene.id, () => {
   isVisible.value = false;
   animationComplete.value = false;
@@ -172,7 +172,8 @@ watch(() => props.scene.id, () => {
   justify-content: center;
   align-items: center;
   width: 100%;
-  padding: 20px;
+  max-width: 1100px;
+  padding: 40px;
   box-sizing: border-box;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -209,61 +210,59 @@ watch(() => props.scene.id, () => {
 
 .scene-text {
   margin: 0;
-  line-height: 1.6;
-  max-width: 800px;
+  line-height: 2;
+  max-width: 1000px;
 }
 
 .scene-quote {
   margin: 0;
-  padding: 20px 40px;
+  padding: 40px 60px;
   position: relative;
-  max-width: 700px;
-  line-height: 1.8;
+  max-width: 900px;
+  line-height: 2.2;
 }
 
 .quote-mark {
-  font-size: 1.5em;
-  color: #66bb6a;
-  margin: 0 4px;
+  font-size: 1.4em;
+  color: #64b5f6;
+  margin: 0 10px;
 }
 
 .scene-list {
   list-style: none;
   padding: 0;
   margin: 0;
-  max-width: 600px;
+  max-width: 800px;
 }
 
 .list-item {
-  margin: 12px 0;
-  padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 12px;
-  border-left: 3px solid #66bb6a;
+  margin: 20px 0;
+  padding: 24px 36px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  border-left: 5px solid #64b5f6;
   opacity: 0;
   animation: listItemFade 0.5s ease forwards;
-  box-shadow: 0 2px 10px rgba(46, 125, 50, 0.08);
+  box-shadow: 0 4px 20px rgba(21, 101, 192, 0.1);
+  line-height: 1.8;
+  font-size: 28px;
 }
 
 .scene-card {
-  max-width: 500px;
+  max-width: 700px;
   text-align: center;
 }
 
 /* 动画关键帧 */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(50px);
+    transform: translateY(60px);
   }
   to {
     opacity: 1;
@@ -274,7 +273,7 @@ watch(() => props.scene.id, () => {
 @keyframes slideLeft {
   from {
     opacity: 0;
-    transform: translateX(50px);
+    transform: translateX(60px);
   }
   to {
     opacity: 1;
@@ -287,12 +286,8 @@ watch(() => props.scene.id, () => {
     opacity: 0;
     transform: scale(0.3);
   }
-  50% {
-    transform: scale(1.05);
-  }
-  70% {
-    transform: scale(0.9);
-  }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.95); }
   100% {
     opacity: 1;
     transform: scale(1);
@@ -324,7 +319,7 @@ watch(() => props.scene.id, () => {
 @keyframes listItemFade {
   from {
     opacity: 0;
-    transform: translateX(-20px);
+    transform: translateX(-30px);
   }
   to {
     opacity: 1;

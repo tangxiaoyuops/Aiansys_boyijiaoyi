@@ -26,8 +26,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.FADE_IN,
       duration: 2000,
       style: {
-        fontSize: '44px',
-        color: '#1565c0',
+        fontSize: '56px',
+        color: '#0d47a1',
         textAlign: 'center',
         fontWeight: '600'
       }
@@ -39,8 +39,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 6000,
       style: {
-        fontSize: '22px',
-        color: '#0d47a1',
+        fontSize: '32px',
+        color: '#1565c0',
         textAlign: 'center'
       }
     },
@@ -51,8 +51,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 4000,
       style: {
-        fontSize: '26px',
-        color: '#1565c0',
+        fontSize: '38px',
+        color: '#0d47a1',
         textAlign: 'center',
         fontWeight: '500'
       }
@@ -64,8 +64,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 5000,
       style: {
-        fontSize: '22px',
-        color: '#0d47a1',
+        fontSize: '32px',
+        color: '#1565c0',
         textAlign: 'center'
       }
     },
@@ -76,8 +76,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 5000,
       style: {
-        fontSize: '22px',
-        color: '#1565c0',
+        fontSize: '32px',
+        color: '#0d47a1',
         textAlign: 'center'
       }
     },
@@ -88,8 +88,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 4500,
       style: {
-        fontSize: '24px',
-        color: '#0d47a1',
+        fontSize: '34px',
+        color: '#1565c0',
         textAlign: 'center'
       }
     },
@@ -100,8 +100,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 6000,
       style: {
-        fontSize: '20px',
-        color: '#1565c0',
+        fontSize: '28px',
+        color: '#0d47a1',
         textAlign: 'center'
       }
     },
@@ -112,8 +112,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 5500,
       style: {
-        fontSize: '20px',
-        color: '#0d47a1',
+        fontSize: '28px',
+        color: '#1565c0',
         textAlign: 'center'
       }
     },
@@ -124,8 +124,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 3500,
       style: {
-        fontSize: '28px',
-        color: '#1565c0',
+        fontSize: '40px',
+        color: '#0d47a1',
         textAlign: 'center',
         fontWeight: '500'
       }
@@ -137,8 +137,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 4500,
       style: {
-        fontSize: '24px',
-        color: '#0d47a1',
+        fontSize: '34px',
+        color: '#1565c0',
         textAlign: 'center'
       }
     },
@@ -149,8 +149,8 @@ export const jianLaiQuotes: AnimationContent = {
       animation: AnimationType.TYPEWRITER,
       duration: 5500,
       style: {
-        fontSize: '22px',
-        color: '#1565c0',
+        fontSize: '30px',
+        color: '#0d47a1',
         textAlign: 'center'
       }
     }
