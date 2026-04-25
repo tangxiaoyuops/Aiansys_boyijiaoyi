@@ -60,6 +60,18 @@ const routes = [
     component: () => import('./views/CommodityAnalysis.vue'),
     meta: { title: '大宗商品分析' },
   },
+  {
+    path: '/fengshui',
+    name: 'fengshui',
+    component: () => import('./views/FengshuiView.vue'),
+    meta: { title: '风水布局' },
+  },
+  {
+    path: '/animation',
+    name: 'animation',
+    component: () => import('./views/AnimationView.vue'),
+    meta: { title: '思维日志' },
+  },
 ];
 
 const router = createRouter({
