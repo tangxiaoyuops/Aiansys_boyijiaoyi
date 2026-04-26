@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
+import { getTimestamp } from './accessLogger';
 
 const service = axios.create({
   baseURL: '/api',
@@ -11,10 +12,11 @@ const service = axios.create({
 
 service.interceptors.request.use(
   (config) => {
-    console.log('[Axios] 请求配置:', config);
-    console.log('[Axios] 请求URL:', config.url);
-    console.log('[Axios] baseURL:', config.baseURL);
-    console.log('[Axios] 完整URL:', config.baseURL + config.url);
+    const timestamp = getTimestamp();
+    const url = `${config.baseURL || ''}${config.url || ''}`;
+    const method = (config.method || 'GET').toUpperCase();
+    (config as any).metadata = { startTime: Date.now() };
+    console.log(`[${timestamp}] [Axios] ${method} ${url}`, config.params || config.data || {});
     return config;
   },
   (error) => {
@@ -26,10 +28,12 @@ service.interceptors.request.use(
 
 service.interceptors.response.use(
   (response) => {
-    console.log('[Axios] 响应拦截:', response);
-    console.log('[Axios] 响应状态:', response.status);
-    console.log('[Axios] 响应配置:', response.config);
-    console.log('[Axios] 响应数据:', response.data);
+    const timestamp = getTimestamp();
+    const startTime = (response.config as any)?.metadata?.startTime || Date.now();
+    const durationMs = Date.now() - startTime;
+    const url = `${response.config.baseURL || ''}${response.config.url || ''}`;
+    const method = (response.config.method || 'GET').toUpperCase();
+    console.log(`[${timestamp}] [Axios] ${method} ${url} -> ${response.status} (${durationMs}ms)`);
     
     const res = response.data;
     
@@ -41,7 +45,13 @@ service.interceptors.response.use(
     return response.data;
   },
   (error) => {
-    console.error('[Axios] 响应错误:', error);
+    const timestamp = getTimestamp();
+    const startTime = (error.config as any)?.metadata?.startTime || Date.now();
+    const durationMs = Date.now() - startTime;
+    const url = `${error.config?.baseURL || ''}${error.config?.url || ''}`;
+    const method = (error.config?.method || 'GET').toUpperCase();
+    const status = error.response?.status || 'NO_RESPONSE';
+    console.error(`[${timestamp}] [Axios] ${method} ${url} -> ${status} (${durationMs}ms)`, error);
     
     if (error.code === 'ECONNABORTED') {
       ElMessage({

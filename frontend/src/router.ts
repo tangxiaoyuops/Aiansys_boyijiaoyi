@@ -2,6 +2,7 @@
  * 路由配置
  */
 import { createRouter, createWebHistory } from 'vue-router';
+import { logPageView } from './utils/accessLogger';
 
 console.log('开始加载路由配置...');
 
@@ -82,6 +83,14 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   console.log('路由跳转:', from.path, '->', to.path);
   next();
+});
+
+router.afterEach((to) => {
+  const pageName = typeof to.meta?.title === 'string' ? to.meta.title : to.name?.toString() || to.path;
+  logPageView(pageName, {
+    route_name: to.name?.toString() || '',
+    route_path: to.path
+  });
 });
 
 router.onError((error) => {

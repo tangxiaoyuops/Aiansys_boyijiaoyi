@@ -2,7 +2,7 @@
 FastAPI服务
 集成LangGraph工作流，提供聊天机器人接口
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -10,11 +10,13 @@ from typing import Optional, Dict, Any, List
 import json
 import asyncio
 import uuid
+import time
 from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
 from core.models.futures_state import FuturesAnalysisState
 from server.routers import backtest, panic_scan, commodity, fengshui
+from server.utils.access_logger import log_access, log_page_view
 
 app = FastAPI(title="博弈交易法分析系统")
 
@@ -26,6 +28,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# 访问日志中间件
+@app.middleware("http")
+async def access_logging_middleware(request: Request, call_next):
+    """记录所有HTTP请求的中间件"""
+    start_time = time.time()
+    response_status = 500
+    response = None
+
+    try:
+        # 处理请求
+        response = await call_next(request)
+        response_status = response.status_code
+        return response
+    finally:
+        # 计算响应时间
+        response_time_ms = (time.time() - start_time) * 1000
+
+        # 记录访问日志（排除静态资源和健康检查等）
+        if not request.url.path.startswith(("/docs", "/openapi", "/favicon")):
+            log_access(
+                request=request,
+                response_status=response_status,
+                response_time_ms=response_time_ms
+            )
 
 # 注册路由
 app.include_router(backtest.router)
@@ -72,6 +100,34 @@ class IntentRequest(BaseModel):
 async def root():
     """根路径"""
     return {"message": "博弈交易法分析系统 API", "version": "1.0.0"}
+
+
+# ==================== 访问日志API ====================
+
+class PageViewRequest(BaseModel):
+    """页面访问日志请求模型"""
+    page_name: str
+    user_info: Optional[Dict[str, Any]] = None
+    client_timestamp: Optional[str] = None
+    current_path: Optional[str] = None
+
+
+@app.post("/api/log/page-view")
+async def log_page_view_api(payload: PageViewRequest):
+    """
+    记录前端页面访问日志
+    """
+    try:
+        user_info = payload.user_info or {}
+        if payload.client_timestamp:
+            user_info["client_timestamp"] = payload.client_timestamp
+        if payload.current_path:
+            user_info["current_path"] = payload.current_path
+
+        log_page_view(payload.page_name, user_info)
+        return {"success": True, "message": "日志记录成功"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 @app.get("/api/vnpy/status")
