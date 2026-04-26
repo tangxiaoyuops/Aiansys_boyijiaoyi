@@ -1,0 +1,304 @@
+/**
+ * 全局响应式样式
+ * 断点说明:
+ * - xs: < 576px (手机竖屏)
+ * - sm: >= 576px (手机横屏/小平板)
+ * - md: >= 768px (平板竖屏)
+ * - lg: >= 992px (平板横屏/小笔记本)
+ * - xl: >= 1200px (桌面)
+ * - xxl: >= 1400px (大桌面)
+ */
+
+:root {
+  --breakpoint-xs: 576px;
+  --breakpoint-sm: 576px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 992px;
+  --breakpoint-xl: 1200px;
+  --breakpoint-xxl: 1400px;
+
+  /* 移动端安全区域 */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ========== 响应式容器 ========== */
+.container {
+  width: 100%;
+  padding-right: 15px;
+  padding-left: 15px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+@media (min-width: 576px) {
+  .container { max-width: 540px; }
+}
+
+@media (min-width: 768px) {
+  .container { max-width: 720px; }
+}
+
+@media (min-width: 992px) {
+  .container { max-width: 960px; }
+}
+
+@media (min-width: 1200px) {
+  .container { max-width: 1140px; }
+}
+
+@media (min-width: 1400px) {
+  .container { max-width: 1320px; }
+}
+
+/* ========== 响应式显示/隐藏工具类 ========== */
+@media (max-width: 575.98px) {
+  .hidden-xs { display: none !important; }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+  .hidden-sm { display: none !important; }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .hidden-md { display: none !important; }
+}
+
+@media (min-width: 992px) {
+  .hidden-lg { display: none !important; }
+}
+
+@media (max-width: 767.98px) {
+  .hidden-mobile { display: none !important; }
+}
+
+@media (min-width: 768px) {
+  .hidden-desktop { display: none !important; }
+}
+
+/* ========== 响应式间距工具类 ========== */
+@media (max-width: 767.98px) {
+  .mobile-p-0 { padding: 0 !important; }
+  .mobile-p-2 { padding: 8px !important; }
+  .mobile-p-3 { padding: 12px !important; }
+  .mobile-px-2 { padding-left: 8px !important; padding-right: 8px !important; }
+  .mobile-px-3 { padding-left: 12px !important; padding-right: 12px !important; }
+  .mobile-py-2 { padding-top: 8px !important; padding-bottom: 8px !important; }
+  .mobile-py-3 { padding-top: 12px !important; padding-bottom: 12px !important; }
+  .mobile-m-0 { margin: 0 !important; }
+  .mobile-m-2 { margin: 8px !important; }
+  .mobile-gap-2 { gap: 8px !important; }
+  .mobile-gap-3 { gap: 12px !important; }
+}
+
+/* ========== 响应式文字大小 ========== */
+@media (max-width: 575.98px) {
+  html { font-size: 14px; }
+  .text-xs-sm { font-size: 0.875rem !important; }
+  .text-xs-base { font-size: 1rem !important; }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+  html { font-size: 14.5px; }
+}
+
+/* ========== 响应式表单调整 ========== */
+@media (max-width: 767.98px) {
+  .el-form-item__label {
+    float: none;
+    text-align: left;
+    padding-bottom: 8px;
+  }
+
+  .el-form-item__content {
+    margin-left: 0 !important;
+  }
+
+  .el-input-number {
+    width: 100% !important;
+  }
+
+  .el-select {
+    width: 100% !important;
+  }
+}
+
+/* ========== 移动端触摸优化 ========== */
+@media (max-width: 767.98px) {
+  /* 增大可点击区域 */
+  .el-button {
+    min-height: 44px;
+  }
+
+  .el-input__inner {
+    font-size: 16px; /* 防止iOS自动缩放 */
+  }
+
+  /* 移除hover效果，改用active */
+  .el-button:hover,
+  .el-button:focus {
+    transform: none;
+  }
+
+  .el-button:active {
+    transform: scale(0.98);
+  }
+}
+
+/* ========== 移动端滚动优化 ========== */
+@media (max-width: 767.98px) {
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* 隐藏移动端滚动条但保持滚动功能 */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ========== 移动端底部安全区域 ========== */
+@media (max-width: 767.98px) {
+  .safe-area-bottom {
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+
+  .safe-area-top {
+    padding-top: var(--safe-area-inset-top);
+  }
+}
+
+/* ========== 移动端卡片优化 ========== */
+@media (max-width: 767.98px) {
+  .card {
+    border-radius: 12px;
+    margin: 8px;
+  }
+
+  .card-header {
+    padding: 12px;
+  }
+
+  .card-body {
+    padding: 12px;
+  }
+}
+
+/* ========== 移动端对话框优化 ========== */
+@media (max-width: 767.98px) {
+  .el-dialog {
+    margin: 10px auto !important;
+    width: calc(100% - 20px) !important;
+    max-width: 100% !important;
+  }
+
+  .el-dialog__body {
+    padding: 15px;
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+  }
+}
+
+/* ========== 移动端抽屉优化 ========== */
+@media (max-width: 767.98px) {
+  .el-drawer {
+    width: 80% !important;
+    max-width: 300px;
+  }
+}
+
+/* ========== 移动端Tab优化 ========== */
+@media (max-width: 767.98px) {
+  .el-tabs__item {
+    padding: 0 12px !important;
+    font-size: 13px !important;
+  }
+
+  .el-tabs__nav-wrap {
+    padding: 0;
+  }
+}
+
+/* ========== 移动端分页优化 ========== */
+@media (max-width: 767.98px) {
+  .el-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .el-pagination__sizes,
+  .el-pagination__jump {
+    display: none;
+  }
+}
+
+/* ========== 移动端表格优化 ========== */
+@media (max-width: 767.98px) {
+  .el-table {
+    font-size: 13px;
+  }
+
+  .el-table .cell {
+    padding: 8px;
+  }
+
+  /* 横向滚动表格 */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ========== 禁止移动端文字选择（可选） ========== */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* ========== 移动端固定底部栏 ========== */
+@media (max-width: 767.98px) {
+  .fixed-bottom-mobile {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: inherit;
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+}
+
+/* ========== 移动端全屏模态框 ========== */
+@media (max-width: 575.98px) {
+  .mobile-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* ========== 横屏模式优化 ========== */
+@media (max-height: 500px) and (orientation: landscape) {
+  .landscape-compact {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .landscape-hide {
+    display: none !important;
+  }
+}

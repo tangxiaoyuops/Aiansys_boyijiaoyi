@@ -655,5 +655,206 @@ function formatLLMResponse(text: string): string {
 .right-panel::-webkit-scrollbar-thumb:hover {
   background: rgba(107, 114, 128, 0.7);
 }
+
+/* ========== 移动端响应式样式 ========== */
+@media (max-width: 991.98px) {
+  .main-layout {
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .left-panel {
+    width: 340px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .divination-view {
+    overflow-y: auto;
+  }
+
+  .main-layout {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    min-height: auto;
+    height: auto;
+  }
+
+  .left-panel {
+    width: 100%;
+    flex-shrink: 1;
+    overflow-y: visible;
+  }
+
+  .right-panel {
+    min-height: 300px;
+  }
+
+  .input-card {
+    padding: 16px;
+    border-radius: 10px;
+  }
+
+  .card-title {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+
+  .divination-tips {
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+
+  .tip-item {
+    font-size: 13px;
+    padding: 8px 0;
+  }
+
+  .coin-toss-section {
+    margin: 16px 0;
+  }
+
+  .section-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .yao-toss-item {
+    margin-bottom: 16px;
+    padding: 12px;
+  }
+
+  .yao-label {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .yao-symbol-large {
+    font-size: 24px;
+  }
+
+  .empty-state {
+    min-height: 300px;
+    padding: 16px;
+  }
+
+  .hexagram-display {
+    flex-direction: column;
+    gap: 24px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .hexagram-item {
+    gap: 8px;
+  }
+
+  .hexagram-title {
+    font-size: 18px;
+  }
+
+  .empty-tips {
+    padding: 16px;
+    max-width: 100%;
+  }
+
+  .result-card {
+    padding: 16px;
+    border-radius: 10px;
+  }
+
+  .result-card .section-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .yao-list {
+    gap: 12px;
+  }
+
+  .yao-item {
+    padding: 12px;
+  }
+
+  .yao-name {
+    font-size: 14px;
+  }
+
+  .yao-symbol {
+    font-size: 20px;
+  }
+
+  .llm-text {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .main-layout {
+    padding: 8px;
+    gap: 10px;
+  }
+
+  .input-card {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .card-title {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  .divination-tips {
+    padding: 10px;
+  }
+
+  .tip-item {
+    font-size: 12px;
+    padding: 6px 0;
+  }
+
+  .yao-toss-item {
+    margin-bottom: 12px;
+    padding: 10px;
+  }
+
+  .empty-state {
+    min-height: 200px;
+  }
+
+  .hexagram-display {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .result-card {
+    padding: 12px;
+  }
+
+  .result-card .section-title {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+}
+
+/* 横屏模式优化 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .main-layout {
+    flex-direction: row;
+    gap: 16px;
+  }
+
+  .left-panel {
+    width: 320px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+
+  .right-panel {
+    flex: 1;
+  }
+}
 </style>
 

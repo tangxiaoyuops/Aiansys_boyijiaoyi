@@ -1182,4 +1182,163 @@ const handleAnalyze = async () => {
     background-position: -200% 0;
   }
 }
+
+/* ========== 移动端响应式样式 ========== */
+@media (max-width: 991.98px) {
+  .main-layout {
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .left-panel {
+    width: 320px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .ziwei-view {
+    overflow-y: auto;
+  }
+
+  .main-layout {
+    flex-direction: column;
+    gap: 16px;
+    padding: 12px;
+    height: auto;
+    min-height: calc(100vh - 120px);
+  }
+
+  .left-panel {
+    width: 100%;
+    flex-shrink: 1;
+    overflow-y: visible;
+  }
+
+  .right-panel {
+    min-height: 300px;
+  }
+
+  .input-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .card-title {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+
+  .form-hint {
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+
+  .result-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .section-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .empty-state,
+  .loading-state {
+    min-height: 300px;
+    border-radius: 16px;
+  }
+
+  .pan-card .ziwei-pan-wrapper {
+    min-height: auto;
+  }
+
+  /* 禁用3D动画提升性能 */
+  .input-card,
+  .result-card {
+    animation: none;
+    transform: none;
+  }
+
+  .input-card:hover,
+  .result-card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .main-layout {
+    padding: 8px;
+    gap: 12px;
+  }
+
+  .input-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .card-title {
+    font-size: 18px;
+  }
+
+  .ziwei-form :deep(.el-form-item) {
+    margin-bottom: 14px;
+  }
+
+  .ziwei-form :deep(.el-form-item__label) {
+    font-size: 13px;
+    padding-bottom: 4px;
+  }
+
+  .result-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .section-title {
+    font-size: 16px;
+  }
+
+  .info-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .info-item .label {
+    min-width: auto;
+  }
+
+  .empty-state,
+  .loading-state {
+    min-height: 200px;
+    border-radius: 12px;
+  }
+
+  .daxian-table {
+    font-size: 13px;
+  }
+
+  .daxian-table th,
+  .daxian-table td {
+    padding: 8px 12px;
+  }
+}
+
+/* 横屏模式优化 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .main-layout {
+    flex-direction: row;
+    gap: 16px;
+  }
+
+  .left-panel {
+    width: 280px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+
+  .right-panel {
+    flex: 1;
+  }
+}
 </style>

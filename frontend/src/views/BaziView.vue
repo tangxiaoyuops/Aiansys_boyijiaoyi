@@ -1292,4 +1292,234 @@ const renderMarkdown = (content: string): string => {
   justify-content: center;
   height: 100%;
 }
+
+/* ========== 移动端响应式样式 ========== */
+@media (max-width: 991.98px) {
+  .main-layout {
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .left-panel {
+    width: 280px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .bazi-view {
+    overflow-y: auto;
+  }
+
+  .main-layout {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    height: auto;
+    min-height: calc(100vh - 120px);
+  }
+
+  .left-panel {
+    width: 100%;
+    flex-shrink: 1;
+  }
+
+  .right-panel {
+    min-height: 300px;
+  }
+
+  .input-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .card-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .form-hint {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .mode-switch {
+    margin-bottom: 16px;
+  }
+
+  .mode-switch :deep(.el-radio-button__inner) {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .hepan-collapse :deep(.el-collapse-item__header) {
+    padding: 0 12px;
+    height: 44px;
+  }
+
+  .pan-title {
+    font-size: 13px;
+  }
+
+  .hepan-options {
+    padding: 12px;
+  }
+
+  .result-wrapper {
+    border-radius: 12px;
+  }
+
+  .result-tabs :deep(.el-tabs__header) {
+    padding: 0 12px;
+  }
+
+  .result-tabs :deep(.el-tabs__item) {
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  .basic-result-content,
+  .liuyue-tab-content,
+  .hepan-tab-content {
+    padding: 12px;
+  }
+
+  .dual-sizhu-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .vs-divider {
+    width: 100%;
+    padding: 8px 0;
+  }
+
+  .vs-text {
+    font-size: 14px;
+  }
+
+  .sizhu-card {
+    padding: 10px;
+  }
+
+  .analysis-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .analysis-row .result-card {
+    width: 100%;
+  }
+
+  .section-title {
+    font-size: 14px;
+  }
+
+  .sizhu-info {
+    gap: 8px;
+  }
+
+  .info-item {
+    font-size: 13px;
+  }
+
+  .wuxing-mini,
+  .shishen-mini,
+  .dayun-mini,
+  .shensha-mini {
+    gap: 4px;
+  }
+
+  .wx-item,
+  .ss-item,
+  .dy-item {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  .resize-handle {
+    display: none;
+  }
+
+  .chat-section {
+    min-height: 150px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .main-layout {
+    padding: 8px;
+    gap: 10px;
+  }
+
+  .input-card {
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .card-title {
+    font-size: 16px;
+    padding-bottom: 10px;
+  }
+
+  .mode-switch :deep(.el-radio-button__inner) {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .bazi-form :deep(.el-form-item) {
+    margin-bottom: 14px;
+  }
+
+  .bazi-form :deep(.el-form-item__label) {
+    font-size: 13px;
+    padding-bottom: 4px;
+  }
+
+  .result-wrapper {
+    border-radius: 10px;
+  }
+
+  .result-tabs :deep(.el-tabs__item) {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .empty-state,
+  .loading-state {
+    min-height: 200px;
+    border-radius: 10px;
+  }
+
+  .compact-card {
+    padding: 10px 12px;
+  }
+
+  .section-title {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .hepan-options {
+    padding: 10px;
+    border-radius: 10px;
+  }
+}
+
+/* 横屏模式优化 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .main-layout {
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .left-panel {
+    width: 260px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+
+  .right-panel {
+    flex: 1;
+  }
+}
 </style>

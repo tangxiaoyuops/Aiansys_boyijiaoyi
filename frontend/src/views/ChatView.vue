@@ -94,4 +94,43 @@ const handleSend = (msg: string) => {
   border-top: 1px solid #e5e7eb33;
   background: #f9fafb;
 }
+
+/* ========== 移动端响应式样式 ========== */
+@media (max-width: 767.98px) {
+  .chat-view {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 150px;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb33;
+    padding: 10px 12px;
+    order: 2;
+  }
+
+  .content {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .footer {
+    order: 3;
+    padding: 12px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .sidebar {
+    max-height: 120px;
+    padding: 8px 10px;
+  }
+
+  .footer {
+    padding: 10px;
+  }
+}
 </style>

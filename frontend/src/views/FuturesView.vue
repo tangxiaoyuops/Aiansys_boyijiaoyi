@@ -232,7 +232,7 @@ const handleSend = (msg: string) => {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .futures-view {
     flex-direction: column;
   }
@@ -241,31 +241,95 @@ const handleSend = (msg: string) => {
     width: 100%;
     min-width: 100%;
     height: auto;
-    max-height: 200px;
+    max-height: 180px;
     border-right: none;
     border-bottom: 1px solid var(--fintech-border);
+    order: 2;
   }
 
   .sidebar-header {
-    padding: 16px;
-  }
-
-  .footer {
-    padding: 16px;
-  }
-}
-
-@media (max-width: 480px) {
-  .sidebar-header {
-    padding: 12px;
+    padding: 12px 16px;
   }
 
   .sidebar-title {
     font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .status-indicator {
+    padding: 4px 10px;
+  }
+
+  .status-text {
+    font-size: 12px;
+  }
+
+  .content {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .content::before {
+    display: none;
+  }
+
+  .message-container {
+    min-height: 200px;
   }
 
   .footer {
-    padding: 12px;
+    order: 3;
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .sidebar {
+    max-height: 140px;
+  }
+
+  .sidebar-header {
+    padding: 10px 12px;
+  }
+
+  .sidebar-title {
+    font-size: 13px;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .footer {
+    padding: 10px 12px;
+  }
+}
+
+/* 横屏模式优化 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .futures-view {
+    flex-direction: row;
+  }
+
+  .sidebar {
+    width: 200px;
+    min-width: 200px;
+    height: 100%;
+    max-height: none;
+    border-right: 1px solid var(--fintech-border);
+    border-bottom: none;
+    order: 1;
+  }
+
+  .content {
+    order: 2;
+  }
+
+  .footer {
+    order: 3;
   }
 }
 </style>
