@@ -850,6 +850,176 @@ def calculate_shensha(sizhu: Dict[str, Any]) -> Dict[str, Any]:
                 shensha_positions.add((zhu_name, '月德'))
                 break
     
+    # 10. 太极贵人
+    # 甲乙生人子午全，丙丁生人卯酉全，戊己生人辰戌丑未全
+    # 庚辛生人寅亥全，壬癸生人巳申全
+    taiji_map = {
+        '甲': ['子', '午'], '乙': ['子', '午'],
+        '丙': ['卯', '酉'], '丁': ['卯', '酉'],
+        '戊': ['辰', '戌', '丑', '未'], '己': ['辰', '戌', '丑', '未'],
+        '庚': ['寅', '亥'], '辛': ['寅', '亥'],
+        '壬': ['巳', '申'], '癸': ['巳', '申'],
+    }
+    
+    taiji_zhi_list = taiji_map.get(rizhu_gan, [])
+    if taiji_zhi_list:
+        found_zhi = []
+        for zhu_name, zhi in all_zhi:
+            if zhi in taiji_zhi_list and zhi not in found_zhi:
+                found_zhi.append(zhi)
+        # 需要至少满足两个地支才算太极贵人
+        if len(found_zhi) >= 2:
+            shensha_list.append({
+                'name': '太极贵人',
+                'position': '全局',
+                'zhi': '、'.join(found_zhi),
+                'type': '吉',
+            })
+    
+    # 11. 将星
+    # 子见子，丑见酉，寅见午，卯见卯，辰见子，巳见酉
+    # 午见午，未见卯，申见子，酉见酉，戌见午，亥见卯
+    jiangxing_map = {
+        '子': '子', '丑': '酉', '寅': '午', '卯': '卯',
+        '辰': '子', '巳': '酉', '午': '午', '未': '卯',
+        '申': '子', '酉': '酉', '戌': '午', '亥': '卯',
+    }
+    
+    nian_zhi = sizhu.get('nian_zhu', {}).get('di_zhi', '')
+    jiangxing_zhi = jiangxing_map.get(nian_zhi, '')
+    if jiangxing_zhi:
+        for zhu_name, zhi in all_zhi:
+            if zhi == jiangxing_zhi and (zhu_name, '将星') not in shensha_positions:
+                shensha_list.append({
+                    'name': '将星',
+                    'position': zhu_name,
+                    'zhi': zhi,
+                    'type': '中性',
+                })
+                shensha_positions.add((zhu_name, '将星'))
+                break
+    
+    # 12. 羊刃（根据日主查）
+    # 甲见卯，乙见寅，丙见午，丁见巳，戊见午，己见巳，庚见酉，辛见申，壬见子，癸见亥
+    yangren_map = {
+        '甲': '卯', '乙': '寅', '丙': '午', '丁': '巳',
+        '戊': '午', '己': '巳', '庚': '酉', '辛': '申',
+        '壬': '子', '癸': '亥',
+    }
+    
+    yangren_zhi = yangren_map.get(rizhu_gan, '')
+    if yangren_zhi:
+        for zhu_name, zhi in all_zhi:
+            if zhi == yangren_zhi and (zhu_name, '羊刃') not in shensha_positions:
+                shensha_list.append({
+                    'name': '羊刃',
+                    'position': zhu_name,
+                    'zhi': zhi,
+                    'type': '凶',
+                })
+                shensha_positions.add((zhu_name, '羊刃'))
+                break
+    
+    # 13. 禄神（根据日主查）
+    # 甲禄在寅，乙禄在卯，丙禄在巳，丁禄在午，戊禄在巳
+    # 己禄在午，庚禄在申，辛禄在酉，壬禄在亥，癸禄在子
+    lushen_map = {
+        '甲': '寅', '乙': '卯', '丙': '巳', '丁': '午',
+        '戊': '巳', '己': '午', '庚': '申', '辛': '酉',
+        '壬': '亥', '癸': '子',
+    }
+    
+    lushen_zhi = lushen_map.get(rizhu_gan, '')
+    if lushen_zhi:
+        for zhu_name, zhi in all_zhi:
+            if zhi == lushen_zhi and (zhu_name, '禄神') not in shensha_positions:
+                shensha_list.append({
+                    'name': '禄神',
+                    'position': zhu_name,
+                    'zhi': zhi,
+                    'type': '吉',
+                })
+                shensha_positions.add((zhu_name, '禄神'))
+                break
+    
+    # 14. 孤辰寡宿
+    # 亥子丑年生人见寅为孤辰，见戌为寡宿
+    # 寅卯辰年生人见巳为孤辰，见丑为寡宿
+    # 巳午未年生人见申为孤辰，见辰为寡宿
+    # 申酉戌年生人见亥为孤辰，见未为寡宿
+    guchen_map = {
+        '亥': ('寅', '戌'), '子': ('寅', '戌'), '丑': ('寅', '戌'),
+        '寅': ('巳', '丑'), '卯': ('巳', '丑'), '辰': ('巳', '丑'),
+        '巳': ('申', '辰'), '午': ('申', '辰'), '未': ('申', '辰'),
+        '申': ('亥', '未'), '酉': ('亥', '未'), '戌': ('亥', '未'),
+    }
+    
+    guchen_info = guchen_map.get(nian_zhi, ('', ''))
+    if guchen_info[0]:
+        for zhu_name, zhi in all_zhi:
+            if zhi == guchen_info[0] and (zhu_name, '孤辰') not in shensha_positions:
+                shensha_list.append({
+                    'name': '孤辰',
+                    'position': zhu_name,
+                    'zhi': zhi,
+                    'type': '凶',
+                })
+                shensha_positions.add((zhu_name, '孤辰'))
+                break
+    if guchen_info[1]:
+        for zhu_name, zhi in all_zhi:
+            if zhi == guchen_info[1] and (zhu_name, '寡宿') not in shensha_positions:
+                shensha_list.append({
+                    'name': '寡宿',
+                    'position': zhu_name,
+                    'zhi': zhi,
+                    'type': '凶',
+                })
+                shensha_positions.add((zhu_name, '寡宿'))
+                break
+    
+    # 15. 红鸾（根据年支查）
+    # 子见卯，丑见寅，寅见丑，卯见子，辰见亥，巳见戌
+    # 午见酉，未见申，申见未，酉见午，戌见巳，亥见辰
+    hongluan_map = {
+        '子': '卯', '丑': '寅', '寅': '丑', '卯': '子',
+        '辰': '亥', '巳': '戌', '午': '酉', '未': '申',
+        '申': '未', '酉': '午', '戌': '巳', '亥': '辰',
+    }
+    
+    hongluan_zhi = hongluan_map.get(nian_zhi, '')
+    if hongluan_zhi:
+        for zhu_name, zhi in all_zhi:
+            if zhi == hongluan_zhi and (zhu_name, '红鸾') not in shensha_positions:
+                shensha_list.append({
+                    'name': '红鸾',
+                    'position': zhu_name,
+                    'zhi': zhi,
+                    'type': '吉',
+                })
+                shensha_positions.add((zhu_name, '红鸾'))
+                break
+    
+    # 16. 天喜（与红鸾对冲）
+    tianxi_map = {
+        '子': '酉', '丑': '申', '寅': '未', '卯': '午',
+        '辰': '巳', '巳': '辰', '午': '卯', '未': '寅',
+        '申': '丑', '酉': '子', '戌': '亥', '亥': '戌',
+    }
+    
+    tianxi_zhi = tianxi_map.get(nian_zhi, '')
+    if tianxi_zhi:
+        for zhu_name, zhi in all_zhi:
+            if zhi == tianxi_zhi and (zhu_name, '天喜') not in shensha_positions:
+                shensha_list.append({
+                    'name': '天喜',
+                    'position': zhu_name,
+                    'zhi': zhi,
+                    'type': '吉',
+                })
+                shensha_positions.add((zhu_name, '天喜'))
+                break
+    
     return {
         'shensha_list': shensha_list,
         'count': len(shensha_list),

@@ -267,6 +267,15 @@
                       </span>
                     </div>
                   </div>
+                  <div v-if="result.shensha_analysis?.shensha_data?.shensha_list?.length" class="result-card compact-card">
+                    <h3 class="section-title"><el-icon><MagicStick /></el-icon>神煞</h3>
+                    <div class="shensha-mini">
+                      <span v-for="(ss, i) in result.shensha_analysis.shensha_data.shensha_list" :key="i"
+                            class="ss-item" :class="'shensha-' + ss.type">
+                        {{ ss.name }}
+                      </span>
+                    </div>
+                  </div>
                   <div v-if="result.dayun_analysis" class="result-card compact-card">
                     <h3 class="section-title"><el-icon><Calendar /></el-icon>大运</h3>
                     <div class="dayun-mini">
@@ -1059,9 +1068,12 @@ const renderMarkdown = (content: string): string => {
 
 .analysis-row { display: flex; gap: 12px; margin-top: 12px; }
 .analysis-row .result-card { flex: 1; }
-.wuxing-mini, .shishen-mini, .dayun-mini { display: flex; flex-wrap: wrap; gap: 6px; }
+.wuxing-mini, .shishen-mini, .dayun-mini, .shensha-mini { display: flex; flex-wrap: wrap; gap: 6px; }
 .wx-item, .ss-item, .dy-item { padding: 3px 8px; background: rgba(212, 175, 55, 0.1); border-radius: 10px; font-size: 12px; }
-.dy-more { padding: 3px 6px; color: var(--bazi-text-light); font-size: 12px; }
+.dy-more, .ss-more { padding: 3px 6px; color: var(--bazi-text-light); font-size: 12px; }
+.shensha-吉 { background: rgba(103, 194, 58, 0.15); color: #67c23a; }
+.shensha-凶 { background: rgba(245, 108, 108, 0.15); color: #f56c6c; }
+.shensha-中性 { background: rgba(144, 147, 153, 0.15); color: #909399; }
 
 .resize-handle {
   height: 24px;
