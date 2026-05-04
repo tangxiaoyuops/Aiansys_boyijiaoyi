@@ -222,69 +222,44 @@
             <!-- 基础分析标签 -->
             <el-tab-pane label="命盘分析" name="basic">
               <div class="basic-result-content">
-                <!-- 四柱信息 -->
-                <div v-if="result.sizhu" class="result-card compact-card">
+                <!-- 四柱八字完整展示 -->
+                <div v-if="result.sizhu" class="result-card">
                   <h3 class="section-title">
                     <el-icon><Document /></el-icon>
                     四柱八字
                   </h3>
-                  <BaziChart :sizhu="result.sizhu" :wuxing-analysis="result.wuxing_analysis" :shishen-analysis="result.shishen_analysis" />
-                  <div class="sizhu-info">
-                    <div class="info-item">
-                      <span class="label">年柱：</span>
-                      <span class="value">{{ result.sizhu.nian_zhu?.tian_gan }}{{ result.sizhu.nian_zhu?.di_zhi }}</span>
-                    </div>
-                    <div class="info-item">
-                      <span class="label">月柱：</span>
-                      <span class="value">{{ result.sizhu.yue_zhu?.tian_gan }}{{ result.sizhu.yue_zhu?.di_zhi }}</span>
-                    </div>
-                    <div class="info-item">
-                      <span class="label">日柱：</span>
-                      <span class="value">{{ result.sizhu.ri_zhu?.tian_gan }}{{ result.sizhu.ri_zhu?.di_zhi }} (日主)</span>
-                    </div>
-                    <div class="info-item">
-                      <span class="label">时柱：</span>
-                      <span class="value">{{ result.sizhu.shi_zhu?.tian_gan }}{{ result.sizhu.shi_zhu?.di_zhi }}</span>
-                    </div>
-                  </div>
+                  <BaziChart 
+                    :sizhu="result.sizhu" 
+                    :wuxing-analysis="result.wuxing_analysis" 
+                    :shishen-analysis="result.shishen_analysis"
+                    :extended-info="result.extended_info"
+                    :zhi-relations="result.zhi_relations"
+                    :gan-relations="result.gan_relations"
+                    :wuxing-xi-ji="result.wuxing_xi_ji"
+                  />
                 </div>
 
-                <!-- 五行+十神+神煞 横向排列 -->
-                <div class="analysis-row">
-                  <div v-if="result.wuxing_analysis" class="result-card compact-card">
-                    <h3 class="section-title"><el-icon><Star /></el-icon>五行</h3>
-                    <div class="wuxing-mini">
-                      <span v-for="(count, name) in getWuxingData(result.wuxing_analysis)" :key="name" class="wx-item">
-                        {{ name }}: {{ count }}
-                      </span>
-                    </div>
-                  </div>
-                  <div v-if="result.shishen_analysis" class="result-card compact-card">
-                    <h3 class="section-title"><el-icon><Grid /></el-icon>十神</h3>
-                    <div class="shishen-mini">
-                      <span v-for="(info, zhu) in result.shishen_analysis.shishen_data" :key="zhu" class="ss-item">
-                        {{ zhuNameMap[zhu] }}: {{ info.gan_shishen || '-' }}/{{ info.zhi_shishen || '-' }}
-                      </span>
-                    </div>
-                  </div>
-                  <div v-if="result.shensha_analysis?.shensha_data?.shensha_list?.length" class="result-card compact-card">
-                    <h3 class="section-title"><el-icon><MagicStick /></el-icon>神煞</h3>
-                    <div class="shensha-mini">
-                      <span v-for="(ss, i) in result.shensha_analysis.shensha_data.shensha_list" :key="i"
-                            class="ss-item" :class="'shensha-' + ss.type">
-                        {{ ss.name }}
-                      </span>
-                    </div>
-                  </div>
-                  <div v-if="result.dayun_analysis" class="result-card compact-card">
-                    <h3 class="section-title"><el-icon><Calendar /></el-icon>大运</h3>
-                    <div class="dayun-mini">
-                      <span v-for="(dy, i) in (result.dayun_analysis.dayun_list || []).slice(0, 4)" :key="i" class="dy-item">
-                        {{ dy.gan }}{{ dy.zhi }}
-                      </span>
-                      <span v-if="result.dayun_analysis.dayun_list?.length > 4" class="dy-more">...</span>
-                    </div>
-                  </div>
+                <!-- 大运展示 -->
+                <div v-if="result.dayun_analysis?.dayun_list?.length" class="result-card">
+                  <h3 class="section-title">
+                    <el-icon><Calendar /></el-icon>
+                    大运分析
+                  </h3>
+                  <DayunPanel 
+                    :dayun-list="result.dayun_analysis.dayun_list"
+                    :birth-year="form.year"
+                  />
+                </div>
+
+                <!-- 神煞展示 -->
+                <div v-if="result.shensha_analysis?.shensha_data?.shensha_list?.length" class="result-card">
+                  <h3 class="section-title">
+                    <el-icon><MagicStick /></el-icon>
+                    神煞分析
+                  </h3>
+                  <ShenshaPanel 
+                    :shensha-list="result.shensha_analysis.shensha_data.shensha_list"
+                  />
                 </div>
               </div>
             </el-tab-pane>
@@ -363,6 +338,8 @@ import BaziChart from '../components/BaziChart.vue';
 import BaziChatPanel from '../components/BaziChatPanel.vue';
 import HepanResultPanel from '../components/HepanResultPanel.vue';
 import LiuyuePanel from '../components/LiuyuePanel.vue';
+import DayunPanel from '../components/DayunPanel.vue';
+import ShenshaPanel from '../components/ShenshaPanel.vue';
 import { useBaziChatStore } from '../stores/baziChat';
 
 const baziChatStore = useBaziChatStore();
@@ -682,6 +659,10 @@ const updateChatContext = (data: any) => {
     dayun_analysis: data.dayun_analysis || null,
     liunian_analysis: data.liunian_analysis || null,
     shensha_analysis: data.shensha_analysis || null,
+    extended_info: data.extended_info || null,
+    zhi_relations: data.zhi_relations || null,
+    gan_relations: data.gan_relations || null,
+    wuxing_xi_ji: data.wuxing_xi_ji || null,
     analysis_style: form.analysis_style,
     gender: form.gender,
     birth_info: { year: form.year, month: form.month, day: form.day, hour: form.hour },

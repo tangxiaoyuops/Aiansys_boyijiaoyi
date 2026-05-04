@@ -898,6 +898,10 @@ async def bazi_pan(request: BaziPanRequest):
         print(f"  - 神煞分析: {result.get('shensha_analysis') is not None}")
         print(f"  - LLM分析: {result.get('llm_analysis') is not None}")
         print(f"  - 流月推演: {result.get('liuyue_analysis') is not None}")
+        print(f"  - 扩展信息: {result.get('extended_info') is not None}")
+        print(f"  - 地支关系: {result.get('zhi_relations') is not None}")
+        print(f"  - 天干关系: {result.get('gan_relations') is not None}")
+        print(f"  - 五行喜忌: {result.get('wuxing_xi_ji') is not None}")
         logger.info("完整分析成功")
         
         return {
@@ -910,6 +914,11 @@ async def bazi_pan(request: BaziPanRequest):
             "shensha_analysis": result.get('shensha_analysis'),
             "llm_analysis": result.get('llm_analysis'),
             "liuyue_analysis": result.get('liuyue_analysis'),
+            # 新增扩展信息
+            "extended_info": result.get('extended_info'),
+            "zhi_relations": result.get('zhi_relations'),
+            "gan_relations": result.get('gan_relations'),
+            "wuxing_xi_ji": result.get('wuxing_xi_ji'),
         }
         
     except HTTPException:

@@ -19,6 +19,10 @@ export interface BaziContext {
   dayun_analysis: Record<string, any> | null;
   liunian_analysis: Record<string, any> | null;
   shensha_analysis: Record<string, any> | null;
+  extended_info: Record<string, any> | null;  // 扩展信息（纳音、空亡、命宫等）
+  zhi_relations: Record<string, any> | null;  // 地支关系
+  gan_relations: Record<string, any> | null;  // 天干关系
+  wuxing_xi_ji: Record<string, any> | null;  // 五行喜忌
   llm_analysis: string | null;
   analysis_style: string;
   gender: string;
@@ -53,6 +57,10 @@ const defaultBaziContext: BaziContext = {
   dayun_analysis: null,
   liunian_analysis: null,
   shensha_analysis: null,
+  extended_info: null,
+  zhi_relations: null,
+  gan_relations: null,
+  wuxing_xi_ji: null,
   llm_analysis: null,
   analysis_style: 'classic',
   gender: '男',
@@ -231,6 +239,10 @@ export const useBaziChatStore = defineStore('baziChat', () => {
       dayun_analysis: baziContext.value.dayun_analysis,
       liunian_analysis: baziContext.value.liunian_analysis,
       shensha_analysis: baziContext.value.shensha_analysis,
+      extended_info: baziContext.value.extended_info,
+      zhi_relations: baziContext.value.zhi_relations,
+      gan_relations: baziContext.value.gan_relations,
+      wuxing_xi_ji: baziContext.value.wuxing_xi_ji,
       llm_analysis: baziContext.value.llm_analysis,
       analysis_style: baziContext.value.analysis_style,
       gender: baziContext.value.gender,

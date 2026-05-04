@@ -13,6 +13,12 @@ from core.agents.bazi_dayun_agent import bazi_dayun_node
 from core.agents.bazi_liunian_agent import bazi_liunian_node
 from core.agents.bazi_shensha_agent import bazi_shensha_node
 from core.tools.llm_client import call_llm
+from core.tools.bazi_calculator import (
+    calculate_extended_info, 
+    calculate_zhi_relations, 
+    calculate_gan_relations,
+    calculate_wuxing_xi_ji
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +134,26 @@ def bazi_complete_analysis(
             else:
                 print(f"[完整分析] 步骤6失败: {shensha_result.get('error', '未知错误')}")
         
+        # 6.5 扩展信息（纳音、空亡、命宫、胎元、地支关系等）
+        print(f"[完整分析] 步骤6.5: 计算扩展信息...")
+        try:
+            extended_info = calculate_extended_info(sizhu, {'year': year, 'month': month, 'day': day, 'hour': hour})
+            zhi_relations = calculate_zhi_relations(sizhu)
+            gan_relations = calculate_gan_relations(sizhu)
+            
+            # 五行喜忌
+            wuxing_xi_ji = None
+            if wuxing_analysis:
+                wuxing_xi_ji = calculate_wuxing_xi_ji(sizhu, wuxing_analysis)
+            
+            print(f"[完整分析] 步骤6.5完成: 扩展信息计算成功")
+        except Exception as e:
+            print(f"[完整分析] 步骤6.5异常: {e}")
+            extended_info = {}
+            zhi_relations = {}
+            gan_relations = {}
+            wuxing_xi_ji = None
+        
         # 7. 流月推演
         liuyue_analysis = None
         if include_liuyue:
@@ -184,6 +210,11 @@ def bazi_complete_analysis(
             'shensha_analysis': shensha_analysis,
             'liuyue_analysis': liuyue_analysis,
             'llm_analysis': llm_analysis,
+            # 新增扩展信息
+            'extended_info': extended_info,
+            'zhi_relations': zhi_relations,
+            'gan_relations': gan_relations,
+            'wuxing_xi_ji': wuxing_xi_ji,
         }
         
         print(f"[完整分析] ========== 分析完成 ==========")

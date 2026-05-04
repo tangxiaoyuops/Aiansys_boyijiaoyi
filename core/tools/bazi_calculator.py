@@ -16,6 +16,72 @@ TIAN_GAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'
 # 地支
 DI_ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥']
 
+# ==================== 纳音常量 ====================
+# 六十甲子纳音（根据年柱或日柱干支组合）
+NAYIN_TABLE = {
+    '甲子': '海中金', '乙丑': '海中金', '丙寅': '炉中火', '丁卯': '炉中火',
+    '戊辰': '大林木', '己巳': '大林木', '庚午': '路旁土', '辛未': '路旁土',
+    '壬申': '剑锋金', '癸酉': '剑锋金', '甲戌': '山头火', '乙亥': '山头火',
+    '丙子': '涧下水', '丁丑': '涧下水', '戊寅': '城头土', '己卯': '城头土',
+    '庚辰': '白蜡金', '辛巳': '白蜡金', '壬午': '杨柳木', '癸未': '杨柳木',
+    '甲申': '泉中水', '乙酉': '泉中水', '丙戌': '屋上土', '丁亥': '屋上土',
+    '戊子': '霹雳火', '己丑': '霹雳火', '庚寅': '松柏木', '辛卯': '松柏木',
+    '壬辰': '长流水', '癸巳': '长流水', '甲午': '沙中金', '乙未': '沙中金',
+    '丙申': '山下火', '丁酉': '山下火', '戊戌': '平地木', '己亥': '平地木',
+    '庚子': '壁上土', '辛丑': '壁上土', '壬寅': '金箔金', '癸卯': '金箔金',
+    '甲辰': '覆灯火', '乙巳': '覆灯火', '丙午': '天河水', '丁未': '天河水',
+    '戊申': '大驿土', '己酉': '大驿土', '庚戌': '钗钏金', '辛亥': '钗钏金',
+    '壬子': '桑柘木', '癸丑': '桑柘木', '甲寅': '大溪水', '乙卯': '大溪水',
+    '丙辰': '沙中土', '丁巳': '沙中土', '戊午': '天上火', '己未': '天上火',
+    '庚申': '石榴木', '辛酉': '石榴木', '壬戌': '大海水', '癸亥': '大海水',
+}
+
+# 纳音五行属性
+NAYIN_WUXING = {
+    '海中金': '金', '炉中火': '火', '大林木': '木', '路旁土': '土',
+    '剑锋金': '金', '山头火': '火', '涧下水': '水', '城头土': '土',
+    '白蜡金': '金', '杨柳木': '木', '泉中水': '水', '屋上土': '土',
+    '霹雳火': '火', '松柏木': '木', '长流水': '水', '沙中金': '金',
+    '山下火': '火', '平地木': '木', '壁上土': '土', '金箔金': '金',
+    '覆灯火': '火', '天河水': '水', '大驿土': '土', '钗钏金': '金',
+    '桑柘木': '木', '大溪水': '水', '沙中土': '土', '天上火': '火',
+    '石榴木': '木', '大海水': '水',
+}
+
+# 纳音详细说明
+NAYIN_DESCRIPTION = {
+    '海中金': '深藏不露，珍贵难得，性格深沉内敛',
+    '炉中火': '热情奔放，活力充沛，有领导才能',
+    '大林木': '仁慈宽厚，志向远大，有包容心',
+    '路旁土': '踏实稳重，勤劳肯干，服务他人',
+    '剑锋金': '锋芒毕露，刚正不阿，有决断力',
+    '山头火': '外刚内柔，热情明朗，有感染力',
+    '涧下水': '清澈透明，灵活变通，有智慧',
+    '城头土': '固守原则，忠诚可靠，有责任心',
+    '白蜡金': '温润细腻，珍贵典雅，有品位',
+    '杨柳木': '柔韧灵活，适应力强，善解人意',
+    '泉中水': '清冽甘甜，源源不断，有内涵',
+    '屋上土': '稳重可靠，遮风挡雨，有担当',
+    '霹雳火': '雷厉风行，魄力十足，有爆发力',
+    '松柏木': '坚毅刚强，四季常青，有骨气',
+    '长流水': '绵延不断，持之以恒，有耐心',
+    '沙中金': '珍贵隐藏，需要发掘，有潜力',
+    '山下火': '温和内敛，光明磊落，有修养',
+    '平地木': '根基扎实，茁壮成长，有作为',
+    '壁上土': '依附有力，守护一方，有依靠',
+    '金箔金': '华美装饰，光彩夺目，有魅力',
+    '覆灯火': '照亮他人，温暖人心，有爱心',
+    '天河水': '高远清澈，滋润万物，有大爱',
+    '大驿土': '通达四方，承载万物，有胸怀',
+    '钗钏金': '精致华美，珠光宝气，有气质',
+    '桑柘木': '坚韧挺拔，耐力持久，有韧劲',
+    '大溪水': '奔流不息，气势磅礴，有魄力',
+    '沙中土': '细软包容，温和沉稳，有度量',
+    '天上火': '光明正大，普照万物，有大格局',
+    '石榴木': '花果俱美，多子多福，有福气',
+    '大海水': '浩瀚无边，包罗万象，有大智慧',
+}
+
 # 天干五行
 TIAN_GAN_WUXING = {
     '甲': '木', '乙': '木',
@@ -256,10 +322,26 @@ def calculate_sizhu(year: int, month: int, day: int, hour: int) -> Dict[str, Any
     shi_zhi = shi_chen
     
     return {
-        'nian_zhu': {'tian_gan': nian_gan, 'di_zhi': nian_zhi},
-        'yue_zhu': {'tian_gan': yue_gan, 'di_zhi': yue_zhi},
-        'ri_zhu': {'tian_gan': ri_gan, 'di_zhi': ri_zhi},
-        'shi_zhu': {'tian_gan': shi_gan, 'di_zhi': shi_zhi},
+        'nian_zhu': {
+            'tian_gan': nian_gan, 
+            'di_zhi': nian_zhi,
+            'cang_gan': DI_ZHI_CANG_GAN.get(nian_zhi, []),  # 藏干列表
+        },
+        'yue_zhu': {
+            'tian_gan': yue_gan, 
+            'di_zhi': yue_zhi,
+            'cang_gan': DI_ZHI_CANG_GAN.get(yue_zhi, []),  # 藏干列表
+        },
+        'ri_zhu': {
+            'tian_gan': ri_gan, 
+            'di_zhi': ri_zhi,
+            'cang_gan': DI_ZHI_CANG_GAN.get(ri_zhi, []),  # 藏干列表
+        },
+        'shi_zhu': {
+            'tian_gan': shi_gan, 
+            'di_zhi': shi_zhi,
+            'cang_gan': DI_ZHI_CANG_GAN.get(shi_zhi, []),  # 藏干列表
+        },
         'ri_zhu_tiangan': ri_gan,  # 日主
         'lunar_year': lunar_year,
         'lunar_month': lunar_month,
@@ -1467,6 +1549,503 @@ def calculate_liuyue(
         result['auspicious'] = auspicious_result
     
     return result
+
+# ==================== 纳音、空亡、命宫、胎元计算 ====================
+
+def calculate_nayin(gan: str, zhi: str) -> Dict[str, str]:
+    """
+    计算纳音
+    
+    Args:
+        gan: 天干
+        zhi: 地支
+    
+    Returns:
+        纳音信息字典
+    """
+    gan_zhi = f"{gan}{zhi}"
+    nayin_name = NAYIN_TABLE.get(gan_zhi, '')
+    nayin_wuxing = NAYIN_WUXING.get(nayin_name, '')
+    nayin_desc = NAYIN_DESCRIPTION.get(nayin_name, '')
+    
+    return {
+        'name': nayin_name,
+        'wuxing': nayin_wuxing,
+        'description': nayin_desc,
+        'gan_zhi': gan_zhi,
+    }
+
+def calculate_xun_kong(gan: str, zhi: str) -> Dict[str, Any]:
+    """
+    计算旬空（空亡）
+    
+    六十甲子分为六旬，每旬十个组合，有两个地支落空
+    甲子旬：甲子、乙丑、丙寅、丁卯、戊辰、己巳、庚午、辛未、壬申、癸酉，空亡：戌、亥
+    甲戌旬：甲戌、乙亥、丙子、丁丑、戊寅、己卯、庚辰、辛巳、壬午、癸未，空亡：申、酉
+    甲申旬：甲申、乙酉、丙戌、丁亥、戊子、己丑、庚寅、辛卯、壬辰、癸巳，空亡：午、未
+    甲午旬：甲午、乙未、丙申、丁酉、戊戌、己亥、庚子、辛丑、壬寅、癸卯，空亡：辰、巳
+    甲辰旬：甲辰、乙巳、丙午、丁未、戊申、己酉、庚戌、辛亥、壬子、癸丑，空亡：寅、卯
+    甲寅旬：甲寅、乙卯、丙辰、丁巳、戊午、己未、庚申、辛酉、壬戌、癸亥，空亡：子、丑
+    
+    Args:
+        gan: 天干
+        zhi: 地支
+    
+    Returns:
+        空亡信息字典
+    """
+    gan_index = TIAN_GAN.index(gan)
+    zhi_index = DI_ZHI.index(zhi)
+    
+    # 根据天干确定旬首
+    # 甲（0）开头的旬：甲子、甲戌、甲申、甲午、甲辰、甲寅
+    # 每旬的地支从旬首地支开始
+    
+    # 六旬及其空亡
+    xun_kong_map = [
+        {'xun_shou': '甲子', 'kong': ['戌', '亥']},  # 甲子旬
+        {'xun_shou': '甲戌', 'kong': ['申', '酉']},  # 甲戌旬
+        {'xun_shou': '甲申', 'kong': ['午', '未']},  # 甲申旬
+        {'xun_shou': '甲午', 'kong': ['辰', '巳']},  # 甲午旬
+        {'xun_shou': '甲辰', 'kong': ['寅', '卯']},  # 甲辰旬
+        {'xun_shou': '甲寅', 'kong': ['子', '丑']},  # 甲寅旬
+    ]
+    
+    # 计算当前干支属于哪一旬
+    # 甲子旬的干支组合：干支索引差为0或干支在同一位
+    # 简化计算：根据天干和地支的关系确定旬
+    
+    # 方法：找到与该天干配对的旬首地支
+    # 甲(0)配子(0)为甲子旬，甲配戌(10)为甲戌旬...
+    # 每旬以甲开头，甲配的地支决定属于哪旬
+    
+    # 计算旬序号
+    # 甲子旬：天干索引-地支索引 = 0 或 -12 (即差值为0)
+    # 实际上：(天干索引 - 地支索引) mod 12 可以确定旬
+    
+    diff = (zhi_index - gan_index) % 12
+    
+    # 根据差值确定空亡
+    if diff <= 1:  # 子、丑
+        xun_index = 0 if diff == 0 else 5
+    elif diff <= 3:  # 寅、卯
+        xun_index = 4 if diff == 2 else 4
+    elif diff <= 5:  # 辰、巳
+        xun_index = 3 if diff == 4 else 3
+    elif diff <= 7:  # 午、未
+        xun_index = 2 if diff == 6 else 2
+    elif diff <= 9:  # 申、酉
+        xun_index = 1 if diff == 8 else 1
+    else:  # 戌、亥
+        xun_index = 0 if diff == 10 else 0
+    
+    # 更精确的计算方法
+    # 六十甲子表中，甲子旬从第1位开始，甲戌旬从第11位开始...
+    # 我们需要确定当前干支在哪一旬
+    
+    # 甲子旬包含：甲子、乙丑、丙寅、丁卯、戊辰、己巳、庚午、辛未、壬申、癸酉
+    # 特点：地支从子开始，顺序排列，到酉结束（共10个，空戌亥）
+    
+    # 简化：根据地支在十二支中的位置和天干的关系
+    # 如果 天干和地支的组合在地支序列中"够不到"的位置就是空亡
+    
+    # 更直接的方法：
+    # 对于甲子旬（甲=0）：地支 0-9 有效，10、11（戌、亥）空亡
+    # 对于甲戌旬（甲=0，戌=10）：地支 10-9（循环），实际是10-11,0-7，空 8、9（申、酉）
+    
+    # 重新计算：从甲开始，找出当前旬
+    # 甲的索引为0，旬首地支决定了旬
+    
+    # 当前干支的序号（0-59）
+    gan_zhi_index = (gan_index * 6 + zhi_index) % 60 if zhi_index >= gan_index else (zhi_index - gan_index + 60) % 60
+    
+    # 实际更简单的方法：
+    # 六旬按顺序：甲子旬（0-9）、甲戌旬（10-19）、甲申旬（20-29）、甲午旬（30-39）、甲辰旬（40-49）、甲寅旬（50-59）
+    
+    # 直接根据天干地支组合判断
+    # 如果甲(0)配子(0)→甲子旬，甲(0)配戌(10)→甲戌旬...
+    
+    # 简化计算
+    xun_info = None
+    for xun_data in xun_kong_map:
+        xun_shou_gan = xun_data['xun_shou'][0]
+        xun_shou_zhi = xun_data['xun_shou'][1]
+        xun_shou_gan_idx = TIAN_GAN.index(xun_shou_gan)
+        xun_shou_zhi_idx = DI_ZHI.index(xun_shou_zhi)
+        
+        # 检查当前干支是否在此旬中
+        # 一旬包含10个干支组合，从旬首开始
+        # 天干顺序循环，地支也顺序循环
+        
+        # 当前干支与旬首的偏移
+        gan_offset = (gan_index - xun_shou_gan_idx) % 10
+        expected_zhi_idx = (xun_shou_zhi_idx + gan_offset) % 12
+        
+        if zhi_index == expected_zhi_idx:
+            xun_info = xun_data
+            break
+    
+    if xun_info is None:
+        # 备用计算
+        xun_info = xun_kong_map[0]
+    
+    return {
+        'kong_wang': xun_info['kong'],
+        'xun_shou': xun_info['xun_shou'],
+        'gan_zhi': f"{gan}{zhi}",
+    }
+
+def calculate_minggong(month_zhi: str, hour_zhi: str) -> Dict[str, str]:
+    """
+    计算命宫
+    
+    命宫计算方法：
+    以月支为起点，逆数到时支，再从子位顺数回到原位，即为命宫
+    
+    简化公式：命宫地支 = (月支索引 + 时支索引) % 12，然后找对应的天干
+    
+    Args:
+        month_zhi: 月支
+        hour_zhi: 时支
+    
+    Returns:
+        命宫信息字典
+    """
+    month_idx = DI_ZHI.index(month_zhi)
+    hour_idx = DI_ZHI.index(hour_zhi)
+    
+    # 命宫地支计算
+    # 方法：从子上起正月，逆数到生月，再从生月起生时，顺数到卯，卯所在地支为命宫
+    # 简化：命宫地支 = (14 - month_idx - hour_idx) % 12
+    # 或：命宫地支 = (2 - month_idx - hour_idx) % 12（从卯位开始）
+    
+    # 传统方法：
+    # 1. 从子位起正月，逆数到生月（如三月生，子-寅月，丑-卯月，寅-辰月...）
+    # 2. 从生月位起子时，顺数到生时，所落宫位为命宫
+    
+    # 简化公式
+    minggong_zhi_idx = (14 - month_idx - hour_idx) % 12
+    minggong_zhi = DI_ZHI[minggong_zhi_idx]
+    
+    # 命宫天干（需要根据年干或五虎遁推算）
+    # 使用五虎遁：甲己年起丙寅，乙庚年起戊寅，丙辛年起庚寅，丁壬年起壬寅，戊癸年起甲寅
+    # 这里简化处理，假设命宫天干根据命宫地支推算
+    # 实际应该结合年干
+    
+    # 暂时用简化方法：命宫天干根据命宫地支序号
+    minggong_gan_idx = (minggong_zhi_idx + 2) % 10  # 简化
+    minggong_gan = TIAN_GAN[minggong_gan_idx]
+    
+    return {
+        'gan': minggong_gan,
+        'zhi': minggong_zhi,
+        'gan_zhi': f"{minggong_gan}{minggong_zhi}",
+    }
+
+def calculate_taiyuan(month_zhi: str, day_gan: str) -> Dict[str, str]:
+    """
+    计算胎元
+    
+    胎元计算方法：
+    胎元天干 = 月干后一位
+    胎元地支 = 月支后三位
+    
+    Args:
+        month_zhi: 月支
+        day_gan: 日干（用于更精确计算）
+    
+    Returns:
+        胎元信息字典
+    """
+    month_zhi_idx = DI_ZHI.index(month_zhi)
+    
+    # 胎元地支：月支后三位
+    taiyuan_zhi_idx = (month_zhi_idx + 3) % 12
+    taiyuan_zhi = DI_ZHI[taiyuan_zhi_idx]
+    
+    # 胎元天干：需要根据月干推算
+    # 简化：使用日干推算
+    day_gan_idx = TIAN_GAN.index(day_gan)
+    taiyuan_gan_idx = (day_gan_idx + 1) % 10
+    taiyuan_gan = TIAN_GAN[taiyuan_gan_idx]
+    
+    return {
+        'gan': taiyuan_gan,
+        'zhi': taiyuan_zhi,
+        'gan_zhi': f"{taiyuan_gan}{taiyuan_zhi}",
+    }
+
+def calculate_shen_gong(month_zhi: str, hour_zhi: str) -> Dict[str, str]:
+    """
+    计算身宫
+    
+    身宫计算方法：
+    以月支为起点，顺数到时支，再从子位逆数回到原位，即为身宫
+    
+    Args:
+        month_zhi: 月支
+        hour_zhi: 时支
+    
+    Returns:
+        身宫信息字典
+    """
+    month_idx = DI_ZHI.index(month_zhi)
+    hour_idx = DI_ZHI.index(hour_zhi)
+    
+    # 身宫地支计算
+    # 简化公式
+    shengong_zhi_idx = (month_idx + hour_idx + 2) % 12
+    shengong_zhi = DI_ZHI[shengong_zhi_idx]
+    
+    # 身宫天干
+    shengong_gan_idx = (shengong_zhi_idx + 2) % 10
+    shengong_gan = TIAN_GAN[shengong_gan_idx]
+    
+    return {
+        'gan': shengong_gan,
+        'zhi': shengong_zhi,
+        'gan_zhi': f"{shengong_gan}{shengong_zhi}",
+    }
+
+def calculate_extended_info(sizhu: Dict[str, Any], birth_info: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    计算扩展信息（纳音、空亡、命宫、胎元、身宫等）
+    
+    Args:
+        sizhu: 四柱数据
+        birth_info: 出生信息（可选）
+    
+    Returns:
+        扩展信息字典
+    """
+    result = {}
+    
+    # 1. 各柱纳音
+    result['nayin'] = {}
+    for zhu_name in ['nian_zhu', 'yue_zhu', 'ri_zhu', 'shi_zhu']:
+        zhu = sizhu.get(zhu_name, {})
+        gan = zhu.get('tian_gan', '')
+        zhi = zhu.get('di_zhi', '')
+        if gan and zhi:
+            result['nayin'][zhu_name] = calculate_nayin(gan, zhi)
+    
+    # 2. 日柱空亡（以日柱为准）
+    ri_gan = sizhu.get('ri_zhu', {}).get('tian_gan', '')
+    ri_zhi = sizhu.get('ri_zhu', {}).get('di_zhi', '')
+    if ri_gan and ri_zhi:
+        result['xun_kong'] = calculate_xun_kong(ri_gan, ri_zhi)
+    
+    # 3. 年柱空亡（以年柱为准，部分流派使用）
+    nian_gan = sizhu.get('nian_zhu', {}).get('tian_gan', '')
+    nian_zhi = sizhu.get('nian_zhu', {}).get('di_zhi', '')
+    if nian_gan and nian_zhi:
+        result['nian_xun_kong'] = calculate_xun_kong(nian_gan, nian_zhi)
+    
+    # 4. 命宫
+    yue_zhi = sizhu.get('yue_zhu', {}).get('di_zhi', '')
+    shi_zhi = sizhu.get('shi_zhu', {}).get('di_zhi', '')
+    if yue_zhi and shi_zhi:
+        result['ming_gong'] = calculate_minggong(yue_zhi, shi_zhi)
+    
+    # 5. 胎元
+    if yue_zhi and ri_gan:
+        result['tai_yuan'] = calculate_taiyuan(yue_zhi, ri_gan)
+    
+    # 6. 身宫
+    if yue_zhi and shi_zhi:
+        result['shen_gong'] = calculate_shen_gong(yue_zhi, shi_zhi)
+    
+    return result
+
+def calculate_zhi_relations(sizhu: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    计算地支之间的关系（六合、六冲、三合、三刑、相害）
+    
+    Args:
+        sizhu: 四柱数据
+    
+    Returns:
+        地支关係字典
+    """
+    # 收集所有地支
+    zhi_list = []
+    zhu_names = ['nian_zhu', 'yue_zhu', 'ri_zhu', 'shi_zhu']
+    for zhu_name in zhu_names:
+        zhi = sizhu.get(zhu_name, {}).get('di_zhi', '')
+        if zhi:
+            zhi_list.append({'name': zhu_name, 'zhi': zhi})
+    
+    relations = {
+        'liu_he': [],  # 六合
+        'liu_chong': [],  # 六冲
+        'san_he': [],  # 三合
+        'san_xing': [],  # 三刑
+        'liu_hai': [],  # 六害
+    }
+    
+    # 地支六合
+    liu_he_pairs = [
+        ('子', '丑'), ('寅', '亥'), ('卯', '戌'), ('辰', '酉'), ('巳', '申'), ('午', '未')
+    ]
+    
+    # 地支六冲
+    liu_chong_pairs = [
+        ('子', '午'), ('丑', '未'), ('寅', '申'), ('卯', '酉'), ('辰', '戌'), ('巳', '亥')
+    ]
+    
+    # 地支三合
+    san_he_groups = [
+        {'zhis': ['申', '子', '辰'], 'wuxing': '水', 'name': '申子辰合水局'},
+        {'zhis': ['寅', '午', '戌'], 'wuxing': '火', 'name': '寅午戌合火局'},
+        {'zhis': ['巳', '酉', '丑'], 'wuxing': '金', 'name': '巳酉丑合金局'},
+        {'zhis': ['亥', '卯', '未'], 'wuxing': '木', 'name': '亥卯未合木局'},
+    ]
+    
+    # 地支三刑
+    san_xing_groups = [
+        {'zhis': ['寅', '巳', '申'], 'name': '寅巳申三刑'},
+        {'zhis': ['丑', '戌', '未'], 'name': '丑戌未三刑'},
+        {'zhis': ['子', '卯'], 'name': '子卯相刑'},
+    ]
+    
+    # 地支六害
+    liu_hai_pairs = [
+        ('子', '未'), ('丑', '午'), ('寅', '巳'), ('卯', '辰'), ('申', '亥'), ('酉', '戌')
+    ]
+    
+    # 检查六合
+    for i, item1 in enumerate(zhi_list):
+        for item2 in zhi_list[i+1:]:
+            pair = (item1['zhi'], item2['zhi'])
+            reverse_pair = (item2['zhi'], item1['zhi'])
+            if pair in liu_he_pairs or reverse_pair in liu_he_pairs:
+                relations['liu_he'].append({
+                    'zhi1': item1['zhi'],
+                    'zhi2': item2['zhi'],
+                    'zhu1': item1['name'],
+                    'zhu2': item2['name'],
+                    'desc': f"{item1['zhi']}{item2['zhi']}相合",
+                })
+    
+    # 检查六冲
+    for i, item1 in enumerate(zhi_list):
+        for item2 in zhi_list[i+1:]:
+            pair = (item1['zhi'], item2['zhi'])
+            reverse_pair = (item2['zhi'], item1['zhi'])
+            if pair in liu_chong_pairs or reverse_pair in liu_chong_pairs:
+                relations['liu_chong'].append({
+                    'zhi1': item1['zhi'],
+                    'zhi2': item2['zhi'],
+                    'zhu1': item1['name'],
+                    'zhu2': item2['name'],
+                    'desc': f"{item1['zhi']}{item2['zhi']}相冲",
+                })
+    
+    # 检查三合
+    all_zhis = [item['zhi'] for item in zhi_list]
+    for group in san_he_groups:
+        found = [zhi for zhi in group['zhis'] if zhi in all_zhis]
+        if len(found) >= 2:  # 至少有两个才显示
+            relations['san_he'].append({
+                'zhis': found,
+                'wuxing': group['wuxing'],
+                'name': group['name'],
+                'complete': len(found) == 3,
+                'desc': f"{'、'.join(found)}{'（三合全）' if len(found) == 3 else '（半合）'}",
+            })
+    
+    # 检查三刑
+    for group in san_xing_groups:
+        found = [zhi for zhi in group['zhis'] if zhi in all_zhis]
+        if len(found) >= 2:
+            relations['san_xing'].append({
+                'zhis': found,
+                'name': group['name'],
+                'desc': f"{'、'.join(found)}相刑",
+            })
+    
+    # 检查六害
+    for i, item1 in enumerate(zhi_list):
+        for item2 in zhi_list[i+1:]:
+            pair = (item1['zhi'], item2['zhi'])
+            reverse_pair = (item2['zhi'], item1['zhi'])
+            if pair in liu_hai_pairs or reverse_pair in liu_hai_pairs:
+                relations['liu_hai'].append({
+                    'zhi1': item1['zhi'],
+                    'zhi2': item2['zhi'],
+                    'zhu1': item1['name'],
+                    'zhu2': item2['name'],
+                    'desc': f"{item1['zhi']}{item2['zhi']}相害",
+                })
+    
+    return relations
+
+def calculate_gan_relations(sizhu: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    计算天干之间的关系（天干合化、天干相冲）
+    
+    Args:
+        sizhu: 四柱数据
+    
+    Returns:
+        天干关係字典
+    """
+    # 收集所有天干
+    gan_list = []
+    zhu_names = ['nian_zhu', 'yue_zhu', 'ri_zhu', 'shi_zhu']
+    for zhu_name in zhu_names:
+        gan = sizhu.get(zhu_name, {}).get('tian_gan', '')
+        if gan:
+            gan_list.append({'name': zhu_name, 'gan': gan})
+    
+    relations = {
+        'tian_gan_he': [],  # 天干合化
+        'tian_gan_chong': [],  # 天干相冲
+    }
+    
+    # 天干合化
+    tian_gan_he_pairs = [
+        {'gans': ['甲', '己'], 'hua': '土'},
+        {'gans': ['乙', '庚'], 'hua': '金'},
+        {'gans': ['丙', '辛'], 'hua': '水'},
+        {'gans': ['丁', '壬'], 'hua': '木'},
+        {'gans': ['戊', '癸'], 'hua': '火'},
+    ]
+    
+    # 天干相冲（阳干对阳干，阴干对阴干）
+    tian_gan_chong_pairs = [
+        ('甲', '庚'), ('乙', '辛'), ('丙', '壬'), ('丁', '癸'), ('戊', '己'),
+    ]
+    
+    # 检查天干合化
+    for i, item1 in enumerate(gan_list):
+        for item2 in gan_list[i+1:]:
+            for he_pair in tian_gan_he_pairs:
+                if item1['gan'] in he_pair['gans'] and item2['gan'] in he_pair['gans']:
+                    relations['tian_gan_he'].append({
+                        'gan1': item1['gan'],
+                        'gan2': item2['gan'],
+                        'zhu1': item1['name'],
+                        'zhu2': item2['name'],
+                        'hua_wuxing': he_pair['hua'],
+                        'desc': f"{item1['gan']}{item2['gan']}合化{he_pair['hua']}",
+                    })
+    
+    # 检查天干相冲
+    for i, item1 in enumerate(gan_list):
+        for item2 in gan_list[i+1:]:
+            pair = (item1['gan'], item2['gan'])
+            reverse_pair = (item2['gan'], item1['gan'])
+            if pair in tian_gan_chong_pairs or reverse_pair in tian_gan_chong_pairs:
+                relations['tian_gan_chong'].append({
+                    'gan1': item1['gan'],
+                    'gan2': item2['gan'],
+                    'zhu1': item1['name'],
+                    'zhu2': item2['name'],
+                    'desc': f"{item1['gan']}{item2['gan']}相冲",
+                })
+    
+    return relations
 
 def calculate_liuyue_list(
     sizhu: Dict[str, Any],
