@@ -230,8 +230,8 @@
       </div>
     </div>
 
-    <!-- 五行喜忌 -->
-    <div class="wuxing-xi-ji" v-if="wuxingXiJi">
+    <!-- 五行喜忌 - 暂时隐藏，身强身弱判断需要综合分析 -->
+    <div class="wuxing-xi-ji" v-if="false && wuxingXiJi">
       <h4 class="stats-title">五行喜忌</h4>
       <div class="xi-ji-content">
         <div class="rizhu-strength" :class="wuxingXiJi.is_rizhu_qiang ? 'qiang' : 'ruo'">

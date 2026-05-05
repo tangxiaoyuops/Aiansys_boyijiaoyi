@@ -65,7 +65,8 @@
       </div>
     </div>
 
-    <div class="wuxing-xiji" v-if="wuxingXiJi">
+    <!-- 五行喜忌参考 - 暂时隐藏，身强身弱判断需要综合分析 -->
+    <div class="wuxing-xiji" v-if="false && wuxingXiJi">
       <h4>五行喜忌参考</h4>
       <div class="xiji-content">
         <div class="xiji-item">
