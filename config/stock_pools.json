@@ -1,0 +1,47 @@
+{
+  "pools": [
+    {
+      "pool_id": "hs300",
+      "pool_name": "沪深300",
+      "pool_type": "hs300",
+      "codes": [],
+      "enabled": true,
+      "scan_time": "15:30",
+      "scan_days": 5,
+      "created_at": "",
+      "updated_at": ""
+    },
+    {
+      "pool_id": "custom",
+      "pool_name": "自选股",
+      "pool_type": "custom",
+      "codes": ["600519", "000001", "600036"],
+      "enabled": true,
+      "scan_time": "15:30",
+      "scan_days": 5,
+      "created_at": "",
+      "updated_at": ""
+    }
+  ],
+  "schedule": {
+    "cron": "30 15 * * 1-5",
+    "enabled": true
+  },
+  "notification": {
+    "email": {
+      "enabled": false,
+      "smtp_server": "",
+      "smtp_port": 465,
+      "smtp_user": "",
+      "smtp_password": "",
+      "use_ssl": true,
+      "recipients": [],
+      "sender_name": "股票扫描助手"
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "",
+      "webhook_type": "custom"
+    }
+  }
+}

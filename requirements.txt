@@ -14,6 +14,12 @@ langchain>=0.1.0
 # 回测和优化相关
 scipy>=1.11.0
 scikit-optimize>=0.9.0
+# 定时任务调度
+apscheduler>=3.10.0
+# 异步HTTP客户端
+aiohttp>=3.9.0
+# 邮件验证
+email-validator>=2.1.0
 # vnpy 集成（可选，用于专业回测和实盘交易）
 vnpy>=3.9.0
 # vnpy-ctastrategy>=3.9.0

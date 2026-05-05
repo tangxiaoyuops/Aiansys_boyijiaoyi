@@ -378,10 +378,29 @@ def build_bazi_prompt(
     yue_zhu = sizhu.get('yue_zhu', {})
     ri_zhu = sizhu.get('ri_zhu', {})
     shi_zhu = sizhu.get('shi_zhu', {})
-    lines.append(f"年柱: {nian_zhu.get('tian_gan', '')}{nian_zhu.get('di_zhi', '')}")
-    lines.append(f"月柱: {yue_zhu.get('tian_gan', '')}{yue_zhu.get('di_zhi', '')}")
-    lines.append(f"日柱: {ri_zhu.get('tian_gan', '')}{ri_zhu.get('di_zhi', '')} (日主: {sizhu.get('ri_zhu_tiangan', '')})")
-    lines.append(f"时柱: {shi_zhu.get('tian_gan', '')}{shi_zhu.get('di_zhi', '')}")
+    
+    # 地支藏干映射（用于解释藏干含义）
+    cang_gan_labels = ['本气', '中气', '余气']
+    
+    # 年柱（含藏干）
+    nian_cang_gan = nian_zhu.get('cang_gan', [])
+    nian_cang_gan_str = '、'.join(nian_cang_gan) if nian_cang_gan else '无'
+    lines.append(f"年柱: {nian_zhu.get('tian_gan', '')}{nian_zhu.get('di_zhi', '')} (藏干: {nian_cang_gan_str})")
+    
+    # 月柱（含藏干）
+    yue_cang_gan = yue_zhu.get('cang_gan', [])
+    yue_cang_gan_str = '、'.join(yue_cang_gan) if yue_cang_gan else '无'
+    lines.append(f"月柱: {yue_zhu.get('tian_gan', '')}{yue_zhu.get('di_zhi', '')} (藏干: {yue_cang_gan_str})")
+    
+    # 日柱（含藏干）
+    ri_cang_gan = ri_zhu.get('cang_gan', [])
+    ri_cang_gan_str = '、'.join(ri_cang_gan) if ri_cang_gan else '无'
+    lines.append(f"日柱: {ri_zhu.get('tian_gan', '')}{ri_zhu.get('di_zhi', '')} (日主: {sizhu.get('ri_zhu_tiangan', '')}, 藏干: {ri_cang_gan_str})")
+    
+    # 时柱（含藏干）
+    shi_cang_gan = shi_zhu.get('cang_gan', [])
+    shi_cang_gan_str = '、'.join(shi_cang_gan) if shi_cang_gan else '无'
+    lines.append(f"时柱: {shi_zhu.get('tian_gan', '')}{shi_zhu.get('di_zhi', '')} (藏干: {shi_cang_gan_str})")
     
     # 农历信息
     if sizhu.get('lunar_year'):
@@ -410,9 +429,20 @@ def build_bazi_prompt(
         for zhu_name, shishen_info in shishen_data.items():
             gan_shishen = shishen_info.get('gan_shishen', '')
             zhi_shishen = shishen_info.get('zhi_shishen', '')
+            zhi_cang_gan_shishen = shishen_info.get('zhi_cang_gan_shishen', [])
+            
+            display_name = zhu_names.get(zhu_name, zhu_name)
+            
+            # 构建藏干十神说明
+            cang_gan_shishen_str = ""
+            if zhi_cang_gan_shishen:
+                cang_gan_parts = [f"{item.get('cang_gan', '')}({item.get('shishen', '')})" for item in zhi_cang_gan_shishen]
+                cang_gan_shishen_str = f", 藏干十神: {', '.join(cang_gan_parts)}"
+            
             if gan_shishen or zhi_shishen:
-                display_name = zhu_names.get(zhu_name, zhu_name)
-                lines.append(f"{display_name}: 天干十神={gan_shishen}, 地支十神={zhi_shishen}")
+                lines.append(f"{display_name}: 天干十神={gan_shishen}, 地支十神={zhi_shishen}{cang_gan_shishen_str}")
+        lines.append("")
+        lines.append("**藏干说明**：地支藏干分为本气、中气、余气，本气力量最强，中气次之，余气最弱。藏干十神对命局有重要影响。")
         lines.append("")
     
     # 大运信息

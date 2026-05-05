@@ -2,6 +2,7 @@
 FastAPI服务
 集成LangGraph工作流，提供聊天机器人接口
 """
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -11,14 +12,91 @@ import json
 import asyncio
 import uuid
 import time
+import logging
 from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
 from core.models.futures_state import FuturesAnalysisState
-from server.routers import backtest, panic_scan, commodity, fengshui
+from server.routers import backtest, panic_scan, commodity, fengshui, pool_scan
 from server.utils.access_logger import log_access, log_page_view
 
-app = FastAPI(title="博弈交易法分析系统")
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    # 启动时
+    from core.scheduler.task_scheduler import get_scheduler
+    
+    scheduler = get_scheduler()
+    
+    # 加载并启动定时任务
+    try:
+        from pathlib import Path
+        import json as json_module
+        
+        config_path = Path("config/stock_pools.json")
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json_module.load(f)
+            
+            schedule_config = config.get("schedule", {})
+            if schedule_config.get("enabled", False):
+                cron_expr = schedule_config.get("cron", "30 15 * * 1-5")
+                
+                # 定义定时扫描任务
+                async def scheduled_pool_scan():
+                    from core.services.pool_scan_service import PoolScanService
+                    from core.services.notification_service import NotificationService
+                    from core.stock_pool.manager import StockPoolManager
+                    
+                    try:
+                        manager = StockPoolManager()
+                        codes = manager.get_active_pool_codes()
+                        
+                        if codes:
+                            service = PoolScanService()
+                            notifier = NotificationService()
+                            
+                            result = await service.scan_pool(codes)
+                            
+                            # 从配置获取通知渠道
+                            notification_config = config.get("notification", {})
+                            channels = ["file"]
+                            
+                            if notification_config.get("email", {}).get("enabled"):
+                                channels.append("email")
+                            if notification_config.get("webhook", {}).get("enabled"):
+                                channels.append("webhook")
+                            
+                            await notifier.send_notification(result.to_dict(), channels=channels)
+                            logger.info(f"[ScheduledScan] 扫描完成: {len(result.signals)} 个信号")
+                    except Exception as e:
+                        logger.error(f"[ScheduledScan] 扫描失败: {e}")
+                
+                scheduler.add_scan_task(
+                    task_id="daily_pool_scan",
+                    task_func=scheduled_pool_scan,
+                    cron_expression=cron_expr
+                )
+                logger.info(f"[Scheduler] 定时扫描任务已配置: {cron_expr}")
+    except Exception as e:
+        logger.error(f"[Scheduler] 加载定时任务配置失败: {e}")
+    
+    scheduler.start()
+    logger.info("[Scheduler] 定时调度器已启动")
+    
+    yield
+    
+    # 关闭时
+    scheduler.stop()
+    logger.info("[Scheduler] 定时调度器已停止")
+
+
+app = FastAPI(title="博弈交易法分析系统", lifespan=lifespan)
 
 # 配置CORS
 app.add_middleware(
@@ -60,6 +138,7 @@ app.include_router(backtest.router)
 app.include_router(panic_scan.router)
 app.include_router(commodity.router)
 app.include_router(fengshui.router)
+app.include_router(pool_scan.router)
 
 # 简单的内存会话存储（需要持久化时可替换为 Redis/数据库）
 SESSIONS: Dict[str, Dict[str, Any]] = {}
