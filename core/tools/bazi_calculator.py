@@ -1280,7 +1280,13 @@ def calculate_wuxing_xi_ji(sizhu: Dict[str, Any], wuxing_analysis: Dict[str, Any
     
     # 获取五行分布
     if wuxing_analysis:
-        wuxing_count = wuxing_analysis.get('wuxing_count_detail', {})
+        # wuxing_analysis 可能是两种格式：
+        # 1. bazi_wuxing_node 返回的格式: {"wuxing_data": {"wuxing_count_detail": {...}}, ...}
+        # 2. calculate_wuxing 返回的格式: {"wuxing_count_detail": {...}, ...}
+        if 'wuxing_data' in wuxing_analysis:
+            wuxing_count = wuxing_analysis.get('wuxing_data', {}).get('wuxing_count_detail', {})
+        else:
+            wuxing_count = wuxing_analysis.get('wuxing_count_detail', {})
     else:
         wuxing_count = calculate_wuxing(sizhu).get('wuxing_count_detail', {})
     
