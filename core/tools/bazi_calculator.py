@@ -241,15 +241,26 @@ def convert_to_lunar(year: int, month: int, day: int) -> Tuple[int, int, int]:
 def get_day_gan_zhi(year: int, month: int, day: int) -> Tuple[str, str]:
     """
     计算日柱的天干地支
-    使用1900年1月1日为基准（甲子日）
+    使用1900年1月1日为基准（甲戌日）
+    
+    验证方法：
+    - 2024年1月1日是甲子日（多个万年历确认）
+    - 从1900年1月1日到2024年1月1日共45290天
+    - 反推：1900年1月1日天干索引 = (0 - 45290) % 10 = 0 (甲)
+    - 反推：1900年1月1日地支索引 = (0 - 45290) % 12 = 10 (戌)
+    - 所以1900年1月1日是甲戌日
     """
     base_date = datetime(1900, 1, 1)
     target_date = datetime(year, month, day)
     days_diff = (target_date - base_date).days
     
-    # 1900年1月1日是甲子日（天干索引0，地支索引0）
-    gan_index = (days_diff) % 10
-    zhi_index = (days_diff) % 12
+    # 1900年1月1日是甲戌日
+    # 甲的天干索引是0，戌的地支索引是10
+    base_gan_index = 0  # 甲
+    base_zhi_index = 10  # 戌
+    
+    gan_index = (base_gan_index + days_diff) % 10
+    zhi_index = (base_zhi_index + days_diff) % 12
     
     return TIAN_GAN[gan_index], DI_ZHI[zhi_index]
 
