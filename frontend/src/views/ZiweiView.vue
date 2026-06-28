@@ -55,8 +55,8 @@
         </div>
       </div>
 
-      <!-- 中间结果区域 -->
-      <div class="middle-panel">
+      <!-- 右侧结果区域 -->
+      <div class="right-panel">
         <div v-if="!result && !loading" class="empty-state">
           <el-empty description="请填写信息并点击排盘分析" />
         </div>
@@ -65,111 +65,123 @@
           <el-skeleton :rows="10" animated />
         </div>
 
-        <div v-if="result && !loading" class="result-container">
-          <!-- 完整命盘图 -->
-          <div v-if="result.pan_data" class="result-card pan-card">
-            <h3 class="section-title">
-              <el-icon><Document /></el-icon>
-              完整命盘
-            </h3>
-            <ZiweiPan :pan-data="result.pan_data" :size="750" />
-            <div class="pan-basic-info">
-              <div class="info-item">
-                <span class="label">命宫：</span>
-                <span class="value">{{ getPalaceName(result.pan_data.ming_gong) }}</span>
+        <!-- 结果展示 - 使用标签页切换 -->
+        <div v-if="result && !loading" class="result-wrapper">
+          <el-tabs v-model="activeResultTab" class="result-tabs">
+            <!-- 命盘分析标签 -->
+            <el-tab-pane label="命盘分析" name="analysis">
+              <div class="analysis-tab-content">
+                <div class="result-container">
+                  <!-- 完整命盘图 -->
+                  <div v-if="result.pan_data" class="result-card pan-card">
+                    <h3 class="section-title">
+                      <el-icon><Document /></el-icon>
+                      完整命盘
+                    </h3>
+                    <ZiweiPan :pan-data="result.pan_data" :size="800" />
+                    <div class="pan-basic-info">
+                      <div class="info-item">
+                        <span class="label">命宫：</span>
+                        <span class="value">{{ getPalaceName(result.pan_data.ming_gong) }}</span>
+                      </div>
+                      <div class="info-item">
+                        <span class="label">身宫：</span>
+                        <span class="value">{{ getPalaceName(result.pan_data.shen_gong) }}</span>
+                      </div>
+                      <div v-if="result.pan_data.birth_info" class="info-item">
+                        <span class="label">出生信息：</span>
+                        <span class="value">
+                          <span class="date-label">公历：</span>
+                          {{ result.pan_data.birth_info.year }}年
+                          {{ result.pan_data.birth_info.month }}月
+                          {{ result.pan_data.birth_info.day }}日
+                          {{ result.pan_data.birth_info.hour }}时
+                          <template v-if="result.pan_data.birth_info.lunar_year">
+                            <br />
+                            <span class="date-label">农历：</span>
+                            {{ result.pan_data.birth_info.lunar_year }}年
+                            {{ result.pan_data.birth_info.lunar_month }}月
+                            {{ result.pan_data.birth_info.lunar_day }}日
+                          </template>
+                          <br />
+                          <span class="gan-zhi">({{ result.pan_data.birth_info.year_gan }}{{ result.pan_data.birth_info.year_zhi }}年)</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 四化分析 -->
+                  <div v-if="result.si_hua_analysis" class="result-card">
+                    <h3 class="section-title">
+                      <el-icon><Star /></el-icon>
+                      四化星分析
+                    </h3>
+                    <div class="analysis-content" v-html="formatSiHuaAnalysis(result.si_hua_analysis)"></div>
+                  </div>
+
+                  <!-- 大限分析 -->
+                  <div v-if="result.daxian_analysis" class="result-card">
+                    <h3 class="section-title">
+                      <el-icon><Calendar /></el-icon>
+                      大限分析
+                    </h3>
+                    <div class="analysis-content" v-html="formatDaxianAnalysis(result.daxian_analysis)"></div>
+                  </div>
+
+                  <!-- 神煞分析 -->
+                  <div v-if="result.shensha_analysis" class="result-card">
+                    <h3 class="section-title">
+                      <el-icon><Sunny /></el-icon>
+                      神煞分析
+                    </h3>
+                    <div class="analysis-content" v-html="formatShenshaAnalysis(result.shensha_analysis)"></div>
+                  </div>
+
+                  <!-- 格局分析 -->
+                  <div v-if="result.geju_analysis" class="result-card">
+                    <h3 class="section-title">
+                      <el-icon><Grid /></el-icon>
+                      格局分析
+                    </h3>
+                    <div class="analysis-content" v-html="formatGejuAnalysis(result.geju_analysis)"></div>
+                  </div>
+
+                  <!-- LLM深度分析 -->
+                  <div v-if="result.llm_analysis" class="result-card llm-card">
+                    <h3 class="section-title">
+                      <el-icon><ChatLineRound /></el-icon>
+                      AI深度解析
+                    </h3>
+                    <div class="llm-content">
+                      <div v-if="result.llm_analysis.response" class="llm-text" v-html="formatLLMResponse(result.llm_analysis.response)"></div>
+                      <div v-else-if="result.llm_analysis.error" class="llm-error">
+                        <p>LLM分析失败: {{ result.llm_analysis.error }}</p>
+                      </div>
+                      <div v-else class="llm-text">{{ formatAnalysis(result.llm_analysis) }}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="info-item">
-                <span class="label">身宫：</span>
-                <span class="value">{{ getPalaceName(result.pan_data.shen_gong) }}</span>
+            </el-tab-pane>
+
+            <!-- AI对话标签 -->
+            <el-tab-pane label="AI对话" name="chat">
+              <div class="chat-tab-content">
+                <ZiweiChatPanel 
+                  :llm-loading="loading"
+                  :llm-progress="progressMessage"
+                />
               </div>
-              <div v-if="result.pan_data.birth_info" class="info-item">
-                <span class="label">出生信息：</span>
-                <span class="value">
-                  <span class="date-label">公历：</span>
-                  {{ result.pan_data.birth_info.year }}年
-                  {{ result.pan_data.birth_info.month }}月
-                  {{ result.pan_data.birth_info.day }}日
-                  {{ result.pan_data.birth_info.hour }}时
-                  <template v-if="result.pan_data.birth_info.lunar_year">
-                    <br />
-                    <span class="date-label">农历：</span>
-                    {{ result.pan_data.birth_info.lunar_year }}年
-                    {{ result.pan_data.birth_info.lunar_month }}月
-                    {{ result.pan_data.birth_info.lunar_day }}日
-                  </template>
-                  <br />
-                  <span class="gan-zhi">({{ result.pan_data.birth_info.year_gan }}{{ result.pan_data.birth_info.year_zhi }}年)</span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 四化分析 -->
-          <div v-if="result.si_hua_analysis" class="result-card">
-            <h3 class="section-title">
-              <el-icon><Star /></el-icon>
-              四化星分析
-            </h3>
-            <div class="analysis-content" v-html="formatSiHuaAnalysis(result.si_hua_analysis)"></div>
-          </div>
-
-          <!-- 大限分析 -->
-          <div v-if="result.daxian_analysis" class="result-card">
-            <h3 class="section-title">
-              <el-icon><Calendar /></el-icon>
-              大限分析
-            </h3>
-            <div class="analysis-content" v-html="formatDaxianAnalysis(result.daxian_analysis)"></div>
-          </div>
-
-          <!-- 神煞分析 -->
-          <div v-if="result.shensha_analysis" class="result-card">
-            <h3 class="section-title">
-              <el-icon><Sunny /></el-icon>
-              神煞分析
-            </h3>
-            <div class="analysis-content" v-html="formatShenshaAnalysis(result.shensha_analysis)"></div>
-          </div>
-
-          <!-- 格局分析 -->
-          <div v-if="result.geju_analysis" class="result-card">
-            <h3 class="section-title">
-              <el-icon><Grid /></el-icon>
-              格局分析
-            </h3>
-            <div class="analysis-content" v-html="formatGejuAnalysis(result.geju_analysis)"></div>
-          </div>
-
-          <!-- LLM深度分析 -->
-          <div v-if="result.llm_analysis" class="result-card llm-card">
-            <h3 class="section-title">
-              <el-icon><ChatLineRound /></el-icon>
-              AI深度解析
-            </h3>
-            <div class="llm-content">
-              <div v-if="result.llm_analysis.response" class="llm-text" v-html="formatLLMResponse(result.llm_analysis.response)"></div>
-              <div v-else-if="result.llm_analysis.error" class="llm-error">
-                <p>LLM分析失败: {{ result.llm_analysis.error }}</p>
-              </div>
-              <div v-else class="llm-text">{{ formatAnalysis(result.llm_analysis) }}</div>
-            </div>
-          </div>
+            </el-tab-pane>
+          </el-tabs>
         </div>
-      </div>
-
-      <!-- 右侧对话面板 -->
-      <div class="right-panel">
-        <ZiweiChatPanel 
-          :llm-loading="loading"
-          :llm-progress="progressMessage"
-        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import api from '../api';
 import { MagicStick, Document, Star, Calendar, Sunny, Grid, ChatLineRound } from '@element-plus/icons-vue';
@@ -180,6 +192,7 @@ import { useZiweiChatStore } from '../stores/ziweiChat';
 const loading = ref(false);
 const result = ref<any>(null);
 const progressMessage = ref('');
+const activeResultTab = ref('analysis');
 
 const chatStore = useZiweiChatStore();
 
@@ -519,28 +532,24 @@ const handleAnalyze = async () => {
 .main-layout {
   display: flex;
   height: 100%;
-  gap: 20px;
-  padding: 20px;
+  gap: 24px;
+  padding: 24px;
   overflow: hidden;
   position: relative;
   z-index: 1;
 }
 
 .left-panel {
-  width: 340px;
+  width: 360px;
   flex-shrink: 0;
-  overflow-y: auto;
-}
-
-.middle-panel {
-  flex: 1;
-  min-width: 0;
   overflow-y: auto;
 }
 
 .right-panel {
-  width: 400px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 卡片样式 */
@@ -584,6 +593,73 @@ const handleAnalyze = async () => {
   border-radius: 20px;
 }
 
+/* 结果包装器 */
+.result-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--mystical-surface);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* 标签页样式 */
+.result-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-tabs :deep(.el-tabs__header) {
+  margin: 0;
+  padding: 0 20px;
+  background: rgba(99, 102, 241, 0.05);
+  border-bottom: 1px solid var(--mystical-border-light);
+}
+
+.result-tabs :deep(.el-tabs__nav-wrap) {
+  padding: 10px 0;
+}
+
+.result-tabs :deep(.el-tabs__item) {
+  font-size: 15px;
+  padding: 0 24px;
+  height: 40px;
+  line-height: 40px;
+  color: var(--mystical-text-light);
+}
+
+.result-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--mystical-primary);
+  font-weight: 600;
+}
+
+.result-tabs :deep(.el-tabs__active-bar) {
+  background-color: var(--mystical-primary);
+}
+
+.result-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+}
+
+.result-tabs :deep(.el-tab-pane) {
+  height: 100%;
+}
+
+/* 分析标签内容 */
+.analysis-tab-content {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* 对话标签内容 */
+.chat-tab-content {
+  height: 100%;
+}
+
 .result-container {
   display: flex;
   flex-direction: column;
@@ -591,22 +667,21 @@ const handleAnalyze = async () => {
 }
 
 .result-card {
-  background: var(--mystical-surface);
+  background: rgba(255, 255, 255, 0.6);
   border: 1px solid var(--mystical-border-light);
-  border-radius: 20px;
-  padding: 24px;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
 }
 
 .llm-card {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%);
-  border: 2px solid rgba(99, 102, 241, 0.3);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(245, 158, 11, 0.06) 100%);
+  border: 2px solid rgba(99, 102, 241, 0.25);
 }
 
 .section-title {
   margin: 0 0 16px 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--mystical-text);
   display: flex;
@@ -681,23 +756,23 @@ const handleAnalyze = async () => {
   color: #dc2626;
   padding: 12px;
   background: rgba(254, 226, 226, 0.6);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 /* 滚动条样式 */
 .left-panel::-webkit-scrollbar,
-.middle-panel::-webkit-scrollbar {
+.analysis-tab-content::-webkit-scrollbar {
   width: 8px;
 }
 
 .left-panel::-webkit-scrollbar-track,
-.middle-panel::-webkit-scrollbar-track {
+.analysis-tab-content::-webkit-scrollbar-track {
   background: rgba(241, 245, 249, 0.8);
   border-radius: 4px;
 }
 
 .left-panel::-webkit-scrollbar-thumb,
-.middle-panel::-webkit-scrollbar-thumb {
+.analysis-tab-content::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, var(--mystical-primary), var(--mystical-secondary));
   border-radius: 4px;
 }
@@ -755,7 +830,7 @@ const handleAnalyze = async () => {
   width: 100%;
   border-collapse: collapse;
   margin: 10px 0;
-  background: var(--mystical-surface);
+  background: rgba(255, 255, 255, 0.8);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -775,7 +850,7 @@ const handleAnalyze = async () => {
 .geju-item {
   margin: 10px 0;
   padding: 12px;
-  background: var(--mystical-surface);
+  background: rgba(255, 255, 255, 0.6);
   border-radius: 8px;
 }
 
@@ -787,42 +862,22 @@ const handleAnalyze = async () => {
 }
 
 /* 响应式 */
-@media (max-width: 1400px) {
+@media (max-width: 1200px) {
   .main-layout {
-    gap: 16px;
-    padding: 16px;
+    gap: 20px;
+    padding: 20px;
   }
   
   .left-panel {
-    width: 300px;
-  }
-  
-  .right-panel {
-    width: 360px;
+    width: 320px;
   }
 }
 
-@media (max-width: 1200px) {
-  .main-layout {
-    flex-wrap: wrap;
-  }
-  
-  .right-panel {
-    width: 100%;
-    order: 2;
-    height: 400px;
-  }
-  
-  .middle-panel {
-    order: 1;
-  }
-}
-
-@media (max-width: 768px) {
+@media (max-width: 992px) {
   .main-layout {
     flex-direction: column;
-    gap: 12px;
-    padding: 12px;
+    gap: 16px;
+    padding: 16px;
     height: auto;
     min-height: 100%;
   }
@@ -831,12 +886,51 @@ const handleAnalyze = async () => {
     width: 100%;
   }
   
-  .middle-panel {
-    min-height: 300px;
+  .right-panel {
+    min-height: 500px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-layout {
+    padding: 12px;
+    gap: 12px;
   }
   
-  .right-panel {
-    height: 350px;
+  .input-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+  
+  .card-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  
+  .result-wrapper {
+    border-radius: 16px;
+  }
+  
+  .result-tabs :deep(.el-tabs__header) {
+    padding: 0 12px;
+  }
+  
+  .result-tabs :deep(.el-tabs__item) {
+    font-size: 14px;
+    padding: 0 16px;
+  }
+  
+  .analysis-tab-content {
+    padding: 12px;
+  }
+  
+  .result-card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+  
+  .section-title {
+    font-size: 15px;
   }
 }
 </style>
