@@ -870,6 +870,155 @@ async def ziwei_pan(request: ZiweiPanRequest):
         raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
 
 
+# ==================== 紫薇斗数追问对话API ====================
+
+class ZiweiChatRequest(BaseModel):
+    """紫薇斗数追问对话请求模型"""
+    message: str  # 用户追问消息
+    conversation_id: Optional[str] = None  # 会话ID（可选，用于多轮对话）
+    # 紫薇斗数上下文
+    pan_data: Optional[Dict[str, Any]] = None
+    si_hua_analysis: Optional[Dict[str, Any]] = None
+    daxian_analysis: Optional[Dict[str, Any]] = None
+    liunian_analysis: Optional[Dict[str, Any]] = None
+    shensha_analysis: Optional[Dict[str, Any]] = None
+    geju_analysis: Optional[Dict[str, Any]] = None
+    llm_analysis: Optional[str] = None
+    gender: str = '男'
+    birth_info: Optional[Dict[str, Any]] = None
+    # 历史消息（前端传入）
+    chat_history: Optional[List[Dict[str, str]]] = None
+
+
+# 紫薇对话会话存储
+ZIWEI_CONVERSATIONS: Dict[str, Dict[str, Any]] = {}
+
+
+def get_or_create_ziwei_conversation(conversation_id: Optional[str]) -> tuple:
+    """获取或创建紫薇对话会话"""
+    if not conversation_id or conversation_id not in ZIWEI_CONVERSATIONS:
+        new_id = conversation_id or str(uuid.uuid4())
+        ZIWEI_CONVERSATIONS[new_id] = {
+            "history": [],  # 对话历史
+            "ziwei_context": None  # 紫薇上下文
+        }
+        return new_id, ZIWEI_CONVERSATIONS[new_id]
+    return conversation_id, ZIWEI_CONVERSATIONS[conversation_id]
+
+
+@app.post("/api/ziwei/chat")
+async def ziwei_chat(request: ZiweiChatRequest):
+    """
+    紫薇斗数追问对话接口（非流式）
+    """
+    try:
+        from core.agents.ziwei_dialogue_agent import get_ziwei_dialogue_agent, ZiweiContext
+        
+        # 获取或创建会话
+        conv_id, session = get_or_create_ziwei_conversation(request.conversation_id)
+        
+        # 构建紫薇上下文
+        ziwei_context = ZiweiContext(
+            pan_data=request.pan_data or {},
+            si_hua_analysis=request.si_hua_analysis,
+            daxian_analysis=request.daxian_analysis,
+            liunian_analysis=request.liunian_analysis,
+            shensha_analysis=request.shensha_analysis,
+            geju_analysis=request.geju_analysis,
+            llm_analysis=request.llm_analysis,
+            gender=request.gender,
+            birth_info=request.birth_info or {}
+        )
+        
+        # 更新会话中的紫薇上下文
+        session["ziwei_context"] = ziwei_context
+        
+        # 获取对话Agent
+        agent = get_ziwei_dialogue_agent()
+        
+        # 处理消息
+        result = agent.process_message(
+            conversation_id=conv_id,
+            user_message=request.message,
+            ziwei_context=ziwei_context,
+            chat_history=request.chat_history
+        )
+        
+        return {
+            "success": True,
+            "conversation_id": conv_id,
+            "response": result.get("response", "")
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"[紫薇对话API] 错误: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ziwei/chat/stream")
+async def ziwei_chat_stream(request: ZiweiChatRequest):
+    """
+    紫薇斗数追问对话流式接口
+    """
+    
+    async def generate():
+        try:
+            from core.agents.ziwei_dialogue_agent import get_ziwei_dialogue_agent, ZiweiContext
+            
+            # 获取或创建会话
+            conv_id, session = get_or_create_ziwei_conversation(request.conversation_id)
+            
+            # 发送会话ID
+            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+            
+            # 构建紫薇上下文
+            ziwei_context = ZiweiContext(
+                pan_data=request.pan_data or {},
+                si_hua_analysis=request.si_hua_analysis,
+                daxian_analysis=request.daxian_analysis,
+                liunian_analysis=request.liunian_analysis,
+                shensha_analysis=request.shensha_analysis,
+                geju_analysis=request.geju_analysis,
+                llm_analysis=request.llm_analysis,
+                gender=request.gender,
+                birth_info=request.birth_info or {}
+            )
+            
+            # 更新会话中的紫薇上下文
+            session["ziwei_context"] = ziwei_context
+            
+            # 获取对话Agent
+            agent = get_ziwei_dialogue_agent()
+            
+            # 流式处理消息
+            for event in agent.process_message_stream(
+                conversation_id=conv_id,
+                user_message=request.message,
+                ziwei_context=ziwei_context,
+                chat_history=request.chat_history
+            ):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            error_msg = str(e)
+            import traceback
+            print(f"[紫薇对话流式API] 错误: {error_msg}")
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.delete("/api/ziwei/chat/history/{conversation_id}")
+async def clear_ziwei_chat_history(conversation_id: str):
+    """清除紫薇对话历史"""
+    if conversation_id in ZIWEI_CONVERSATIONS:
+        del ZIWEI_CONVERSATIONS[conversation_id]
+    return {"success": True, "message": "对话历史已清除"}
+
+
 # ==================== 八字排盘API ====================
 
 class BaziPanRequest(BaseModel):

@@ -55,8 +55,8 @@
         </div>
       </div>
 
-      <!-- 右侧结果区域 -->
-      <div class="right-panel">
+      <!-- 中间结果区域 -->
+      <div class="middle-panel">
         <div v-if="!result && !loading" class="empty-state">
           <el-empty description="请填写信息并点击排盘分析" />
         </div>
@@ -72,7 +72,7 @@
               <el-icon><Document /></el-icon>
               完整命盘
             </h3>
-            <ZiweiPan :pan-data="result.pan_data" :size="900" />
+            <ZiweiPan :pan-data="result.pan_data" :size="750" />
             <div class="pan-basic-info">
               <div class="info-item">
                 <span class="label">命宫：</span>
@@ -149,26 +149,39 @@
             <div class="llm-content">
               <div v-if="result.llm_analysis.response" class="llm-text" v-html="formatLLMResponse(result.llm_analysis.response)"></div>
               <div v-else-if="result.llm_analysis.error" class="llm-error">
-                <p>⚠️ LLM分析失败: {{ result.llm_analysis.error }}</p>
+                <p>LLM分析失败: {{ result.llm_analysis.error }}</p>
               </div>
               <div v-else class="llm-text">{{ formatAnalysis(result.llm_analysis) }}</div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- 右侧对话面板 -->
+      <div class="right-panel">
+        <ZiweiChatPanel 
+          :llm-loading="loading"
+          :llm-progress="progressMessage"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import api from '../api';
 import { MagicStick, Document, Star, Calendar, Sunny, Grid, ChatLineRound } from '@element-plus/icons-vue';
 import ZiweiPan from '../components/ZiweiPan.vue';
+import ZiweiChatPanel from '../components/ZiweiChatPanel.vue';
+import { useZiweiChatStore } from '../stores/ziweiChat';
 
 const loading = ref(false);
 const result = ref<any>(null);
+const progressMessage = ref('');
+
+const chatStore = useZiweiChatStore();
 
 onMounted(() => {
   console.log('ZiweiView 组件已挂载');
@@ -195,12 +208,10 @@ const formatAnalysis = (analysis: any): string => {
   if (!analysis) return '';
   if (typeof analysis === 'string') return analysis;
   
-  // 尝试提取summary或description
   if (analysis.summary) return analysis.summary;
   if (analysis.description) return analysis.description;
   if (analysis.analysis) return analysis.analysis;
   
-  // 如果是对象，格式化显示
   const formatted = JSON.stringify(analysis, null, 2);
   return `<pre style="white-space: pre-wrap; word-wrap: break-word;">${formatted}</pre>`;
 };
@@ -211,7 +222,6 @@ const formatSiHuaAnalysis = (analysis: any): string => {
   
   let html = '';
   
-  // 显示统计信息
   if (analysis.statistics) {
     html += '<div class="si-hua-stats">';
     html += `<p><strong>四化星统计：</strong></p>`;
@@ -224,12 +234,10 @@ const formatSiHuaAnalysis = (analysis: any): string => {
     html += '</div>';
   }
   
-  // 显示详细分析
   if (analysis.summary) {
     html += `<div class="si-hua-summary">${analysis.summary}</div>`;
   }
   
-  // 显示宫位分析
   if (analysis.palace_analysis && analysis.palace_analysis.length > 0) {
     html += '<div class="si-hua-palaces"><p><strong>各宫位四化情况：</strong></p><ul>';
     analysis.palace_analysis.forEach((item: any) => {
@@ -240,16 +248,13 @@ const formatSiHuaAnalysis = (analysis: any): string => {
     html += '</ul></div>';
   }
   
-  // 显示化忌重点分析
   if (analysis.hua_ji_analysis) {
-    html += `<div class="si-hua-warning"><p><strong>⚠️ 化忌重点分析：</strong></p>`;
+    html += `<div class="si-hua-warning"><p><strong>化忌重点分析：</strong></p>`;
     const huaJi = analysis.hua_ji_analysis;
     
-    // 如果有message（无化忌的情况）
     if (huaJi.message) {
       html += `<p>${huaJi.message}</p>`;
     } else {
-      // 显示化忌位置
       if (huaJi.locations && huaJi.locations.length > 0) {
         html += `<p><strong>化忌位置：</strong></p><ul>`;
         huaJi.locations.forEach((loc: any) => {
@@ -258,7 +263,6 @@ const formatSiHuaAnalysis = (analysis: any): string => {
         html += `</ul>`;
       }
       
-      // 显示警告信息
       if (huaJi.warnings && huaJi.warnings.length > 0) {
         html += `<p><strong>注意事项：</strong></p><ul>`;
         huaJi.warnings.forEach((warning: string) => {
@@ -270,16 +274,13 @@ const formatSiHuaAnalysis = (analysis: any): string => {
     html += `</div>`;
   }
   
-  // 显示化禄重点分析
   if (analysis.hua_lu_analysis) {
-    html += `<div class="si-hua-lucky"><p><strong>💰 化禄重点分析：</strong></p>`;
+    html += `<div class="si-hua-lucky"><p><strong>化禄重点分析：</strong></p>`;
     const huaLu = analysis.hua_lu_analysis;
     
-    // 如果有message（无化禄的情况）
     if (huaLu.message) {
       html += `<p>${huaLu.message}</p>`;
     } else {
-      // 显示化禄位置
       if (huaLu.locations && huaLu.locations.length > 0) {
         html += `<p><strong>化禄位置：</strong></p><ul>`;
         huaLu.locations.forEach((loc: any) => {
@@ -288,7 +289,6 @@ const formatSiHuaAnalysis = (analysis: any): string => {
         html += `</ul>`;
       }
       
-      // 显示机会信息
       if (huaLu.opportunities && huaLu.opportunities.length > 0) {
         html += `<p><strong>财运机会：</strong></p><ul>`;
         huaLu.opportunities.forEach((opp: string) => {
@@ -309,15 +309,12 @@ const formatDaxianAnalysis = (analysis: any): string => {
   
   let html = '';
   
-  // 处理嵌套的 daxian_analysis 结构
   const daxianData = analysis.daxian_analysis || analysis;
   
-  // 显示总结
   if (daxianData.summary) {
     html += `<div class="daxian-summary"><p>${daxianData.summary}</p></div>`;
   }
   
-  // 显示当前大限
   const currentDaxian = analysis.current_daxian || daxianData.current_daxian;
   if (currentDaxian) {
     html += '<div class="daxian-current"><p><strong>当前大限：</strong></p>';
@@ -325,7 +322,6 @@ const formatDaxianAnalysis = (analysis: any): string => {
     html += '</div>';
   }
   
-  // 显示所有大限列表
   const allDaxian = analysis.all_daxian;
   if (allDaxian && Array.isArray(allDaxian) && allDaxian.length > 0) {
     html += '<div class="daxian-all"><p><strong>所有大限：</strong></p>';
@@ -341,37 +337,6 @@ const formatDaxianAnalysis = (analysis: any): string => {
     html += '</tbody></table></div>';
   }
   
-  // 显示大限宫位分析
-  if (daxianData.palace) {
-    html += '<div class="daxian-palace"><p><strong>大限宫位：</strong></p>';
-    const palace = daxianData.palace;
-    html += `<p>${palace.name || getPalaceName(palace.index)}</p>`;
-    if (palace.main_stars && palace.main_stars.length > 0) {
-      html += `<p>主星：${palace.main_stars.join('、')}</p>`;
-    }
-    if (palace.auxiliary_stars && palace.auxiliary_stars.length > 0) {
-      html += `<p>辅星：${palace.auxiliary_stars.join('、')}</p>`;
-    }
-    html += '</div>';
-  }
-  
-  // 显示大限影响分析
-  if (daxianData.analysis) {
-    html += '<div class="daxian-impact"><p><strong>大限影响：</strong></p>';
-    const impact = daxianData.analysis;
-    if (impact.main_stars) {
-      html += `<p>主星影响：${impact.main_stars.summary || JSON.stringify(impact.main_stars)}</p>`;
-    }
-    if (impact.auxiliary_stars) {
-      html += `<p>辅星影响：${impact.auxiliary_stars.summary || JSON.stringify(impact.auxiliary_stars)}</p>`;
-    }
-    if (impact.si_hua) {
-      html += `<p>四化影响：${impact.si_hua.summary || JSON.stringify(impact.si_hua)}</p>`;
-    }
-    html += '</div>';
-  }
-  
-  // 如果没有格式化内容，显示原始数据（降级处理）
   if (!html) {
     return formatAnalysis(analysis);
   }
@@ -385,15 +350,12 @@ const formatShenshaAnalysis = (analysis: any): string => {
   
   let html = '';
   
-  // 处理嵌套的 shensha_analysis 结构
   const shenshaData = analysis.shensha_analysis || analysis;
   
-  // 显示总结
   if (shenshaData.summary) {
     html += `<div class="shensha-summary"><p>${shenshaData.summary}</p></div>`;
   }
   
-  // 显示各神煞分析
   if (shenshaData.shensha_list && Array.isArray(shenshaData.shensha_list)) {
     html += '<div class="shensha-list"><p><strong>神煞分布：</strong></p><ul>';
     shenshaData.shensha_list.forEach((item: any) => {
@@ -406,7 +368,6 @@ const formatShenshaAnalysis = (analysis: any): string => {
     html += '</ul></div>';
   }
   
-  // 如果没有格式化内容，显示原始数据（降级处理）
   if (!html) {
     return formatAnalysis(analysis);
   }
@@ -420,15 +381,12 @@ const formatGejuAnalysis = (analysis: any): string => {
   
   let html = '';
   
-  // 处理嵌套的 geju_analysis 结构
   const gejuData = analysis.geju_analysis || analysis;
   
-  // 显示总结
   if (gejuData.summary) {
     html += `<div class="geju-summary"><p>${gejuData.summary}</p></div>`;
   }
   
-  // 显示检测到的格局
   if (gejuData.detected_geju && Object.keys(gejuData.detected_geju).length > 0) {
     html += '<div class="geju-detected"><p><strong>检测到的格局：</strong></p><ul>';
     Object.entries(gejuData.detected_geju).forEach(([gejuName, gejuInfo]: [string, any]) => {
@@ -441,7 +399,6 @@ const formatGejuAnalysis = (analysis: any): string => {
     html += '</ul></div>';
   }
   
-  // 显示各格局的详细分析
   if (gejuData.geju_analysis && Object.keys(gejuData.geju_analysis).length > 0) {
     html += '<div class="geju-details"><p><strong>格局详细分析：</strong></p>';
     Object.entries(gejuData.geju_analysis).forEach(([gejuName, gejuDetail]: [string, any]) => {
@@ -458,30 +415,6 @@ const formatGejuAnalysis = (analysis: any): string => {
     html += '</div>';
   }
   
-  // 显示命宫三方分析
-  if (gejuData.ming_gong_triangular) {
-    html += '<div class="geju-triangular"><p><strong>命宫三方分析：</strong></p>';
-    const triangular = gejuData.ming_gong_triangular;
-    if (triangular.main_star_count !== undefined) {
-      html += `<p>主星数量：${triangular.main_star_count}个</p>`;
-    }
-    if (triangular.palaces && Array.isArray(triangular.palaces)) {
-      html += `<p>三方宫位：${triangular.palaces.map((p: any) => p.name || p).join('、')}</p>`;
-    }
-    html += '</div>';
-  }
-  
-  // 显示命宫四正分析
-  if (gejuData.ming_gong_four_corners) {
-    html += '<div class="geju-four-corners"><p><strong>命宫四正分析：</strong></p>';
-    const fourCorners = gejuData.ming_gong_four_corners;
-    if (fourCorners.palaces && Array.isArray(fourCorners.palaces)) {
-      html += `<p>四正宫位：${fourCorners.palaces.map((p: any) => p.name || p).join('、')}</p>`;
-    }
-    html += '</div>';
-  }
-  
-  // 如果没有格式化内容，显示原始数据（降级处理）
   if (!html) {
     return formatAnalysis(analysis);
   }
@@ -491,13 +424,17 @@ const formatGejuAnalysis = (analysis: any): string => {
 
 const formatLLMResponse = (response: string): string => {
   if (!response) return '';
-  // 将换行符转换为HTML
   return response.replace(/\n/g, '<br>');
 };
 
 const handleAnalyze = async () => {
   loading.value = true;
   result.value = null;
+  
+  // 清空之前的对话
+  chatStore.reset();
+  chatStore.clearZiweiContext();
+  
   try {
     console.log('开始排盘分析:', form);
     const response = await api.post('/api/ziwei/pan', {
@@ -513,6 +450,25 @@ const handleAnalyze = async () => {
     });
     console.log('排盘结果:', response.data);
     result.value = response.data;
+    
+    // 设置对话上下文
+    chatStore.setZiweiContext({
+      pan_data: response.data.pan_data,
+      si_hua_analysis: response.data.si_hua_analysis,
+      daxian_analysis: response.data.daxian_analysis,
+      liunian_analysis: response.data.liunian_analysis,
+      shensha_analysis: response.data.shensha_analysis,
+      geju_analysis: response.data.geju_analysis,
+      llm_analysis: response.data.llm_analysis?.response || null,
+      gender: form.gender,
+      birth_info: response.data.pan_data?.birth_info || null,
+    });
+    
+    // 如果有LLM分析，添加到对话历史
+    if (response.data.llm_analysis?.response) {
+      chatStore.appendAssistantMessage(response.data.llm_analysis.response, 'analysis');
+    }
+    
   } catch (error: any) {
     console.error('排盘失败:', error);
     ElMessage.error('排盘失败: ' + (error.response?.data?.detail || error.message || '未知错误'));
@@ -524,15 +480,13 @@ const handleAnalyze = async () => {
 
 
 <style scoped>
-/* 优雅明亮主题色彩变量 - 舒适护眼风格 */
+/* 优雅明亮主题色彩变量 */
 .ziwei-view {
   --mystical-bg: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #f0f4f8 100%);
   --mystical-surface: rgba(255, 255, 255, 0.85);
-  --mystical-surface-dark: rgba(248, 250, 252, 0.95);
   --mystical-primary: #6366f1;
   --mystical-secondary: #818cf8;
   --mystical-accent: #f59e0b;
-  --mystical-glow: #a5b4fc;
   --mystical-text: #1e293b;
   --mystical-text-light: #64748b;
   --mystical-border: rgba(99, 102, 241, 0.2);
@@ -547,7 +501,7 @@ const handleAnalyze = async () => {
   position: relative;
 }
 
-/* 柔和光效背景 - 明亮优雅 */
+/* 柔和光效背景 */
 .ziwei-view::before {
   content: '';
   position: fixed;
@@ -557,155 +511,62 @@ const handleAnalyze = async () => {
   height: 100%;
   background: 
     radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
-    radial-gradient(circle at 80% 70%, rgba(245, 158, 11, 0.06) 0%, transparent 60%),
-    radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.05) 0%, transparent 70%);
-  animation: backgroundPulse 10s ease-in-out infinite;
+    radial-gradient(circle at 80% 70%, rgba(245, 158, 11, 0.06) 0%, transparent 60%);
   z-index: 0;
   pointer-events: none;
-}
-
-@keyframes backgroundPulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.9;
-    transform: scale(1.05);
-  }
-}
-
-/* 柔和装饰粒子 */
-.ziwei-view::after {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    radial-gradient(1px 1px at 30px 40px, rgba(99, 102, 241, 0.3), transparent),
-    radial-gradient(1px 1px at 70px 80px, rgba(245, 158, 11, 0.25), transparent),
-    radial-gradient(0.5px 0.5px at 120px 100px, rgba(129, 140, 248, 0.2), transparent);
-  background-repeat: repeat;
-  background-size: 300px 300px;
-  animation: gentleTwinkle 12s linear infinite;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.4;
-}
-
-@keyframes gentleTwinkle {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.6; }
 }
 
 .main-layout {
   display: flex;
   height: 100%;
-  gap: 24px;
-  padding: 24px;
+  gap: 20px;
+  padding: 20px;
   overflow: hidden;
   position: relative;
   z-index: 1;
-  perspective: 2000px;
 }
 
 .left-panel {
-  width: 380px;
+  width: 340px;
   flex-shrink: 0;
   overflow-y: auto;
-  position: relative;
-  z-index: 1;
+}
+
+.middle-panel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
 }
 
 .right-panel {
-  flex: 1;
-  overflow-y: auto;
-  min-width: 0;
-  position: relative;
-  z-index: 1;
+  width: 400px;
+  flex-shrink: 0;
 }
 
-/* 明亮玻璃态卡片 - 优雅风格 */
+/* 卡片样式 */
 .input-card {
   background: var(--mystical-surface);
   border: 1px solid var(--mystical-border-light);
-  border-radius: 24px;
-  padding: 28px;
+  border-radius: 20px;
+  padding: 24px;
   backdrop-filter: blur(20px);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    0 2px 16px rgba(99, 102, 241, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform-style: preserve-3d;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  animation: cardFloat 8s ease-in-out infinite;
-  position: relative;
-  overflow: hidden;
-}
-
-.input-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(99, 102, 241, 0.05), transparent);
-  animation: cardShine 4s infinite;
-  pointer-events: none;
-}
-
-@keyframes cardFloat {
-  0%, 100% {
-    transform: translateY(0px) rotateX(0deg);
-  }
-  50% {
-    transform: translateY(-8px) rotateX(2deg);
-  }
-}
-
-@keyframes cardShine {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.input-card:hover {
-  transform: translateY(-6px) rotateX(2deg) rotateY(1deg);
-  box-shadow: 
-    0 16px 48px rgba(0, 0, 0, 0.12),
-    0 4px 24px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
 .card-title {
-  margin: 0 0 24px 0;
-  font-size: 24px;
+  margin: 0 0 20px 0;
+  font-size: 22px;
   font-weight: 700;
   background: linear-gradient(135deg, var(--mystical-primary) 0%, var(--mystical-accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
-  animation: titleGlow 3s ease-in-out infinite;
-  letter-spacing: 1px;
 }
-
 
 .form-hint {
   font-size: 13px;
   color: var(--mystical-text-light);
   margin-bottom: 12px;
-  padding-left: 4px;
 }
 
 .ziwei-form {
@@ -719,149 +580,58 @@ const handleAnalyze = async () => {
   justify-content: center;
   height: 100%;
   min-height: 400px;
+  background: var(--mystical-surface);
+  border-radius: 20px;
 }
 
 .result-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-/* 明亮结果卡片 - 优雅玻璃态 */
 .result-card {
   background: var(--mystical-surface);
   border: 1px solid var(--mystical-border-light);
-  border-radius: 24px;
-  padding: 32px;
+  border-radius: 20px;
+  padding: 24px;
   backdrop-filter: blur(20px);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    0 2px 16px rgba(99, 102, 241, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transform-style: preserve-3d;
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  animation: resultCardEnter 0.6s ease-out;
-}
-
-@keyframes resultCardEnter {
-  from {
-    opacity: 0;
-    transform: translateY(30px) rotateX(-10deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) rotateX(0deg);
-  }
-}
-
-.result-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.08), transparent);
-  transition: left 0.5s;
-}
-
-.result-card:hover {
-  transform: translateY(-8px) rotateX(2deg) rotateY(1deg);
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.1),
-    0 4px 24px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border-color: rgba(99, 102, 241, 0.4);
-}
-
-.result-card:hover::before {
-  left: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
 .llm-card {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%);
   border: 2px solid rgba(99, 102, 241, 0.3);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    0 0 30px rgba(99, 102, 241, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.llm-card::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(45deg, var(--mystical-primary), var(--mystical-accent), var(--mystical-primary));
-  background-size: 200% 200%;
-  border-radius: 24px;
-  opacity: 0.2;
-  z-index: -1;
-  filter: blur(8px);
-  animation: borderGlow 4s ease-in-out infinite;
-}
-
-@keyframes borderGlow {
-  0%, 100% {
-    opacity: 0.2;
-    background-position: 0% 50%;
-  }
-  50% {
-    opacity: 0.4;
-    background-position: 100% 50%;
-  }
 }
 
 .section-title {
-  margin: 0 0 20px 0;
-  font-size: 22px;
+  margin: 0 0 16px 0;
+  font-size: 18px;
   font-weight: 700;
   color: var(--mystical-text);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-bottom: 16px;
+  gap: 8px;
+  padding-bottom: 12px;
   border-bottom: 2px solid var(--mystical-border-light);
-  position: relative;
 }
 
-.section-title::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 80px;
-  height: 3px;
-  background: linear-gradient(90deg, var(--mystical-primary), var(--mystical-secondary), var(--mystical-accent));
-  border-radius: 2px;
-  animation: titleUnderline 4s ease-in-out infinite;
-}
-
-@keyframes titleUnderline {
-  0%, 100% {
-    width: 80px;
-    opacity: 1;
-  }
-  50% {
-    width: 150px;
-    opacity: 0.8;
-  }
+.pan-card {
+  text-align: center;
 }
 
 .pan-basic-info {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  text-align: left;
+  margin-top: 16px;
 }
 
 .info-item {
   display: flex;
   align-items: flex-start;
-  padding: 8px 0;
+  padding: 6px 0;
 }
 
 .info-item .label {
@@ -872,8 +642,8 @@ const handleAnalyze = async () => {
 
 .info-item .value {
   color: var(--mystical-text);
-  font-size: 16px;
-  line-height: 1.8;
+  font-size: 15px;
+  line-height: 1.7;
 }
 
 .date-label {
@@ -895,21 +665,9 @@ const handleAnalyze = async () => {
   word-wrap: break-word;
 }
 
-.analysis-content :deep(pre) {
-  background: rgba(241, 245, 249, 0.8);
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid var(--mystical-border-light);
-  overflow-x: auto;
-  color: var(--mystical-text);
-  font-family: 'Courier New', monospace;
-  font-size: 14px;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
 .llm-content {
   color: var(--mystical-text);
-  line-height: 2;
+  line-height: 1.9;
 }
 
 .llm-text {
@@ -917,68 +675,44 @@ const handleAnalyze = async () => {
   line-height: 1.8;
   white-space: pre-wrap;
   word-wrap: break-word;
-  color: var(--mystical-text);
 }
 
-/* 优雅滚动条样式 */
+.llm-error {
+  color: #dc2626;
+  padding: 12px;
+  background: rgba(254, 226, 226, 0.6);
+  border-radius: 12px;
+}
+
+/* 滚动条样式 */
 .left-panel::-webkit-scrollbar,
-.right-panel::-webkit-scrollbar {
-  width: 10px;
+.middle-panel::-webkit-scrollbar {
+  width: 8px;
 }
 
 .left-panel::-webkit-scrollbar-track,
-.right-panel::-webkit-scrollbar-track {
+.middle-panel::-webkit-scrollbar-track {
   background: rgba(241, 245, 249, 0.8);
-  border-radius: 5px;
+  border-radius: 4px;
 }
 
 .left-panel::-webkit-scrollbar-thumb,
-.right-panel::-webkit-scrollbar-thumb {
+.middle-panel::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, var(--mystical-primary), var(--mystical-secondary));
-  border-radius: 5px;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
-  transition: all 0.3s;
+  border-radius: 4px;
 }
 
-.left-panel::-webkit-scrollbar-thumb:hover,
-.right-panel::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, var(--mystical-secondary), var(--mystical-primary));
-  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.4);
-}
-
-.pan-card {
-  text-align: center;
-  overflow: visible;
-}
-
-.pan-card .ziwei-pan-wrapper {
-  margin: 20px 0;
-  min-height: 800px;
-  height: auto;
-}
-
-/* 命盘容器特殊样式 */
-.pan-card .result-card {
-  overflow: visible;
-  padding: 0;
-}
-
-.pan-card .section-title {
-  padding: 24px 32px 20px;
-  margin: 0;
-}
-
+/* 分析样式 */
 .si-hua-stats,
 .si-hua-summary,
 .si-hua-palaces,
 .si-hua-warning,
 .si-hua-lucky {
-  margin: 16px 0;
-  padding: 16px;
+  margin: 12px 0;
+  padding: 12px;
   background: rgba(241, 245, 249, 0.6);
-  border-radius: 12px;
-  border-left: 4px solid var(--mystical-border-light);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  border-left: 3px solid var(--mystical-border-light);
 }
 
 .si-hua-warning {
@@ -992,52 +726,43 @@ const handleAnalyze = async () => {
 }
 
 .si-hua-stats ul,
-.si-hua-palaces ul {
-  margin: 8px 0;
-  padding-left: 24px;
+.si-hua-palaces ul,
+.shensha-list ul {
+  margin: 6px 0;
+  padding-left: 20px;
 }
 
 .si-hua-stats li,
-.si-hua-palaces li {
-  margin: 4px 0;
+.si-hua-palaces li,
+.shensha-list li {
+  margin: 3px 0;
   line-height: 1.6;
 }
 
-.llm-error {
-  color: #dc2626;
-  padding: 16px;
-  background: rgba(254, 226, 226, 0.6);
-  border-radius: 12px;
-  border-left: 4px solid #ef4444;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-/* 大限分析样式 */
 .daxian-summary,
 .daxian-current,
-.daxian-palace,
-.daxian-impact {
-  margin: 16px 0;
-  padding: 16px;
+.shensha-summary,
+.geju-summary,
+.geju-detected {
+  margin: 12px 0;
+  padding: 12px;
   background: rgba(241, 245, 249, 0.6);
-  border-radius: 12px;
-  border-left: 4px solid var(--mystical-border-light);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  border-left: 3px solid var(--mystical-border-light);
 }
 
 .daxian-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 12px 0;
+  margin: 10px 0;
   background: var(--mystical-surface);
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .daxian-table th,
 .daxian-table td {
-  padding: 12px 16px;
+  padding: 10px 14px;
   text-align: left;
   border: 1px solid var(--mystical-border-light);
 }
@@ -1045,300 +770,73 @@ const handleAnalyze = async () => {
 .daxian-table th {
   background: rgba(99, 102, 241, 0.1);
   font-weight: 600;
-  color: var(--mystical-text);
-}
-
-.daxian-table td {
-  color: var(--mystical-text);
-}
-
-.daxian-table tr:nth-child(even) {
-  background: rgba(248, 250, 252, 0.5);
-}
-
-/* 格局分析样式 */
-.geju-summary,
-.geju-detected,
-.geju-details,
-.geju-triangular,
-.geju-four-corners {
-  margin: 16px 0;
-  padding: 16px;
-  background: rgba(241, 245, 249, 0.6);
-  border-radius: 12px;
-  border-left: 4px solid var(--mystical-border-light);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .geju-item {
-  margin: 12px 0;
-  padding: 16px;
+  margin: 10px 0;
+  padding: 12px;
   background: var(--mystical-surface);
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
 }
 
 .geju-item h4 {
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
   color: var(--mystical-accent);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
 }
 
-.geju-item p {
-  margin: 6px 0;
-  color: var(--mystical-text);
-  line-height: 1.6;
-}
-
-/* 神煞分析样式 */
-.shensha-summary,
-.shensha-list {
-  margin: 16px 0;
-  padding: 16px;
-  background: rgba(241, 245, 249, 0.6);
-  border-radius: 12px;
-  border-left: 4px solid var(--mystical-border-light);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.shensha-list ul {
-  margin: 8px 0;
-  padding-left: 24px;
-}
-
-.shensha-list li {
-  margin: 4px 0;
-  line-height: 1.6;
-}
-
-/* Element Plus 组件样式覆盖 - 3D效果 */
-:deep(.el-input-number),
-:deep(.el-input),
-:deep(.el-select),
-:deep(.el-button) {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:deep(.el-button--primary) {
-  background: linear-gradient(135deg, var(--mystical-primary) 0%, var(--mystical-accent) 100%);
-  border: none;
-  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
-  transform: translateZ(0);
-}
-
-:deep(.el-button--primary:hover) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.4);
-}
-
-:deep(.el-button--primary:active) {
-  transform: translateY(0);
-}
-
-:deep(.el-input__inner),
-:deep(.el-select .el-input__inner) {
-  background: var(--mystical-surface);
-  border-color: var(--mystical-border-light);
-  color: var(--mystical-text);
-  backdrop-filter: blur(10px);
-}
-
-:deep(.el-input__inner:focus),
-:deep(.el-select .el-input__inner:focus) {
-  border-color: var(--mystical-primary);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
-  background: rgba(255, 255, 255, 0.95);
-}
-
-:deep(.el-checkbox__input.is-checked .el-checkbox__inner),
-:deep(.el-radio__input.is-checked .el-radio__inner) {
-  background-color: var(--mystical-primary);
-  border-color: var(--mystical-primary);
-}
-
-/* 空状态和加载状态动画 */
-.empty-state,
-.loading-state {
-  position: relative;
-  background: var(--mystical-surface);
-  border-radius: 24px;
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--mystical-border-light);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-}
-
-.loading-state :deep(.el-skeleton__item) {
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.2) 50%, rgba(99, 102, 241, 0.1) 75%);
-  background-size: 200% 100%;
-  animation: skeletonLoading 1.5s ease-in-out infinite;
-}
-
-@keyframes skeletonLoading {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-/* ========== 移动端响应式样式 ========== */
-@media (max-width: 991.98px) {
+/* 响应式 */
+@media (max-width: 1400px) {
   .main-layout {
-    gap: 20px;
-    padding: 20px;
+    gap: 16px;
+    padding: 16px;
   }
-
+  
   .left-panel {
-    width: 320px;
+    width: 300px;
+  }
+  
+  .right-panel {
+    width: 360px;
   }
 }
 
-@media (max-width: 767.98px) {
-  .ziwei-view {
-    overflow-y: auto;
+@media (max-width: 1200px) {
+  .main-layout {
+    flex-wrap: wrap;
   }
+  
+  .right-panel {
+    width: 100%;
+    order: 2;
+    height: 400px;
+  }
+  
+  .middle-panel {
+    order: 1;
+  }
+}
 
+@media (max-width: 768px) {
   .main-layout {
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
     padding: 12px;
     height: auto;
-    min-height: calc(100vh - 120px);
+    min-height: 100%;
   }
-
+  
   .left-panel {
     width: 100%;
-    flex-shrink: 1;
-    overflow-y: visible;
   }
-
-  .right-panel {
+  
+  .middle-panel {
     min-height: 300px;
   }
-
-  .input-card {
-    padding: 20px;
-    border-radius: 16px;
-  }
-
-  .card-title {
-    font-size: 20px;
-    margin-bottom: 16px;
-  }
-
-  .form-hint {
-    font-size: 12px;
-    margin-bottom: 10px;
-  }
-
-  .result-card {
-    padding: 20px;
-    border-radius: 16px;
-  }
-
-  .section-title {
-    font-size: 18px;
-    margin-bottom: 16px;
-  }
-
-  .empty-state,
-  .loading-state {
-    min-height: 300px;
-    border-radius: 16px;
-  }
-
-  .pan-card .ziwei-pan-wrapper {
-    min-height: auto;
-  }
-
-  /* 禁用3D动画提升性能 */
-  .input-card,
-  .result-card {
-    animation: none;
-    transform: none;
-  }
-
-  .input-card:hover,
-  .result-card:hover {
-    transform: none;
-  }
-}
-
-@media (max-width: 575.98px) {
-  .main-layout {
-    padding: 8px;
-    gap: 12px;
-  }
-
-  .input-card {
-    padding: 16px;
-    border-radius: 12px;
-  }
-
-  .card-title {
-    font-size: 18px;
-  }
-
-  .ziwei-form :deep(.el-form-item) {
-    margin-bottom: 14px;
-  }
-
-  .ziwei-form :deep(.el-form-item__label) {
-    font-size: 13px;
-    padding-bottom: 4px;
-  }
-
-  .result-card {
-    padding: 16px;
-    border-radius: 12px;
-  }
-
-  .section-title {
-    font-size: 16px;
-  }
-
-  .info-item {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .info-item .label {
-    min-width: auto;
-  }
-
-  .empty-state,
-  .loading-state {
-    min-height: 200px;
-    border-radius: 12px;
-  }
-
-  .daxian-table {
-    font-size: 13px;
-  }
-
-  .daxian-table th,
-  .daxian-table td {
-    padding: 8px 12px;
-  }
-}
-
-/* 横屏模式优化 */
-@media (max-height: 500px) and (orientation: landscape) {
-  .main-layout {
-    flex-direction: row;
-    gap: 16px;
-  }
-
-  .left-panel {
-    width: 280px;
-    max-height: calc(100vh - 100px);
-    overflow-y: auto;
-  }
-
+  
   .right-panel {
-    flex: 1;
+    height: 350px;
   }
 }
 </style>
