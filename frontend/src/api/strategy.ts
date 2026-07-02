@@ -41,11 +41,11 @@ export async function getStrategyParams(strategy_name: string): Promise<Record<s
       position_size: { type: 'number', default: 1, description: '每次开仓手数' }
     },
     game_theory: {
-      panic_drop_threshold: { type: 'number', default: -3.0, description: '恐慌点跌幅阈值(%)', step: 0.1, min: -10, max: 0 },
-      panic_vol_ratio: { type: 'number', default: 1.5, description: '恐慌点放量倍数', step: 0.1, min: 1.0, max: 5.0 },
-      sell_gain_threshold: { type: 'number', default: 5.0, description: '好看点涨幅阈值(%)', step: 0.1, min: 0, max: 20 },
-      sell_vol_ratio: { type: 'number', default: 1.5, description: '好看点放量倍数', step: 0.1, min: 1.0, max: 5.0 },
-      position_size: { type: 'number', default: 100, description: '每次开仓股数(固定股数，0表示使用资金比例)', min: 0, step: 100 },
+      panic_drop_threshold: { type: 'number', default: -2.0, description: '恐慌点跌幅阈值(%)', step: 0.1, min: -10, max: 0 },
+      panic_vol_ratio: { type: 'number', default: 1.2, description: '恐慌点放量倍数', step: 0.1, min: 1.0, max: 5.0 },
+      sell_gain_threshold: { type: 'number', default: 4.0, description: '好看点涨幅阈值(%)', step: 0.1, min: 0, max: 20 },
+      sell_vol_ratio: { type: 'number', default: 1.3, description: '好看点放量倍数', step: 0.1, min: 1.0, max: 5.0 },
+      position_size: { type: 'number', default: 1000, description: '每次开仓股数(固定股数，0表示使用资金比例)', min: 0, step: 100 },
       position_capital_ratio: { type: 'number', default: 0.0, description: '每笔操作资金比例(0-1，0表示使用固定股数)', step: 0.01, min: 0, max: 1, precision: 2 },
       stage_window: { type: 'number', default: 60, description: '阶段判断窗口(天)', min: 20, max: 200 },
       panic_window: { type: 'number', default: 60, description: '恐慌点检测窗口(天)', min: 20, max: 200 },

@@ -366,18 +366,20 @@ function onBacktestTypeChange() {
   } else {
     config.value = {
       stock_code: (config.value as any).stock_code || (config.value as any).futures_code || '',
-      strategy_name: config.value.strategy_name,
-      strategy_params: config.value.strategy_params,
+      strategy_name: 'game_theory',  // 股票默认使用博弈分析策略
+      strategy_params: {},
       days: config.value.days,
       initial_capital: config.value.initial_capital,
       commission_rate: config.value.commission_rate,
       slippage: config.value.slippage,
       stamp_tax_rate: (config.value as any).stamp_tax_rate ?? 0.001,
       min_commission: (config.value as any).min_commission ?? 5.0,
-      max_position: (config.value as any).max_position ?? 10000,
-      stop_loss_ratio: config.value.stop_loss_ratio,
-      take_profit_ratio: config.value.take_profit_ratio
+      max_position: (config.value as any).max_position ?? 10,
+      stop_loss_ratio: config.value.stop_loss_ratio ?? 0.1,
+      take_profit_ratio: config.value.take_profit_ratio ?? 0.2
     } as StockBacktestRequest;
+    // 重新加载博弈分析策略的默认参数
+    onStrategyChange();
   }
 }
 
@@ -422,7 +424,7 @@ function handleReset() {
   } else {
     config.value = {
       stock_code: '',
-      strategy_name: 'dual_ma',
+      strategy_name: 'game_theory',
       strategy_params: {},
       days: 180,
       initial_capital: 100000,
@@ -430,9 +432,9 @@ function handleReset() {
       slippage: 0.0002,
       stamp_tax_rate: 0.001,
       min_commission: 5.0,
-      max_position: 10000,
-      stop_loss_ratio: 0.05,
-      take_profit_ratio: 0.10
+      max_position: 10,
+      stop_loss_ratio: 0.1,
+      take_profit_ratio: 0.2
     } as StockBacktestRequest;
   }
   onStrategyChange();
