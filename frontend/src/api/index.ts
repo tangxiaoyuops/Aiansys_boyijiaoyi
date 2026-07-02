@@ -4,7 +4,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 120000 // 120秒超时，因为LLM分析可能需要较长时间
+  timeout: 180000 // 180秒超时（3分钟），紫薇斗数分析较慢
 });
 
 api.interceptors.response.use(

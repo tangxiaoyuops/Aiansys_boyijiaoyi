@@ -212,18 +212,16 @@ def _build_llm_analysis(
     try:
         logger.info("开始构建LLM分析提示词...")
         
-        # 构建系统提示词
-        system_prompt = """你是一位资深的紫微斗数命理分析专家，具有深厚的命理学知识和丰富的实践经验。
-请根据提供的命盘数据，进行深入、全面、专业的分析，包括：
-1. 命盘整体格局评价
-2. 性格特点分析
-3. 事业财运分析
-4. 感情婚姻分析
-5. 健康运势分析
-6. 人生建议和注意事项
+        # 构建系统提示词 - 简洁明了
+        system_prompt = """你是紫微斗数专家。根据命盘数据，用简洁专业的语言分析：
 
-请用专业但易懂的语言进行分析，避免过于玄学的表述，注重实用性和指导性。
-回复要简洁明了，控制在800字以内。"""
+1. 命盘格局（主星分布特点）
+2. 性格特点（3-4点）
+3. 事业财运方向
+4. 感情婚姻趋势
+5. 人生建议（2-3条实用建议）
+
+要求：专业术语适当解释，回复控制在500字以内。"""
         
         # 构建用户提示词（命盘数据）
         user_prompt = _build_ziwei_analysis_prompt(
@@ -236,8 +234,8 @@ def _build_llm_analysis(
         )
         
         logger.info("开始调用LLM进行深度分析...")
-        # 调用LLM（注意：call_llm需要system_prompt和user_prompt两个参数）
-        llm_response = call_llm(system_prompt, user_prompt, model=None, temperature=0.3)
+        # 调用LLM，temperature设高一点让回复更快
+        llm_response = call_llm(system_prompt, user_prompt, model=None, temperature=0.5)
         
         logger.info(f"LLM分析完成，返回长度: {len(llm_response)} 字符")
         
