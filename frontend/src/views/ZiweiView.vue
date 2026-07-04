@@ -145,27 +145,6 @@
                     </h3>
                     <div class="analysis-content" v-html="formatGejuAnalysis(result.geju_analysis)"></div>
                   </div>
-
-                  <!-- LLM深度分析 -->
-                  <div v-if="result.llm_analysis || llmLoading" class="result-card llm-card">
-                    <h3 class="section-title">
-                      <el-icon><ChatLineRound /></el-icon>
-                      AI深度解析
-                    </h3>
-                    <div class="llm-content">
-                      <!-- 加载中状态 -->
-                      <div v-if="llmLoading && !result.llm_analysis?.response" class="llm-loading">
-                        <el-icon class="is-loading"><Loading /></el-icon>
-                        <span>{{ llmProgress || 'AI正在深度分析...' }}</span>
-                      </div>
-                      <!-- 流式内容显示 -->
-                      <div v-else-if="result.llm_analysis?.response" class="llm-text" v-html="formatLLMResponse(result.llm_analysis.response)"></div>
-                      <div v-else-if="result.llm_analysis?.error" class="llm-error">
-                        <p>LLM分析失败: {{ result.llm_analysis.error }}</p>
-                      </div>
-                      <div v-else class="llm-text">{{ formatAnalysis(result.llm_analysis) }}</div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </el-tab-pane>
@@ -505,18 +484,16 @@ const fetchZiweiLLMStream = async () => {
   llmLoading.value = true;
   llmProgress.value = 'AI正在深度分析...';
   
-  // 添加一条空的助手消息，用于流式更新
+  // 添加一条空的助手消息，用于流式更新（显示在"AI对话"标签页）
   chatStore.appendAssistantMessage('', 'analysis');
   
   try {
-    // 使用相对路径，通过 Vite 代理访问后端
     const requestBody = {
       year: form.year,
       month: form.month,
       day: form.day,
       hour: form.hour,
       gender: form.gender,
-      // 传递前端已排好的数据，避免重复计算
       pan_data: result.value?.pan_data || null,
       si_hua_analysis: result.value?.si_hua_analysis || null,
       daxian_analysis: result.value?.daxian_analysis || null,
@@ -551,47 +528,28 @@ const fetchZiweiLLMStream = async () => {
         if (!jsonStr) continue;
         try {
           const payload = JSON.parse(jsonStr);
-          console.log('[ZiweiView] 收到事件:', payload.type, payload.content?.substring(0, 30));
           
           if (payload.type === 'progress') {
             llmProgress.value = payload.message || '';
           }
           else if (payload.type === 'content' && payload.content) {
-            // 流式更新第一条助手消息
+            // 流式更新对话中的分析消息
             chatStore.updateFirstAssistantMessage(payload.content);
-            // 同时更新result中的llm_analysis
-            if (result.value) {
-              const currentContent = result.value.llm_analysis?.response || '';
-              result.value.llm_analysis = {
-                success: true,
-                response: currentContent + payload.content,
-              };
-            }
           }
           else if (payload.type === 'done') {
-            console.log('[ZiweiView] 流式完成');
             if (payload.full_content) {
+              // 替换完整内容
               chatStore.updateFirstAssistantMessage(payload.full_content, true);
-              if (result.value) {
-                result.value.llm_analysis = {
-                  success: true,
-                  response: payload.full_content,
-                };
-              }
+              // 更新对话上下文，供追问使用
+              chatStore.setZiweiContext({
+                llm_analysis: payload.full_content,
+              });
             }
           }
         } catch (e) {
           console.error('[ZiweiView] 解析错误:', e);
         }
       }
-    }
-
-    // 更新聊天上下文中的llm_analysis
-    const firstMsg = chatStore.messages[0];
-    if (firstMsg) {
-      chatStore.setZiweiContext({
-        llm_analysis: firstMsg.content,
-      });
     }
   } catch (error: any) {
     console.error('LLM流式解析失败:', error);
