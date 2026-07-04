@@ -509,7 +509,7 @@ const fetchZiweiLLMStream = async () => {
   chatStore.appendAssistantMessage('', 'analysis');
   
   try {
-    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    // 使用相对路径，通过 Vite 代理访问后端
     const requestBody = {
       year: form.year,
       month: form.month,
@@ -524,7 +524,7 @@ const fetchZiweiLLMStream = async () => {
       geju_analysis: result.value?.geju_analysis || null,
     };
     
-    const response = await fetch(`${baseURL}/api/ziwei/llm-stream`, {
+    const response = await fetch('/api/ziwei/llm-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
