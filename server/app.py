@@ -17,7 +17,7 @@ from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
 from core.models.futures_state import FuturesAnalysisState
-from server.routers import backtest, panic_scan, commodity, fengshui, pool_scan
+from server.routers import backtest, panic_scan, commodity, fengshui, pool_scan, selection
 from server.utils.access_logger import log_access, log_page_view
 
 # 配置日志
@@ -139,6 +139,7 @@ app.include_router(panic_scan.router)
 app.include_router(commodity.router)
 app.include_router(fengshui.router)
 app.include_router(pool_scan.router)
+app.include_router(selection.router)
 
 # 简单的内存会话存储（需要持久化时可替换为 Redis/数据库）
 SESSIONS: Dict[str, Dict[str, Any]] = {}
@@ -868,6 +869,190 @@ async def ziwei_pan(request: ZiweiPanRequest):
         print(f"[紫微斗数API] 异常堆栈:\n{traceback.format_exc()}")
         logger.error(f"排盘异常: {error_msg}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"排盘异常: {error_msg}")
+
+
+# ==================== 紫微斗数流式LLM接口 ====================
+
+class ZiweiLLMStreamRequest(BaseModel):
+    """紫微斗数LLM流式分析请求模型"""
+    year: int
+    month: int
+    day: int
+    hour: int
+    gender: str = '男'
+    # 前端传来的排盘数据（避免重复计算）
+    pan_data: Optional[Dict[str, Any]] = None
+    si_hua_analysis: Optional[Dict[str, Any]] = None
+    daxian_analysis: Optional[Dict[str, Any]] = None
+    shensha_analysis: Optional[Dict[str, Any]] = None
+    geju_analysis: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/ziwei/llm-stream")
+async def ziwei_llm_stream(request: ZiweiLLMStreamRequest):
+    """
+    紫微斗数LLM流式分析接口
+    
+    数据流：
+    1. 如果前端传来了排盘数据，直接使用这些数据进行LLM分析
+    2. 如果没有传来数据，则重新排盘（向后兼容）
+    """
+    import logging
+    import json
+    import asyncio
+    logger = logging.getLogger(__name__)
+    
+    async def generate():
+        try:
+            # 判断是否使用前端传来的排盘数据
+            use_frontend_data = request.pan_data is not None
+            
+            if use_frontend_data:
+                # 使用前端传来的数据，避免重复排盘
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
+                
+                pan_data = request.pan_data
+                si_hua_analysis = request.si_hua_analysis
+                daxian_analysis = request.daxian_analysis
+                shensha_analysis = request.shensha_analysis
+                geju_analysis = request.geju_analysis
+            else:
+                # 没有前端数据，重新排盘（向后兼容）
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'pan', 'message': '正在进行紫微排盘...'}, ensure_ascii=False)}\n\n"
+                
+                from core.agents.ziwei_pan_agent import ziwei_pan_node
+                pan_result = ziwei_pan_node(request.year, request.month, request.day, request.hour, request.gender)
+                
+                if not pan_result.get('success'):
+                    yield f"data: {json.dumps({'type': 'error', 'message': pan_result.get('error', '排盘失败')}, ensure_ascii=False)}\n\n"
+                    return
+                
+                pan_data = pan_result['pan_data']
+                si_hua_analysis = pan_result.get('si_hua_analysis', {})
+                
+                # 大限分析
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'daxian', 'message': '正在分析大限...'}, ensure_ascii=False)}\n\n"
+                from core.agents.ziwei_daxian_agent import ziwei_daxian_node
+                daxian_result = ziwei_daxian_node(pan_data.copy(), None)
+                daxian_analysis = daxian_result if daxian_result.get('success') else None
+                
+                # 神煞分析
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'shensha', 'message': '正在分析神煞...'}, ensure_ascii=False)}\n\n"
+                from core.agents.ziwei_shensha_agent import ziwei_shensha_node
+                shensha_result = ziwei_shensha_node(pan_data.copy())
+                shensha_analysis = shensha_result if shensha_result.get('success') else None
+                
+                # 格局分析
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'geju', 'message': '正在分析格局...'}, ensure_ascii=False)}\n\n"
+                from core.agents.ziwei_geju_agent import ziwei_geju_node
+                geju_result = ziwei_geju_node(pan_data.copy())
+                geju_analysis = geju_result if geju_result.get('success') else None
+                
+                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
+            
+            # 流式调用LLM
+            from core.tools.llm_client import call_llm_stream
+            
+            # 构建提示词
+            system_prompt = """你是紫微斗数专家。根据命盘数据，用简洁专业的语言分析：
+
+1. 命盘格局（主星分布特点）
+2. 性格特点（3-4点）
+3. 事业财运方向
+4. 感情婚姻趋势
+5. 人生建议（2-3条实用建议）
+
+要求：专业术语适当解释，回复控制在500字以内。"""
+            
+            user_prompt = _build_ziwei_llm_prompt(
+                pan_data,
+                si_hua_analysis,
+                daxian_analysis,
+                shensha_analysis,
+                geju_analysis
+            )
+            
+            full_content = ""
+            for chunk in call_llm_stream(system_prompt, user_prompt):
+                full_content += chunk
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
+            
+            # 发送完成信号
+            yield f"data: {json.dumps({'type': 'done', 'full_content': full_content}, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"[紫微LLM流式API] 错误: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+def _build_ziwei_llm_prompt(
+    pan_data: Dict[str, Any],
+    si_hua_analysis: Optional[Dict[str, Any]],
+    daxian_analysis: Optional[Dict[str, Any]],
+    shensha_analysis: Optional[Dict[str, Any]],
+    geju_analysis: Optional[Dict[str, Any]],
+) -> str:
+    """构建紫微斗数LLM分析提示词"""
+    prompt_parts = [
+        "=== 紫微斗数命盘数据 ===",
+        "",
+        "【基础信息】",
+    ]
+    
+    # 出生信息
+    if pan_data.get('birth_info'):
+        birth = pan_data['birth_info']
+        prompt_parts.append(f"出生：{birth.get('year', '')}年{birth.get('month', '')}月{birth.get('day', '')}日{birth.get('hour', '')}时")
+        prompt_parts.append(f"年柱：{birth.get('year_gan', '')}{birth.get('year_zhi', '')}")
+    
+    # 命宫身宫
+    ming_gong = pan_data.get('ming_gong', 0)
+    shen_gong = pan_data.get('shen_gong', 0)
+    palace_names = ['命宫', '兄弟', '夫妻', '子女', '财帛', '疾厄', '迁移', '奴仆', '官禄', '田宅', '福德', '父母']
+    prompt_parts.append(f"命宫：{palace_names[ming_gong] if ming_gong < 12 else '未知'}")
+    prompt_parts.append(f"身宫：{palace_names[shen_gong] if shen_gong < 12 else '未知'}")
+    
+    # 主星分布（精简）
+    if pan_data.get('main_stars'):
+        prompt_parts.append("")
+        prompt_parts.append("【主星分布】")
+        main_stars = pan_data['main_stars']
+        for star, palace_index in list(main_stars.items())[:8]:
+            palace_name = palace_names[palace_index] if palace_index < 12 else f'宫位{palace_index}'
+            prompt_parts.append(f"{star}：{palace_name}")
+    
+    # 四化分析（精简）
+    if si_hua_analysis and si_hua_analysis.get('statistics'):
+        stats = si_hua_analysis['statistics']
+        prompt_parts.append("")
+        prompt_parts.append("【四化星】")
+        prompt_parts.append(f"化禄：{stats.get('化禄_count', 0)}个，化权：{stats.get('化权_count', 0)}个，化科：{stats.get('化科_count', 0)}个，化忌：{stats.get('化忌_count', 0)}个")
+    
+    # 大限分析（精简）
+    if daxian_analysis:
+        current = daxian_analysis.get('current_daxian') or daxian_analysis.get('daxian_analysis', {}).get('current_daxian')
+        if current:
+            prompt_parts.append("")
+            prompt_parts.append("【当前大限】")
+            prompt_parts.append(f"第{current.get('number', '')}大限, {current.get('start_age', '')}-{current.get('end_age', '')}岁")
+    
+    # 格局分析（精简）
+    if geju_analysis and geju_analysis.get('detected_geju'):
+        prompt_parts.append("")
+        prompt_parts.append("【格局】")
+        detected = geju_analysis.get('detected_geju', {})
+        for name in list(detected.keys())[:3]:
+            prompt_parts.append(f"- {name}")
+    
+    prompt_parts.append("")
+    prompt_parts.append("请基于以上命盘数据，提供简洁、专业、实用的命盘解读和人生建议（控制在800字以内）。")
+    
+    return "\n".join(prompt_parts)
 
 
 # ==================== 紫薇斗数追问对话API ====================

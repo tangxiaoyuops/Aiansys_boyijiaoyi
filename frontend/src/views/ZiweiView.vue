@@ -147,14 +147,20 @@
                   </div>
 
                   <!-- LLM深度分析 -->
-                  <div v-if="result.llm_analysis" class="result-card llm-card">
+                  <div v-if="result.llm_analysis || llmLoading" class="result-card llm-card">
                     <h3 class="section-title">
                       <el-icon><ChatLineRound /></el-icon>
                       AI深度解析
                     </h3>
                     <div class="llm-content">
-                      <div v-if="result.llm_analysis.response" class="llm-text" v-html="formatLLMResponse(result.llm_analysis.response)"></div>
-                      <div v-else-if="result.llm_analysis.error" class="llm-error">
+                      <!-- 加载中状态 -->
+                      <div v-if="llmLoading && !result.llm_analysis?.response" class="llm-loading">
+                        <el-icon class="is-loading"><Loading /></el-icon>
+                        <span>{{ llmProgress || 'AI正在深度分析...' }}</span>
+                      </div>
+                      <!-- 流式内容显示 -->
+                      <div v-else-if="result.llm_analysis?.response" class="llm-text" v-html="formatLLMResponse(result.llm_analysis.response)"></div>
+                      <div v-else-if="result.llm_analysis?.error" class="llm-error">
                         <p>LLM分析失败: {{ result.llm_analysis.error }}</p>
                       </div>
                       <div v-else class="llm-text">{{ formatAnalysis(result.llm_analysis) }}</div>
@@ -168,8 +174,8 @@
             <el-tab-pane label="AI对话" name="chat">
               <div class="chat-tab-content">
                 <ZiweiChatPanel 
-                  :llm-loading="loading"
-                  :llm-progress="progressMessage"
+                  :llm-loading="llmLoading"
+                  :llm-progress="llmProgress"
                 />
               </div>
             </el-tab-pane>
@@ -184,14 +190,16 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import api from '../api';
-import { MagicStick, Document, Star, Calendar, Sunny, Grid, ChatLineRound } from '@element-plus/icons-vue';
+import { MagicStick, Document, Star, Calendar, Sunny, Grid, ChatLineRound, Loading } from '@element-plus/icons-vue';
 import ZiweiPan from '../components/ZiweiPan.vue';
 import ZiweiChatPanel from '../components/ZiweiChatPanel.vue';
 import { useZiweiChatStore } from '../stores/ziweiChat';
 
 const loading = ref(false);
+const llmLoading = ref(false);
 const result = ref<any>(null);
 const progressMessage = ref('');
+const llmProgress = ref('');
 const activeResultTab = ref('analysis');
 
 const chatStore = useZiweiChatStore();
@@ -209,7 +217,7 @@ const form = reactive({
   include_daxian: true,
   include_shensha: true,
   include_geju: true,
-  include_llm: true,
+  include_llm: true,  // 保留选项，但处理方式不同
 });
 
 const getPalaceName = (index: number) => {
@@ -443,6 +451,7 @@ const formatLLMResponse = (response: string): string => {
 const handleAnalyze = async () => {
   loading.value = true;
   result.value = null;
+  llmProgress.value = '';
   
   // 清空之前的对话
   chatStore.reset();
@@ -450,6 +459,8 @@ const handleAnalyze = async () => {
   
   try {
     console.log('开始排盘分析:', form);
+    
+    // 第一步：排盘（不包含LLM，快速返回）
     const response = await api.post('/api/ziwei/pan', {
       year: form.year,
       month: form.month,
@@ -459,7 +470,7 @@ const handleAnalyze = async () => {
       include_daxian: form.include_daxian,
       include_shensha: form.include_shensha,
       include_geju: form.include_geju,
-      include_llm: form.include_llm,
+      include_llm: false,  // 排盘时不调用LLM，快速返回
     });
     console.log('排盘结果:', response.data);
     result.value = response.data;
@@ -472,21 +483,122 @@ const handleAnalyze = async () => {
       liunian_analysis: response.data.liunian_analysis,
       shensha_analysis: response.data.shensha_analysis,
       geju_analysis: response.data.geju_analysis,
-      llm_analysis: response.data.llm_analysis?.response || null,
+      llm_analysis: null,  // LLM分析稍后获取
       gender: form.gender,
       birth_info: response.data.pan_data?.birth_info || null,
     });
-    
-    // 如果有LLM分析，添加到对话历史
-    if (response.data.llm_analysis?.response) {
-      chatStore.appendAssistantMessage(response.data.llm_analysis.response, 'analysis');
-    }
     
   } catch (error: any) {
     console.error('排盘失败:', error);
     ElMessage.error('排盘失败: ' + (error.response?.data?.detail || error.message || '未知错误'));
   } finally {
     loading.value = false;
+  }
+  
+  // 第二步：如果勾选了AI深度解析，调用流式LLM接口
+  if (form.include_llm && result.value) {
+    await fetchZiweiLLMStream();
+  }
+};
+
+const fetchZiweiLLMStream = async () => {
+  llmLoading.value = true;
+  llmProgress.value = 'AI正在深度分析...';
+  
+  // 添加一条空的助手消息，用于流式更新
+  chatStore.appendAssistantMessage('', 'analysis');
+  
+  try {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    const requestBody = {
+      year: form.year,
+      month: form.month,
+      day: form.day,
+      hour: form.hour,
+      gender: form.gender,
+      // 传递前端已排好的数据，避免重复计算
+      pan_data: result.value?.pan_data || null,
+      si_hua_analysis: result.value?.si_hua_analysis || null,
+      daxian_analysis: result.value?.daxian_analysis || null,
+      shensha_analysis: result.value?.shensha_analysis || null,
+      geju_analysis: result.value?.geju_analysis || null,
+    };
+    
+    const response = await fetch(`${baseURL}/api/ziwei/llm-stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.body) throw new Error('不支持流式输出');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        const jsonStr = line.slice(5).trim();
+        if (!jsonStr) continue;
+        try {
+          const payload = JSON.parse(jsonStr);
+          console.log('[ZiweiView] 收到事件:', payload.type, payload.content?.substring(0, 30));
+          
+          if (payload.type === 'progress') {
+            llmProgress.value = payload.message || '';
+          }
+          else if (payload.type === 'content' && payload.content) {
+            // 流式更新第一条助手消息
+            chatStore.updateFirstAssistantMessage(payload.content);
+            // 同时更新result中的llm_analysis
+            if (result.value) {
+              const currentContent = result.value.llm_analysis?.response || '';
+              result.value.llm_analysis = {
+                success: true,
+                response: currentContent + payload.content,
+              };
+            }
+          }
+          else if (payload.type === 'done') {
+            console.log('[ZiweiView] 流式完成');
+            if (payload.full_content) {
+              chatStore.updateFirstAssistantMessage(payload.full_content, true);
+              if (result.value) {
+                result.value.llm_analysis = {
+                  success: true,
+                  response: payload.full_content,
+                };
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[ZiweiView] 解析错误:', e);
+        }
+      }
+    }
+
+    // 更新聊天上下文中的llm_analysis
+    const firstMsg = chatStore.messages[0];
+    if (firstMsg) {
+      chatStore.setZiweiContext({
+        llm_analysis: firstMsg.content,
+      });
+    }
+  } catch (error: any) {
+    console.error('LLM流式解析失败:', error);
+    ElMessage.error('AI分析失败: ' + (error.message || '未知错误'));
+  } finally {
+    llmLoading.value = false;
+    llmProgress.value = '';
   }
 };
 </script>
@@ -757,6 +869,27 @@ const handleAnalyze = async () => {
   padding: 12px;
   background: rgba(254, 226, 226, 0.6);
   border-radius: 10px;
+}
+
+.llm-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--mystical-primary);
+  font-size: 15px;
+  padding: 16px;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 10px;
+}
+
+.llm-loading .el-icon {
+  font-size: 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* 滚动条样式 */

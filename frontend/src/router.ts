@@ -73,6 +73,12 @@ const routes = [
     component: () => import('./views/AnimationView.vue'),
     meta: { title: '思维日志' },
   },
+  {
+    path: '/selection',
+    name: 'selection',
+    component: () => import('./views/SelectionView.vue'),
+    meta: { title: '选股策略' },
+  },
 ];
 
 const router = createRouter({

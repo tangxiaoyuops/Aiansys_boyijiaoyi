@@ -14,6 +14,7 @@
         <router-link to="/futures" class="nav-link">期货分析</router-link>
         <router-link to="/panic-scan" class="nav-link">恐慌点扫描</router-link>
         <router-link to="/backtest" class="nav-link">量化回测</router-link>
+        <router-link to="/selection" class="nav-link">选股策略</router-link>
         <router-link to="/commodity" class="nav-link">大宗商品</router-link>
         <router-link to="/bazi" class="nav-link">八字排盘</router-link>
         <router-link to="/ziwei" class="nav-link">紫微斗数</router-link>
@@ -42,6 +43,7 @@
           <router-link to="/futures" class="mobile-nav-link" @click="closeMobileMenu">期货分析</router-link>
           <router-link to="/panic-scan" class="mobile-nav-link" @click="closeMobileMenu">恐慌点扫描</router-link>
           <router-link to="/backtest" class="mobile-nav-link" @click="closeMobileMenu">量化回测</router-link>
+          <router-link to="/selection" class="mobile-nav-link" @click="closeMobileMenu">选股策略</router-link>
           <router-link to="/commodity" class="mobile-nav-link" @click="closeMobileMenu">大宗商品</router-link>
           <router-link to="/bazi" class="mobile-nav-link" @click="closeMobileMenu">八字排盘</router-link>
           <router-link to="/ziwei" class="mobile-nav-link" @click="closeMobileMenu">紫微斗数</router-link>
