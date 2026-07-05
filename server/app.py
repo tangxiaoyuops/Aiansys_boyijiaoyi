@@ -954,28 +954,28 @@ async def ziwei_llm_stream(request: ZiweiLLMStreamRequest):
             from core.tools.llm_client import call_llm_stream
             
             # 构建提示词
-            system_prompt = """你是资深的紫微斗数命理专家，拥有20年以上的实战经验。请根据用户提供的完整命盘数据进行专业分析。
+            system_prompt = """你是资深的紫微斗数命理专家，拥有30年实战经验。请根据用户提供的完整命盘数据进行专业分析。
 
-分析要求：
-1. 命盘格局：分析主星组合特点，判断格局高低，说明优势与短板
-2. 性格特点：结合命宫、身宫、福德宫星曜，分析性格优缺点
-3. 事业财运：结合官禄宫、财帛宫、迁移宫，分析事业方向和财运特点
-4. 感情婚姻：结合夫妻宫、子女宫、红鸾天喜，分析感情走势和注意事项
-5. 大限运势：分析当前大限的机遇与挑战
-6. 人生建议：给出3-5条针对性的实用建议
+分析原则：
+1. 结合具体星曜位置分析，不要空泛描述
+2. 专业术语要解释清楚，让普通人能理解
+3. 给出具体可操作的建议，不要模棱两可
+4. 注意命盘的性别差异，男命女命解读不同
+5. 综合考虑三方四正、四化飞星的影响
 
-分析风格：
-- 专业术语要解释清楚，让普通人能理解
-- 结合具体星曜位置进行分析，不要空泛描述
-- 给出具体可操作的建议，不要模棱两可
-- 字数控制在1000字左右"""
+输出要求：
+- 结构清晰，分点论述
+- 论断要有依据，结合星曜特性
+- 建议要实用，有针对性
+- 字数1000-1500字"""
             
             user_prompt = _build_ziwei_llm_prompt(
                 pan_data,
                 si_hua_analysis,
                 daxian_analysis,
                 shensha_analysis,
-                geju_analysis
+                geju_analysis,
+                request.gender  # 传入性别
             )
             
             full_content = ""
@@ -1002,126 +1002,197 @@ def _build_ziwei_llm_prompt(
     daxian_analysis: Optional[Dict[str, Any]],
     shensha_analysis: Optional[Dict[str, Any]],
     geju_analysis: Optional[Dict[str, Any]],
+    gender: str = '男',
 ) -> str:
     """构建紫微斗数LLM分析提示词（完整版）"""
     prompt_parts = [
-        "=== 紫微斗数命盘数据 ===",
+        "=== 紫微斗数命盘详细数据 ===",
         "",
-        "【基础信息】",
     ]
     
     palace_names = ['命宫', '兄弟', '夫妻', '子女', '财帛', '疾厄', '迁移', '奴仆', '官禄', '田宅', '福德', '父母']
     
-    # 出生信息
+    # ========== 基础信息 ==========
+    prompt_parts.append("【基础信息】")
     if pan_data.get('birth_info'):
         birth = pan_data['birth_info']
-        prompt_parts.append(f"出生：{birth.get('year', '')}年{birth.get('month', '')}月{birth.get('day', '')}日{birth.get('hour', '')}时，性别：{pan_data.get('gender', '男')}")
-        prompt_parts.append(f"年柱：{birth.get('year_gan', '')}{birth.get('year_zhi', '')}")
+        prompt_parts.append(f"出生时间：{birth.get('year', '')}年{birth.get('month', '')}月{birth.get('day', '')}日{birth.get('hour', '')}时")
+        prompt_parts.append(f"性别：{gender}命")
+        prompt_parts.append(f"年柱：{birth.get('year_gan', '')}{birth.get('year_zhi', '')}年")
+        if birth.get('lunar_month'):
+            prompt_parts.append(f"农历：{birth.get('lunar_year', birth.get('year', ''))}年{birth.get('lunar_month', '')}月{birth.get('lunar_day', '')}日")
     
     # 命宫身宫
     ming_gong = pan_data.get('ming_gong', 0)
     shen_gong = pan_data.get('shen_gong', 0)
-    prompt_parts.append(f"命宫位置：{palace_names[ming_gong] if ming_gong < 12 else '未知'}（第{ming_gong + 1}宫）")
-    prompt_parts.append(f"身宫位置：{palace_names[shen_gong] if shen_gong < 12 else '未知'}（第{shen_gong + 1}宫）")
+    prompt_parts.append(f"命宫位置：{palace_names[ming_gong]}（第{ming_gong + 1}宫）")
+    prompt_parts.append(f"身宫位置：{palace_names[shen_gong]}（第{shen_gong + 1}宫）")
     
-    # 十二宫详细星曜分布
+    # ========== 十二宫详细星曜分布 ==========
+    prompt_parts.append("")
+    prompt_parts.append("【十二宫星曜分布】")
+    
     if pan_data.get('palaces'):
-        prompt_parts.append("")
-        prompt_parts.append("【十二宫星曜分布】")
         palaces = pan_data['palaces']
         for i, palace in enumerate(palaces):
-            palace_name = palace_names[i]
-            stars_info = []
+            palace_info = [f"{palace_names[i]}："]
             
             # 主星
             if palace.get('main_stars'):
-                stars_info.append(f"主星：{', '.join(palace['main_stars'])}")
+                palace_info.append(f"主星[{', '.join(palace['main_stars'])}]")
             
-            # 辅星
+            # 辅星（六吉星）
             if palace.get('auxiliary_stars'):
-                stars_info.append(f"辅星：{', '.join(palace['auxiliary_stars'])}")
+                palace_info.append(f"辅星[{', '.join(palace['auxiliary_stars'])}]")
             
-            # 煞星
+            # 煞星（六煞星）
             if palace.get('evil_stars'):
-                stars_info.append(f"煞星：{', '.join(palace['evil_stars'])}")
+                palace_info.append(f"煞星[{', '.join(palace['evil_stars'])}]")
+            
+            # 其他星曜
+            if palace.get('other_stars'):
+                palace_info.append(f"杂曜[{', '.join(palace['other_stars'])}]")
             
             # 四化
             if palace.get('si_hua'):
-                stars_info.append(f"四化：{', '.join(palace['si_hua'])}")
+                palace_info.append(f"四化[{', '.join(palace['si_hua'])}]")
             
-            if stars_info:
-                prompt_parts.append(f"{palace_name}：{'；'.join(stars_info)}")
+            # 只有有星曜的宫位才显示
+            if len(palace_info) > 1:
+                prompt_parts.append(' '.join(palace_info))
     
     # 如果没有 palaces 结构，使用 main_stars
     elif pan_data.get('main_stars'):
-        prompt_parts.append("")
-        prompt_parts.append("【主星分布】")
         main_stars = pan_data['main_stars']
         for star, palace_index in main_stars.items():
-            palace_name = palace_names[palace_index] if palace_index < 12 else f'宫位{palace_index}'
-            prompt_parts.append(f"{star}：{palace_name}")
+            prompt_parts.append(f"{star} → {palace_names[palace_index]}")
     
-    # 四化详细分析
+    # ========== 四化星详情 ==========
     if si_hua_analysis:
         prompt_parts.append("")
-        prompt_parts.append("【四化星详情】")
+        prompt_parts.append("【四化星分析】")
         
-        # 四化统计
+        # 统计
         if si_hua_analysis.get('statistics'):
             stats = si_hua_analysis['statistics']
-            prompt_parts.append(f"化禄{stats.get('化禄_count', 0)}个、化权{stats.get('化权_count', 0)}个、化科{stats.get('化科_count', 0)}个、化忌{stats.get('化忌_count', 0)}个")
+            prompt_parts.append(f"四化统计：化禄{stats.get('化禄_count', 0)}个、化权{stats.get('化权_count', 0)}个、化科{stats.get('化科_count', 0)}个、化忌{stats.get('化忌_count', 0)}个")
         
-        # 各宫四化
+        # 各宫四化详情
         if si_hua_analysis.get('palace_analysis'):
             prompt_parts.append("各宫四化：")
-            for item in si_hua_analysis['palace_analysis'][:6]:  # 限制前6个
-                prompt_parts.append(f"  - {item.get('palace', '')}：{', '.join(item.get('si_hua', []))}")
+            for item in si_hua_analysis['palace_analysis']:
+                si_hua_str = ', '.join(item.get('si_hua', []))
+                impact = item.get('impact', '')
+                if impact:
+                    prompt_parts.append(f"  {item.get('palace', '')}：{si_hua_str}（{impact}）")
+                else:
+                    prompt_parts.append(f"  {item.get('palace', '')}：{si_hua_str}")
         
-        # 化忌警示
+        # 化忌重点分析
         if si_hua_analysis.get('hua_ji_analysis'):
             hua_ji = si_hua_analysis['hua_ji_analysis']
-            if hua_ji.get('locations'):
-                prompt_parts.append("化忌位置：")
-                for loc in hua_ji['locations'][:3]:
-                    prompt_parts.append(f"  - {loc.get('palace', '')}宫{loc.get('star', '')}化忌")
+            prompt_parts.append("化忌警示：")
+            if hua_ji.get('message'):
+                prompt_parts.append(f"  {hua_ji['message']}")
+            elif hua_ji.get('locations'):
+                for loc in hua_ji['locations']:
+                    warning = "（命宫，需特别注意）" if loc.get('is_ming_gong') else ""
+                    prompt_parts.append(f"  {loc.get('palace', '')}宫{loc.get('star', '')}化忌{warning}")
+        
+        # 化禄重点分析
+        if si_hua_analysis.get('hua_lu_analysis'):
+            hua_lu = si_hua_analysis['hua_lu_analysis']
+            prompt_parts.append("化禄机遇：")
+            if hua_lu.get('message'):
+                prompt_parts.append(f"  {hua_lu['message']}")
+            elif hua_lu.get('locations'):
+                for loc in hua_lu['locations']:
+                    prompt_parts.append(f"  {loc.get('palace', '')}宫{loc.get('star', '')}化禄")
     
-    # 大限分析
+    # ========== 大限分析 ==========
     if daxian_analysis:
+        prompt_parts.append("")
+        prompt_parts.append("【大限运势】")
+        
         current = daxian_analysis.get('current_daxian') or daxian_analysis.get('daxian_analysis', {}).get('current_daxian')
         if current:
-            prompt_parts.append("")
-            prompt_parts.append("【当前大限】")
-            prompt_parts.append(f"第{current.get('number', '')}大限（{current.get('start_age', '')}-{current.get('end_age', '')}岁），位于{palace_names[current.get('palace', 0)] if current.get('palace', 0) < 12 else '未知'}宫")
+            prompt_parts.append(f"当前大限：第{current.get('number', '')}大限（{current.get('start_age', '')}-{current.get('end_age', '')}岁）")
+            prompt_parts.append(f"大限宫位：{palace_names[current.get('palace', 0)]}")
+        
+        # 所有大限
+        all_daxian = daxian_analysis.get('all_daxian')
+        if all_daxian and len(all_daxian) > 0:
+            prompt_parts.append("大限历程：")
+            for dx in all_daxian[:6]:  # 显示前6个大限
+                prompt_parts.append(f"  第{dx.get('number', dx.get('index', 0) + 1)}大限：{dx.get('start_age', '')}-{dx.get('end_age', '')}岁，{palace_names[dx.get('palace', 0)]}宫")
     
-    # 神煞分析
+    # ========== 神煞分析 ==========
     if shensha_analysis:
+        prompt_parts.append("")
+        prompt_parts.append("【神煞分布】")
+        
         shensha_data = shensha_analysis.get('shensha_analysis', shensha_analysis)
         if shensha_data.get('shensha_list'):
-            prompt_parts.append("")
-            prompt_parts.append("【重要神煞】")
-            for item in shensha_data['shensha_list'][:6]:
+            for item in shensha_data['shensha_list']:
                 impact = f" - {item.get('impact', '')}" if item.get('impact') else ""
-                prompt_parts.append(f"{item.get('name', '')}：{palace_names[item.get('palace', 0)] if item.get('palace', 0) < 12 else '未知'}宫{impact}")
+                prompt_parts.append(f"  {item.get('name', '')}：{palace_names[item.get('palace', 0)]}宫{impact}")
+        
+        if shensha_data.get('summary'):
+            prompt_parts.append(f"神煞概述：{shensha_data['summary']}")
     
-    # 格局分析
+    # ========== 格局分析 ==========
     if geju_analysis and geju_analysis.get('detected_geju'):
         prompt_parts.append("")
         prompt_parts.append("【命盘格局】")
+        
         detected = geju_analysis.get('detected_geju', {})
-        for name, info in list(detected.items())[:5]:
-            desc = info.get('description', '') if isinstance(info, dict) else ''
-            prompt_parts.append(f"- {name}：{desc[:50] if desc else '特殊格局'}")
+        for name, info in detected.items():
+            if isinstance(info, dict):
+                desc = info.get('description', '')
+                impact = info.get('impact', '')
+                prompt_parts.append(f"  {name}：{desc}")
+                if impact:
+                    prompt_parts.append(f"    影响：{impact}")
+            else:
+                prompt_parts.append(f"  {name}")
+        
+        if geju_analysis.get('summary'):
+            prompt_parts.append(f"格局概述：{geju_analysis['summary']}")
     
+    # ========== 分析要求 ==========
     prompt_parts.append("")
-    prompt_parts.append("请根据以上完整的命盘数据，进行专业、详细的分析：")
-    prompt_parts.append("1. 命盘格局分析（主星组合特点、格局优劣）")
-    prompt_parts.append("2. 性格特点（结合命宫、福德宫星曜分析）")
-    prompt_parts.append("3. 事业财运（结合官禄宫、财帛宫分析）")
-    prompt_parts.append("4. 感情婚姻（结合夫妻宫、子女宫分析）")
-    prompt_parts.append("5. 大限运势（当前大限的机遇与挑战）")
-    prompt_parts.append("6. 人生建议（针对性的实用建议）")
+    prompt_parts.append("=== 分析要求 ===")
+    prompt_parts.append("请根据以上完整的命盘数据，结合紫微斗数理论，进行专业详细的分析：")
     prompt_parts.append("")
-    prompt_parts.append("要求：分析要具体、专业，避免空泛的描述，字数800-1200字。")
+    prompt_parts.append("1. 命盘格局分析")
+    prompt_parts.append("   - 主星组合特点，判断格局高低")
+    prompt_parts.append("   - 三方四正的星曜配置")
+    prompt_parts.append("   - 格局优势与潜在短板")
+    prompt_parts.append("")
+    prompt_parts.append("2. 性格特点分析")
+    prompt_parts.append("   - 结合命宫、身宫、福德宫星曜")
+    prompt_parts.append("   - 分析性格优缺点")
+    prompt_parts.append("   - 处世风格与人际特点")
+    prompt_parts.append("")
+    prompt_parts.append("3. 事业财运分析")
+    prompt_parts.append("   - 结合官禄宫、财帛宫星曜")
+    prompt_parts.append("   - 适合的行业方向")
+    prompt_parts.append("   - 财运特点与理财建议")
+    prompt_parts.append("")
+    prompt_parts.append("4. 感情婚姻分析")
+    prompt_parts.append("   - 结合夫妻宫、子女宫星曜")
+    prompt_parts.append("   - 感情运势与配偶特点")
+    prompt_parts.append("   - 婚恋注意事项")
+    prompt_parts.append("")
+    prompt_parts.append("5. 大限运势")
+    prompt_parts.append("   - 当前大限的机遇与挑战")
+    prompt_parts.append("   - 未来几年的运势走向")
+    prompt_parts.append("")
+    prompt_parts.append("6. 人生建议")
+    prompt_parts.append("   - 针对性的实用建议")
+    prompt_parts.append("   - 需要注意的事项")
+    prompt_parts.append("")
+    prompt_parts.append("要求：分析要具体、专业，结合命盘中的具体星曜位置进行解读，避免空泛描述。字数1000-1500字。")
     
     return "\n".join(prompt_parts)
 

@@ -67,7 +67,9 @@ def call_llm(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=temperature
+            temperature=temperature,
+            # 禁用 GLM-5 的深度思考模式，大幅提升响应速度
+            extra_body={"thinking": {"type": "disabled"}}
         )
         
         elapsed_time = time.time() - start_time
@@ -145,7 +147,9 @@ def call_llm_stream(
                 {"role": "user", "content": user_prompt}
             ],
             temperature=temperature,
-            stream=True
+            stream=True,
+            # 禁用 GLM-5 的深度思考模式，大幅提升响应速度
+            extra_body={"thinking": {"type": "disabled"}}
         )
         
         elapsed_time = time.time() - start_time
