@@ -67,6 +67,9 @@
       </router-view>
     </main>
 
+    <!-- 问题反馈组件 -->
+    <FeedbackDialog />
+
   </div>
 
 </template>
@@ -75,6 +78,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
+import FeedbackDialog from './components/FeedbackDialog.vue';
 
 const showMobileMenu = ref(false);
 

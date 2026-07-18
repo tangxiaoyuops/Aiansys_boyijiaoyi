@@ -182,6 +182,137 @@ async def root():
     return {"message": "博弈交易法分析系统 API", "version": "1.0.0"}
 
 
+# ==================== 问题反馈API ====================
+
+class FeedbackRequest(BaseModel):
+    """问题反馈请求模型"""
+    type: str  # bug | suggestion | other
+    content: str  # 反馈内容
+    contact: Optional[str] = None  # 联系方式
+    screenshots: Optional[List[str]] = None  # 截图文件名列表
+    metadata: Optional[Dict[str, Any]] = None  # 环境信息
+
+
+@app.post("/api/feedback")
+async def submit_feedback(request: FeedbackRequest):
+    """
+    提交问题反馈
+    将反馈保存到日志文件和数据库（如果有）
+    """
+    import logging
+    from datetime import datetime
+    import os
+    import json as json_module
+    
+    logger = logging.getLogger("feedback")
+    
+    try:
+        # 验证反馈类型
+        if request.type not in ["bug", "suggestion", "other"]:
+            raise HTTPException(status_code=400, detail="无效的反馈类型")
+        
+        # 构建反馈记录
+        feedback_record = {
+            "id": str(uuid.uuid4()),
+            "type": request.type,
+            "content": request.content,
+            "contact": request.contact,
+            "screenshots": request.screenshots or [],
+            "metadata": request.metadata or {},
+            "created_at": datetime.now().isoformat(),
+            "status": "pending"  # pending | processing | resolved
+        }
+        
+        # 保存到日志文件
+        feedback_dir = "logs/feedback"
+        os.makedirs(feedback_dir, exist_ok=True)
+        
+        log_file = os.path.join(feedback_dir, f"feedback_{datetime.now().strftime('%Y%m')}.json")
+        
+        # 读取现有记录
+        records = []
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    records = json_module.load(f)
+            except:
+                records = []
+        
+        # 添加新记录
+        records.append(feedback_record)
+        
+        # 写入文件
+        with open(log_file, "w", encoding="utf-8") as f:
+            json_module.dump(records, f, ensure_ascii=False, indent=2)
+        
+        # 记录日志
+        logger.info(f"收到用户反馈: 类型={request.type}, 内容={request.content[:50]}...")
+        
+        return {
+            "success": True,
+            "message": "反馈提交成功",
+            "feedback_id": feedback_record["id"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"提交反馈失败: {e}")
+        raise HTTPException(status_code=500, detail=f"提交反馈失败: {str(e)}")
+
+
+@app.get("/api/feedback/list")
+async def get_feedback_list(
+    type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 20
+):
+    """
+    获取反馈列表（管理后台用）
+    """
+    import os
+    import json as json_module
+    from datetime import datetime
+    
+    try:
+        feedback_dir = "logs/feedback"
+        
+        if not os.path.exists(feedback_dir):
+            return {"success": True, "data": [], "total": 0}
+        
+        all_records = []
+        
+        # 读取所有反馈文件
+        for filename in os.listdir(feedback_dir):
+            if filename.endswith(".json"):
+                filepath = os.path.join(feedback_dir, filename)
+                with open(filepath, "r", encoding="utf-8") as f:
+                    records = json_module.load(f)
+                    all_records.extend(records)
+        
+        # 过滤
+        if type:
+            all_records = [r for r in all_records if r.get("type") == type]
+        if status:
+            all_records = [r for r in all_records if r.get("status") == status]
+        
+        # 排序（按时间倒序）
+        all_records.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        
+        # 分页
+        total = len(all_records)
+        records = all_records[:limit]
+        
+        return {
+            "success": True,
+            "data": records,
+            "total": total
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取反馈列表失败: {str(e)}")
+
+
 # ==================== 访问日志API ====================
 
 class PageViewRequest(BaseModel):
