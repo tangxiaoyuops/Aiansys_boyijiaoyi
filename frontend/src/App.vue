@@ -21,6 +21,8 @@
         <router-link to="/divination" class="nav-link">六爻卜卦</router-link>
         <router-link to="/fengshui" class="nav-link">风水布局</router-link>
         <router-link to="/animation" class="nav-link">思维日志</router-link>
+        <router-link to="/taiji-evolution" class="nav-link">太极演变</router-link>
+        <router-link to="/solar-system" class="nav-link">太阳系</router-link>
       </nav>
 
       <!-- 移动端菜单按钮 -->
@@ -50,6 +52,8 @@
           <router-link to="/divination" class="mobile-nav-link" @click="closeMobileMenu">六爻卜卦</router-link>
           <router-link to="/fengshui" class="mobile-nav-link" @click="closeMobileMenu">风水布局</router-link>
           <router-link to="/animation" class="mobile-nav-link" @click="closeMobileMenu">思维日志</router-link>
+          <router-link to="/taiji-evolution" class="mobile-nav-link" @click="closeMobileMenu">太极演变</router-link>
+          <router-link to="/solar-system" class="mobile-nav-link" @click="closeMobileMenu">太阳系</router-link>
         </div>
       </nav>
     </Teleport>

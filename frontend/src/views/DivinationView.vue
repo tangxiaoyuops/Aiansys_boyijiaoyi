@@ -1,5 +1,12 @@
 <template>
   <div class="divination-view">
+    <!-- 太极背景动画 -->
+    <TaijiBackground 
+      :intensity="0.5" 
+      :is-shaking="isShaking" 
+      :shake-level="currentYaoIndex"
+    />
+    
     <div class="main-layout">
       <!-- 左侧输入区域 -->
       <div class="left-panel">
@@ -48,6 +55,8 @@
                 <CoinToss
                   v-if="!yaoResult"
                   @result="handleYaoResult(index, $event)"
+                  @toss-start="handleTossStart(index)"
+                  @toss-end="handleTossEnd"
                   :disabled="isAnalyzing"
                 />
                 <div v-else class="yao-result-display">
@@ -211,9 +220,14 @@ import { MagicStick, Document, Grid, ChatLineRound, RefreshRight, Warning, InfoF
 import api from '../api';
 import CoinToss from '../components/CoinToss.vue';
 import HexagramChart from '../components/HexagramChart.vue';
+import TaijiBackground from '../components/TaijiBackground.vue';
 
 const isAnalyzing = ref(false);
 const result = ref<any>(null);
+
+// 摇卦动画状态
+const isShaking = ref(false);
+const currentYaoIndex = ref(0);
 
 const form = reactive({
   question: '',
@@ -274,12 +288,27 @@ function handleYaoResult(index: number, yaoData: any) {
     yaoNumber: yaoData.yaoNumber,
     coins: yaoData.coins,
   };
+  // 更新当前爻索引，用于动画效果
+  currentYaoIndex.value = index + 1;
+}
+
+// 摇卦开始 - 触发太极动画
+function handleTossStart(index: number) {
+  isShaking.value = true;
+  currentYaoIndex.value = index + 1;
+}
+
+// 摇卦结束
+function handleTossEnd() {
+  isShaking.value = false;
 }
 
 function handleReset() {
   yaoResults.value = Array(6).fill(null);
   result.value = null;
   form.question = '';
+  isShaking.value = false;
+  currentYaoIndex.value = 0;
 }
 
 async function handleAnalyze() {
@@ -330,9 +359,10 @@ function formatLLMResponse(text: string): string {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #111827;
+  background: transparent;
   color: #e5e7eb;
   overflow: hidden;
+  position: relative;
 }
 
 .main-layout {
@@ -342,6 +372,8 @@ function formatLLMResponse(text: string): string {
   padding: 20px;
   overflow: hidden;
   min-height: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .left-panel {
@@ -357,10 +389,12 @@ function formatLLMResponse(text: string): string {
 }
 
 .input-card {
-  background: rgba(31, 41, 55, 0.8);
+  background: rgba(17, 24, 39, 0.85);
   border-radius: 12px;
   padding: 24px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .card-title {
@@ -491,10 +525,12 @@ function formatLLMResponse(text: string): string {
 }
 
 .result-card {
-  background: rgba(31, 41, 55, 0.8);
+  background: rgba(17, 24, 39, 0.85);
   border-radius: 12px;
   padding: 24px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .result-card .section-title {

@@ -51,6 +51,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'result', result: { coins: [number, number, number], yaoType: string, yaoNumber: number }): void;
+  (e: 'toss-start'): void;  // 摇卦开始事件
+  (e: 'toss-end'): void;    // 摇卦结束事件
 }>();
 
 const coins = ref<[number, number, number]>([0, 0, 0]);
@@ -102,6 +104,7 @@ function handleToss() {
   
   isFlipping.value = true;
   hasResult.value = false;
+  emit('toss-start');  // 发出摇卦开始事件
   
   // 动画持续时间1.5秒
   setTimeout(() => {
@@ -116,6 +119,7 @@ function handleToss() {
     isFlipping.value = false;
     hasResult.value = true;
     calculateYao();
+    emit('toss-end');  // 发出摇卦结束事件
   }, 1500);
 }
 

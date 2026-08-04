@@ -79,6 +79,18 @@ const routes = [
     component: () => import('./views/SelectionView.vue'),
     meta: { title: '选股策略' },
   },
+  {
+    path: '/taiji-evolution',
+    name: 'taiji-evolution',
+    component: () => import('./views/TaijiEvolutionView.vue'),
+    meta: { title: '太极演变' },
+  },
+  {
+    path: '/solar-system',
+    name: 'solar-system',
+    component: () => import('./views/SolarSystemView.vue'),
+    meta: { title: '太阳系狂奔' },
+  },
 ];
 
 const router = createRouter({
