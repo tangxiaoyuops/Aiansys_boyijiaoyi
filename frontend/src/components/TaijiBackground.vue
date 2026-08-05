@@ -6,16 +6,26 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import * as THREE from 'three';
 
+interface YaoData {
+  symbol: string;
+  description: string;
+  yaoNumber: number;
+  isYang: boolean;
+  isDong: boolean;
+}
+
 interface Props {
   intensity?: number;
   isShaking?: boolean;
   shakeLevel?: number;
+  yaoResults?: (YaoData | null)[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
   intensity: 0.5,
   isShaking: false,
-  shakeLevel: 0
+  shakeLevel: 0,
+  yaoResults: () => Array(6).fill(null)
 });
 
 const emit = defineEmits<{
@@ -33,40 +43,40 @@ let clock: THREE.Clock;
 let taijiGroup: THREE.Group;
 let yangFish: THREE.Group;
 let yinFish: THREE.Group;
+let baguaGroup: THREE.Group;
+let hexagramGroup: THREE.Group;
 let energyRings: THREE.Mesh[] = [];
 let particles: THREE.Points;
 let stars: THREE.Points;
+let yaoLines: THREE.Group[] = [];
 
 let targetSeparation = 0;
 let currentSeparation = 0;
 let energyPulse = 0;
 let time = 0;
 
-/**
- * 太极图原理：
- * 阳鱼和阴鱼的形状完全一样，只是颜色相反
- * 阴鱼旋转180度后就能和阳鱼完美咬合形成S曲线
- */
+// 八卦数据
+const BAGUA_DATA = [
+  { name: '乾', lines: [1, 1, 1], nature: '阳', color: 0xffd700 },
+  { name: '巽', lines: [1, 1, 0], nature: '阴', color: 0x4ecdc4 },
+  { name: '坎', lines: [0, 1, 0], nature: '阴', color: 0x99ddff },
+  { name: '艮', lines: [0, 0, 1], nature: '阳', color: 0x88ccee },
+  { name: '坤', lines: [0, 0, 0], nature: '阴', color: 0x4ecdc4 },
+  { name: '震', lines: [1, 0, 0], nature: '阳', color: 0xff8855 },
+  { name: '离', lines: [1, 0, 1], nature: '阳', color: 0xff6b9d },
+  { name: '兑', lines: [1, 1, 0], nature: '阴', color: 0xffaa00 },
+];
 
-// 创建鱼几何体（阳鱼形状：上凸下凹）
+// 创建鱼几何体
 function createFishGeometry(radius: number): THREE.ShapeGeometry {
   const R = radius;
   const r = R / 2;
   const shape = new THREE.Shape();
 
-  // 起点：右侧中点 (R, 0)
   shape.moveTo(R, 0);
-
-  // 1. 大圆右上弧到上方 (0, R)
   shape.absarc(0, 0, R, 0, Math.PI / 2, false);
-
-  // 2. 上小圆左半弧（凸出到左边）
   shape.absarc(0, r, r, Math.PI / 2, -Math.PI / 2, true);
-
-  // 3. 下小圆右半弧（凹陷到右边）
   shape.absarc(0, -r, r, Math.PI / 2, -Math.PI / 2, false);
-
-  // 4. 大圆右下弧回到起点
   shape.absarc(0, 0, R, -Math.PI / 2, 0, false);
 
   return new THREE.ShapeGeometry(shape, 64);
@@ -94,7 +104,6 @@ function createYangFish(radius: number): THREE.Group {
   const mesh = new THREE.Mesh(geo, yangMat);
   group.add(mesh);
 
-  // 阴眼（黑点，在下小圆凸出的头部）- 改到下小圆位置
   const eyeGeo = new THREE.CircleGeometry(R * 0.18, 32);
   const eye = new THREE.Mesh(eyeGeo, yinMat);
   eye.position.set(0, -r, 0.02);
@@ -103,7 +112,7 @@ function createYangFish(radius: number): THREE.Group {
   return group;
 }
 
-// 创建阴鱼（与阳鱼相同形状，旋转180度，颜色相反）
+// 创建阴鱼
 function createYinFish(radius: number): THREE.Group {
   const group = new THREE.Group();
   const R = radius;
@@ -125,13 +134,11 @@ function createYinFish(radius: number): THREE.Group {
   const mesh = new THREE.Mesh(geo, yinMat);
   group.add(mesh);
 
-  // 阳眼（白点，在下小圆凸出的头部）- 改到下小圆位置，旋转180度后会到上小圆
   const eyeGeo = new THREE.CircleGeometry(R * 0.18, 32);
   const eye = new THREE.Mesh(eyeGeo, yangMat);
   eye.position.set(0, -r, 0.02);
   group.add(eye);
 
-  // 旋转180度
   group.rotation.z = Math.PI;
 
   return group;
@@ -146,6 +153,130 @@ function createTaiji(radius: number): THREE.Group {
 
   group.add(yangFish);
   group.add(yinFish);
+
+  return group;
+}
+
+// 创建八卦标签
+function createBaguaLabel(text: string, color: number): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  
+  ctx.font = 'bold 72px Microsoft YaHei, sans-serif';
+  ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#' + color.toString(16).padStart(6, '0');
+  ctx.shadowBlur = 20;
+  ctx.fillText(text, 64, 64);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ 
+    map: texture, 
+    transparent: true,
+    blending: THREE.AdditiveBlending 
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(1.2, 1.2, 1);
+  return sprite;
+}
+
+// 创建八卦
+function createBagua(radius: number): THREE.Group {
+  const group = new THREE.Group();
+  const baguaRadius = radius * 2.2;
+
+  BAGUA_DATA.forEach((data, index) => {
+    const trigramGroup = new THREE.Group();
+    const angle = (index / 8) * Math.PI * 2 - Math.PI / 2;
+    
+    // 创建三爻
+    const lineHeight = 0.5;
+    const lineGap = 0.25;
+    
+    data.lines.forEach((isYang, i) => {
+      const lineMat = new THREE.MeshBasicMaterial({
+        color: data.color,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      if (isYang) {
+        // 阳爻（实线）
+        const lineGeo = new THREE.BoxGeometry(0.8, 0.1, 0.05);
+        const line = new THREE.Mesh(lineGeo, lineMat);
+        line.position.y = (1 - i) * lineGap;
+        trigramGroup.add(line);
+      } else {
+        // 阴爻（断线）
+        const halfGeo = new THREE.BoxGeometry(0.3, 0.1, 0.05);
+        const left = new THREE.Mesh(halfGeo, lineMat);
+        left.position.set(-0.25, (1 - i) * lineGap, 0);
+        const right = new THREE.Mesh(halfGeo, lineMat);
+        right.position.set(0.25, (1 - i) * lineGap, 0);
+        trigramGroup.add(left, right);
+      }
+    });
+
+    // 添加卦名标签
+    const label = createBaguaLabel(data.name, data.color);
+    label.position.y = -0.6;
+    trigramGroup.add(label);
+
+    trigramGroup.position.set(
+      Math.cos(angle) * baguaRadius,
+      Math.sin(angle) * baguaRadius,
+      0
+    );
+    
+    (trigramGroup as any).userData = { 
+      baseAngle: angle, 
+      baseRadius: baguaRadius,
+      floatOffset: Math.random() * Math.PI * 2 
+    };
+    
+    group.add(trigramGroup);
+  });
+
+  return group;
+}
+
+// 创建爻线（用于弹出动画）
+function createYaoLine(isYang: boolean, index: number): THREE.Group {
+  const group = new THREE.Group();
+  
+  const color = isYang ? 0xffd700 : 0x4ecdc4;
+  const lineMat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.9
+  });
+
+  if (isYang) {
+    const lineGeo = new THREE.BoxGeometry(4, 0.4, 0.1);
+    const line = new THREE.Mesh(lineGeo, lineMat);
+    group.add(line);
+  } else {
+    const halfGeo = new THREE.BoxGeometry(1.8, 0.4, 0.1);
+    const left = new THREE.Mesh(halfGeo, lineMat);
+    left.position.x = -1.1;
+    const right = new THREE.Mesh(halfGeo, lineMat);
+    right.position.x = 1.1;
+    group.add(left, right);
+  }
+
+  // 初始位置在太极中心
+  group.position.set(0, 0, 0);
+  group.scale.set(0, 0, 0);
+  
+  (group as any).userData = {
+    targetY: 3.5 - index * 1.2, // 从上到下排列
+    targetScale: 1,
+    currentScale: 0,
+    index
+  };
 
   return group;
 }
@@ -172,7 +303,7 @@ function createEnergyRings(radius: number): THREE.Mesh[] {
 
 // 创建粒子
 function createParticles(radius: number): THREE.Points {
-  const count = 80;
+  const count = 100;
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
@@ -181,23 +312,23 @@ function createParticles(radius: number): THREE.Points {
 
   for (let i = 0; i < count; i++) {
     const theta = Math.random() * Math.PI * 2;
-    const rad = radius * (1.5 + Math.random() * 1.5);
+    const rad = radius * (1.5 + Math.random() * 2);
     positions[i * 3] = Math.cos(theta) * rad;
     positions[i * 3 + 1] = Math.sin(theta) * rad;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
 
     const c = palette[Math.floor(Math.random() * 3)];
     colors[i * 3] = c[0];
     colors[i * 3 + 1] = c[1];
     colors[i * 3 + 2] = c[2];
-    velocities.push({ speed: 0.008 + Math.random() * 0.012, theta, radius: rad });
+    velocities.push({ speed: 0.01 + Math.random() * 0.015, theta, radius: rad });
   }
 
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const mat = new THREE.PointsMaterial({
-    size: 0.12,
+    size: 0.15,
     transparent: true,
     opacity: 0.8,
     vertexColors: true,
@@ -211,13 +342,13 @@ function createParticles(radius: number): THREE.Points {
 
 // 创建星空背景
 function createStars(): THREE.Points {
-  const starCount = 500;
+  const starCount = 600;
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(starCount * 3);
   const colors = new Float32Array(starCount * 3);
 
   for (let i = 0; i < starCount; i++) {
-    const r = 30 + Math.random() * 50;
+    const r = 40 + Math.random() * 60;
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
     positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
@@ -234,7 +365,7 @@ function createStars(): THREE.Points {
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const mat = new THREE.PointsMaterial({
-    size: 0.15,
+    size: 0.2,
     vertexColors: true,
     transparent: true,
     opacity: 0.6
@@ -243,14 +374,53 @@ function createStars(): THREE.Points {
   return new THREE.Points(geo, mat);
 }
 
+// 更新爻线动画
+function updateYaoLines() {
+  props.yaoResults.forEach((yao, index) => {
+    if (yao && yaoLines[index]) {
+      const line = yaoLines[index];
+      const data = (line as any).userData;
+      
+      // 弹出动画
+      if (data.currentScale < data.targetScale) {
+        data.currentScale += 0.08;
+        line.scale.setScalar(data.currentScale);
+        line.position.y = data.targetY * data.currentScale;
+      }
+    }
+  });
+}
+
+// 重置爻线
+function resetYaoLines() {
+  yaoLines.forEach(line => {
+    if (line) {
+      line.scale.set(0, 0, 0);
+      line.position.set(0, 0, 0);
+      (line as any).userData.currentScale = 0;
+    }
+  });
+}
+
 function triggerShakeAnimation(level: number) {
-  targetSeparation = level * 0.5;
-  energyPulse = level * 0.3;
+  targetSeparation = level * 0.6;
+  energyPulse = level * 0.4;
 }
 
 function resetAnimation() {
   targetSeparation = 0;
   energyPulse = 0;
+}
+
+function clearYaoLines() {
+  yaoLines.forEach(line => {
+    if (line) {
+      hexagramGroup.remove(line);
+      line.geometry?.dispose();
+      (line.material as THREE.Material)?.dispose();
+    }
+  });
+  yaoLines = [];
 }
 
 watch(() => props.isShaking, (newVal) => {
@@ -267,6 +437,33 @@ watch(() => props.shakeLevel, (newVal) => {
   }
 });
 
+// 监听爻结果变化
+watch(() => props.yaoResults, (newResults) => {
+  // 检查是否所有爻都被清空（重置）
+  const allCleared = newResults.every(yao => yao === null);
+  
+  if (allCleared) {
+    // 清除所有爻线
+    yaoLines.forEach(line => {
+      if (line) {
+        hexagramGroup.remove(line);
+        line.geometry?.dispose();
+        (line.material as THREE.Material)?.dispose();
+      }
+    });
+    yaoLines = [];
+  } else {
+    // 创建新的爻线
+    newResults.forEach((yao, index) => {
+      if (yao && !yaoLines[index]) {
+        const line = createYaoLine(yao.isYang, index);
+        yaoLines[index] = line;
+        hexagramGroup.add(line);
+      }
+    });
+  }
+}, { deep: true });
+
 onMounted(() => {
   if (!canvasContainer.value) return;
 
@@ -277,9 +474,9 @@ onMounted(() => {
     60,
     canvasContainer.value.clientWidth / canvasContainer.value.clientHeight,
     0.1,
-    200
+    300
   );
-  camera.position.set(0, 0, 15);
+  camera.position.set(0, 2, 20);
 
   renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -291,15 +488,27 @@ onMounted(() => {
   renderer.setClearColor(0x050510, 1);
   canvasContainer.value.appendChild(renderer.domElement);
 
+  // 太极图
   taijiGroup = createTaiji(2.5);
   scene.add(taijiGroup);
 
+  // 八卦
+  baguaGroup = createBagua(2.5);
+  scene.add(baguaGroup);
+
+  // 卦象容器
+  hexagramGroup = new THREE.Group();
+  scene.add(hexagramGroup);
+
+  // 能量环
   energyRings = createEnergyRings(2.5);
   energyRings.forEach(ring => scene.add(ring));
 
+  // 粒子
   particles = createParticles(2.5);
   scene.add(particles);
 
+  // 星空
   stars = createStars();
   scene.add(stars);
 
@@ -311,11 +520,24 @@ onMounted(() => {
     time += delta;
 
     const baseSpeed = 0.008 + props.intensity * 0.008;
-    taijiGroup.rotation.z += baseSpeed;
+    // 顺时针旋转（减去角度）
+    taijiGroup.rotation.z -= baseSpeed;
 
+    // 八卦顺时针旋转
+    baguaGroup.rotation.z -= 0.003;
+
+    // 八卦浮动效果
+    baguaGroup.children.forEach((trigram) => {
+      const data = (trigram as any).userData;
+      const floatY = Math.sin(time * 1.5 + data.floatOffset) * 0.15;
+      const breathScale = 1 + Math.sin(time * 2 + data.floatOffset) * 0.05;
+      trigram.position.y = Math.sin(data.baseAngle) * data.baseRadius + floatY;
+      trigram.scale.setScalar(breathScale);
+    });
+
+    // 阴阳鱼分离
     currentSeparation += (targetSeparation - currentSeparation) * 0.05;
 
-    // 阴阳鱼沿S曲线方向分离
     const yangAngle = Math.PI / 5;
     yangFish.position.x = Math.cos(yangAngle) * currentSeparation * 1.1;
     yangFish.position.y = Math.sin(yangAngle) * currentSeparation * 0.9;
@@ -323,16 +545,17 @@ onMounted(() => {
 
     yinFish.position.x = Math.cos(yangAngle + Math.PI) * currentSeparation * 1.1;
     yinFish.position.y = Math.sin(yangAngle + Math.PI) * currentSeparation * 0.9;
-    // 阴鱼基础旋转是π，再加上分离动画的旋转
     yinFish.rotation.z = Math.PI - currentSeparation * 0.12;
 
+    // 能量环顺时针旋转
     energyRings.forEach((ring, i) => {
-      ring.rotation.z += 0.015 * (i % 2 === 0 ? 1 : -1);
+      ring.rotation.z -= 0.015 * (i % 2 === 0 ? 1 : -1);
       const baseOpacity = 0.4 - i * 0.08;
       const pulse = Math.sin(time * 2 + i) * (0.1 + energyPulse);
       (ring.material as THREE.MeshBasicMaterial).opacity = baseOpacity + pulse;
     });
 
+    // 粒子
     const pos = particles.geometry.attributes.position.array as Float32Array;
     const velocities = (particles.userData as any).velocities;
     velocities.forEach((v: { speed: number; theta: number; radius: number }, i: number) => {
@@ -342,8 +565,12 @@ onMounted(() => {
     });
     particles.geometry.attributes.position.needsUpdate = true;
 
-    stars.rotation.y += 0.0002;
-    stars.rotation.x += 0.0001;
+    // 星空顺时针旋转
+    stars.rotation.y -= 0.0002;
+    stars.rotation.x -= 0.0001;
+
+    // 更新爻线动画
+    updateYaoLines();
 
     renderer.render(scene, camera);
   };

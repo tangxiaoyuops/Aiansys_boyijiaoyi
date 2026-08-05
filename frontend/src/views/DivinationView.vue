@@ -5,6 +5,7 @@
       :intensity="0.5" 
       :is-shaking="isShaking" 
       :shake-level="currentYaoIndex"
+      :yao-results="yaoResults"
     />
     
     <div class="main-layout">
@@ -323,6 +324,8 @@ async function handleAutoToss() {
       description: yaoData.yaoType,
       yaoNumber: yaoData.yaoNumber,
       coins: yaoData.coins,
+      isYang: yaoData.yaoType.includes('阳'),
+      isDong: yaoData.yaoType.includes('老'),
     };
   }
   
