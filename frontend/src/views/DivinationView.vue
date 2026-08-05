@@ -46,22 +46,38 @@
             <!-- 摇卦区域 -->
             <div class="coin-toss-section">
               <div class="section-title">摇卦区域（从下往上：初爻→上爻）</div>
-              <div
-                v-for="(yaoResult, index) in yaoResults"
-                :key="index"
-                class="yao-toss-item"
-              >
-                <div class="yao-label">第{{ index + 1 }}爻（{{ getYaoName(index) }}爻）</div>
-                <CoinToss
-                  v-if="!yaoResult"
-                  @result="handleYaoResult(index, $event)"
-                  @toss-start="handleTossStart(index)"
-                  @toss-end="handleTossEnd"
-                  :disabled="isAnalyzing"
-                />
-                <div v-else class="yao-result-display">
-                  <span class="yao-symbol-large">{{ yaoResult.symbol }}</span>
-                  <span class="yao-desc">{{ yaoResult.description }}</span>
+              
+              <!-- 一键摇卦按钮 -->
+              <div v-if="!allYaoComplete" class="auto-toss-area">
+                <el-button 
+                  type="primary" 
+                  size="large" 
+                  :loading="isAutoTossing"
+                  :disabled="isAutoTossing || isAnalyzing"
+                  @click="handleAutoToss"
+                  class="auto-toss-btn"
+                >
+                  <el-icon v-if="!isAutoTossing"><Star /></el-icon>
+                  {{ isAutoTossing ? `正在摇第${currentYaoIndex + 1}爻...` : '点击摇卦' }}
+                </el-button>
+                <div class="toss-hint">点击按钮，自动完成六爻摇卦</div>
+              </div>
+              
+              <!-- 六爻结果展示 -->
+              <div class="yao-results-list">
+                <div
+                  v-for="(yaoResult, index) in yaoResults"
+                  :key="index"
+                  :class="['yao-toss-item', { active: currentYaoIndex === index && isAutoTossing }]"
+                >
+                  <div class="yao-label">第{{ index + 1 }}爻（{{ getYaoName(index) }}爻）</div>
+                  <div v-if="yaoResult" class="yao-result-display">
+                    <span class="yao-symbol-large">{{ yaoResult.symbol }}</span>
+                    <span class="yao-desc">{{ yaoResult.description }}</span>
+                  </div>
+                  <div v-else class="yao-placeholder">
+                    <span class="placeholder-text">等待摇卦</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -96,26 +112,7 @@
       <!-- 右侧结果区域 -->
       <div class="right-panel">
         <div v-if="!result && !isAnalyzing" class="empty-state">
-          <!-- 谦卦和泰卦展示 -->
-          <div class="hexagram-display">
-            <div class="hexagram-item">
-              <div class="hexagram-title">谦卦</div>
-              <HexagramChart :hexagram-data="qianHexagram" :size="180" />
-              <div class="hexagram-subtitle">地山谦</div>
-            </div>
-            <div class="hexagram-item">
-              <div class="hexagram-title">泰卦</div>
-              <HexagramChart :hexagram-data="taiHexagram" :size="180" />
-              <div class="hexagram-subtitle">地天泰</div>
-            </div>
-          </div>
-          <el-empty description="请填写问题并摇卦，然后点击开始解卦" />
-          <div class="empty-tips">
-            <p class="tip-text">💡 提示：</p>
-            <p class="tip-text">• 事在人为，卜卦戒为先</p>
-            <p class="tip-text">• 顺天道自然，元亨利贞</p>
-            <p class="tip-text">• 卦象仅供参考，决策需谨慎</p>
-          </div>
+          <!-- 简洁空状态 -->
         </div>
         
         <div v-if="isAnalyzing" class="loading-state">
@@ -216,9 +213,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { MagicStick, Document, Grid, ChatLineRound, RefreshRight, Warning, InfoFilled } from '@element-plus/icons-vue';
+import { MagicStick, Document, Grid, ChatLineRound, RefreshRight, Warning, InfoFilled, Star } from '@element-plus/icons-vue';
 import api from '../api';
-import CoinToss from '../components/CoinToss.vue';
 import HexagramChart from '../components/HexagramChart.vue';
 import TaijiBackground from '../components/TaijiBackground.vue';
 
@@ -228,6 +224,7 @@ const result = ref<any>(null);
 // 摇卦动画状态
 const isShaking = ref(false);
 const currentYaoIndex = ref(0);
+const isAutoTossing = ref(false);
 
 const form = reactive({
   question: '',
@@ -275,32 +272,63 @@ const canAnalyze = computed(() => {
   );
 });
 
+const allYaoComplete = computed(() => {
+  return yaoResults.value.every(yao => yao !== null);
+});
+
 const yaoNames = ['初', '二', '三', '四', '五', '上'];
 
 function getYaoName(index: number): string {
   return yaoNames[index];
 }
 
-function handleYaoResult(index: number, yaoData: any) {
-  yaoResults.value[index] = {
-    symbol: yaoData.yaoType.includes('阳') ? '⚊' : '⚋',
-    description: yaoData.yaoType,
-    yaoNumber: yaoData.yaoNumber,
-    coins: yaoData.coins,
-  };
-  // 更新当前爻索引，用于动画效果
-  currentYaoIndex.value = index + 1;
+// 随机生成一爻的结果
+function generateYaoResult(): { coins: [number, number, number], yaoType: string, yaoNumber: number } {
+  const coins: [number, number, number] = [
+    Math.random() < 0.5 ? 0 : 1,
+    Math.random() < 0.5 ? 0 : 1,
+    Math.random() < 0.5 ? 0 : 1,
+  ];
+  
+  const headsCount = coins.reduce((sum, coin) => sum + coin, 0);
+  
+  if (headsCount === 3) {
+    return { coins, yaoType: '老阳', yaoNumber: 9 };
+  } else if (headsCount === 0) {
+    return { coins, yaoType: '老阴', yaoNumber: 6 };
+  } else if (headsCount === 2) {
+    return { coins, yaoType: '少阳', yaoNumber: 7 };
+  } else {
+    return { coins, yaoType: '少阴', yaoNumber: 8 };
+  }
 }
 
-// 摇卦开始 - 触发太极动画
-function handleTossStart(index: number) {
+// 一键摇卦
+async function handleAutoToss() {
+  if (isAutoTossing.value || isAnalyzing.value) return;
+  
+  isAutoTossing.value = true;
   isShaking.value = true;
-  currentYaoIndex.value = index + 1;
-}
-
-// 摇卦结束
-function handleTossEnd() {
+  
+  for (let i = 0; i < 6; i++) {
+    currentYaoIndex.value = i;
+    
+    // 摇卦动画等待时间
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // 生成结果
+    const yaoData = generateYaoResult();
+    yaoResults.value[i] = {
+      symbol: yaoData.yaoType.includes('阳') ? '⚊' : '⚋',
+      description: yaoData.yaoType,
+      yaoNumber: yaoData.yaoNumber,
+      coins: yaoData.coins,
+    };
+  }
+  
+  isAutoTossing.value = false;
   isShaking.value = false;
+  currentYaoIndex.value = 6;
 }
 
 function handleReset() {
@@ -420,18 +448,64 @@ function formatLLMResponse(text: string): string {
 }
 
 .yao-toss-item {
-  margin-bottom: 24px;
-  padding: 16px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
   background: rgba(59, 130, 246, 0.05);
   border-radius: 8px;
   border: 1px solid rgba(59, 130, 246, 0.2);
+  transition: all 0.3s ease;
+}
+
+.yao-toss-item.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: scale(1.02);
 }
 
 .yao-label {
-  font-size: 14px;
+  font-size: 13px;
   color: #9ca3af;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   font-weight: 500;
+}
+
+.yao-placeholder {
+  padding: 8px 0;
+}
+
+.placeholder-text {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.auto-toss-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.auto-toss-btn {
+  min-width: 160px;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.toss-hint {
+  margin-top: 12px;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.yao-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .yao-result-display {
