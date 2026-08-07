@@ -87,19 +87,32 @@
             
             <!-- 操作按钮 -->
             <el-form-item>
-              <el-button type="warning" @click="handleReset" :disabled="isAnalyzing" style="margin-right: 10px">
-                重新摇卦
-              </el-button>
-              <el-button
-                type="primary"
-                :loading="isAnalyzing"
-                :disabled="!canAnalyze"
-                @click="handleAnalyze"
-                style="width: calc(100% - 120px)"
-              >
-                <el-icon><MagicStick /></el-icon>
-                开始解卦
-              </el-button>
+              <div style="display: flex; gap: 10px; flex-direction: column;">
+                <div style="display: flex; gap: 10px;">
+                  <el-button 
+                    type="warning" 
+                    @click="handleReset" 
+                    :disabled="isAnalyzing"
+                  >
+                    重新摇卦
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    :loading="isAnalyzing"
+                    :disabled="!canAnalyze"
+                    @click="handleAnalyze"
+                    style="flex: 1"
+                  >
+                    <el-icon><MagicStick /></el-icon>
+                    开始解卦
+                  </el-button>
+                </div>
+                <!-- 调试信息 -->
+                <div v-if="!canAnalyze" style="font-size: 12px; color: #fca5a5; margin-top: 8px;">
+                  <span v-if="!form.question.trim()">⚠️ 请输入问题</span>
+                  <span v-else-if="!allYaoComplete">⚠️ 请完成6次摇卦</span>
+                </div>
+              </div>
             </el-form-item>
             
             <!-- 分析选项 -->
@@ -112,100 +125,10 @@
       
       <!-- 右侧结果区域 -->
       <div class="right-panel">
-        <div v-if="!result && !isAnalyzing" class="empty-state">
-          <!-- 简洁空状态 -->
-        </div>
-        
-        <div v-if="isAnalyzing" class="loading-state">
-          <el-skeleton :rows="10" animated />
-        </div>
-        
-        <div v-if="result && !isAnalyzing" class="result-container">
-          <!-- 卦象显示 -->
-          <div v-if="result.hexagram" class="result-card">
-            <h3 class="section-title">
-              <el-icon><Grid /></el-icon>
-              卦象
-            </h3>
-            <HexagramChart :hexagram-data="result.hexagram" :size="400" />
-          </div>
-          
-          <!-- 本卦信息 -->
-          <div v-if="result.hexagram?.ben_hexagram" class="result-card">
-            <h3 class="section-title">
-              <el-icon><Document /></el-icon>
-              本卦：{{ result.hexagram.ben_hexagram.full_name }}
-            </h3>
-            <div class="analysis-content">
-              <div class="info-section">
-                <div class="info-label">卦辞：</div>
-                <div class="info-value">{{ result.hexagram.ben_hexagram.guaci }}</div>
-              </div>
-              
-              <div class="yao-list">
-                <div
-                  v-for="(yao, index) in result.hexagram.yaos"
-                  :key="index"
-                  :class="['yao-item', { 'dong-yao': yao.is_dong }]"
-                >
-                  <div class="yao-header">
-                    <span class="yao-name">{{ getYaoName(index) }}爻</span>
-                    <span class="yao-symbol">{{ yao.symbol }}</span>
-                    <span v-if="yao.is_dong" class="dong-badge">动爻</span>
-                  </div>
-                  <div v-if="result.hexagram.ben_hexagram.yaoci && result.hexagram.ben_hexagram.yaoci[String(index + 1)]" class="yao-text">
-                    {{ result.hexagram.ben_hexagram.yaoci[String(index + 1)] }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 变卦信息 -->
-          <div v-if="result.hexagram?.bian_hexagram" class="result-card">
-            <h3 class="section-title">
-              <el-icon><RefreshRight /></el-icon>
-              变卦：{{ result.hexagram.bian_hexagram.full_name }}
-            </h3>
-            <div class="analysis-content">
-              <div class="info-section">
-                <div class="info-label">变卦卦辞：</div>
-                <div class="info-value">{{ result.hexagram.bian_hexagram.guaci }}</div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- AI深度分析 -->
-          <div v-if="result.llm_analysis?.response" class="result-card llm-card">
-            <h3 class="section-title">
-              <el-icon><ChatLineRound /></el-icon>
-              AI深度解析
-            </h3>
-            <div class="llm-content">
-              <div class="llm-text" v-html="formatLLMResponse(result.llm_analysis.response)"></div>
-            </div>
-            <!-- 解卦提示语 -->
-            <div class="divination-reminder">
-              <el-divider />
-              <div class="reminder-content">
-                <p class="reminder-title">📜 解卦提醒</p>
-                <p class="reminder-text">事在人为，卜卦戒为先；顺天道自然，元亨利贞。</p>
-                <p class="reminder-text">卦象仅供参考，重要决策需结合实际情况，谨慎为之。</p>
-              </div>
-            </div>
-          </div>
-          
-          <!-- AI分析错误 -->
-          <div v-if="result.llm_analysis?.error" class="result-card error-card">
-            <h3 class="section-title">
-              <el-icon><Warning /></el-icon>
-              AI分析错误
-            </h3>
-            <div class="error-content">
-              <p>{{ result.llm_analysis.error }}</p>
-            </div>
-          </div>
-        </div>
+        <DivinationResult 
+          :result="result" 
+          :is-analyzing="isAnalyzing"
+        />
       </div>
     </div>
   </div>
@@ -214,10 +137,10 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { MagicStick, Document, Grid, ChatLineRound, RefreshRight, Warning, InfoFilled, Star } from '@element-plus/icons-vue';
+import { MagicStick, InfoFilled, Star } from '@element-plus/icons-vue';
 import api from '../api';
-import HexagramChart from '../components/HexagramChart.vue';
 import TaijiBackground from '../components/TaijiBackground.vue';
+import DivinationResult from '../components/DivinationResult.vue';
 
 const isAnalyzing = ref(false);
 const result = ref<any>(null);
