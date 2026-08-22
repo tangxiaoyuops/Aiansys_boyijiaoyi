@@ -563,10 +563,15 @@ def calculate_shishen(sizhu: Dict[str, Any], rizhu_tiangan: str) -> Dict[str, An
     
     return shishen_result
 
-def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, bazi_year: Optional[int] = None) -> List[Dict[str, Any]]:
+def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, bazi_year: Optional[int] = None, sizhu: Dict[str, Any] = None) -> List[Dict[str, Any]]:
     """
     计算大运（精确计算起运年龄）
-    根据年柱天干阴阳和性别确定顺逆，每10年一运
+    
+    大运规则：
+    1. 从月柱开始排列（不是年柱）
+    2. 阴阳顺逆：阳年男命、阴年女命顺排；阴年男命、阳年女命逆排
+    3. 起运年龄：顺排从出生日到下一个"节"的天数，逆排从出生日到上一个"节"的天数，3天=1岁
+    4. 每10年一步大运
 
     Args:
         year: 公历年份
@@ -575,6 +580,7 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, baz
         hour: 时辰（0-23）
         gender: 性别（'男' 或 '女'）
         bazi_year: 八字年份（可选，如果提供则使用，否则根据立春计算）
+        sizhu: 四柱数据（可选，用于获取月柱信息）
 
     Returns:
         大运列表（每10年一运，共8步大运）
@@ -590,13 +596,45 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, baz
         else:
             bazi_year = year
     
-    # 计算年柱（使用八字年份）
+    # 计算年柱（用于确定阴阳顺逆）
     nian_gan = get_tian_gan(bazi_year)
-    nian_zhi = get_di_zhi(bazi_year)
     nian_gan_yinyang = TIAN_GAN_YINYANG.get(nian_gan, '阳')
 
+    # 获取月柱（大运从月柱开始排）
+    # 如果传入了sizhu，直接使用月柱信息
+    if sizhu and 'yue_zhu' in sizhu:
+        yue_gan = sizhu['yue_zhu'].get('tian_gan', '')
+        yue_zhi = sizhu['yue_zhu'].get('di_zhi', '')
+    else:
+        # 否则需要计算月柱
+        from core.tools.solar_terms import get_month_zhi_by_solar_term, get_month_index_by_solar_term
+        yue_zhi = get_month_zhi_by_solar_term(year, month, day)
+        month_index = get_month_index_by_solar_term(year, month, day)
+        yue_gan = YUE_GAN_TABLE.get(nian_gan, {}).get(month_index, '丙')
+    
+    if not yue_gan or not yue_zhi:
+        logger.warning("无法获取月柱信息，使用默认值")
+        yue_gan = '丙'
+        yue_zhi = '寅'
+
     # 确定顺逆：阳年男顺，阴年女顺；阳年女逆，阴年男逆
-    is_shun = (nian_gan_yinyang == '阳' and gender == '男') or (nian_gan_yinyang == '阴' and gender == '女')
+    # 支持中英文性别值
+    is_male = gender in ['男', 'male', 'Male', 'M', 'm']
+    is_female = gender in ['女', 'female', 'Female', 'F', 'f']
+    
+    if is_male:
+        # 阳年男顺，阴年男逆
+        is_shun = nian_gan_yinyang == '阳'
+    elif is_female:
+        # 阴年女顺，阳年女逆
+        is_shun = nian_gan_yinyang == '阴'
+    else:
+        # 默认按男命处理
+        is_shun = nian_gan_yinyang == '阳'
+        logger.warning(f"未知性别 '{gender}'，默认按男命处理")
+    
+    logger.info(f"年干{nian_gan}为{nian_gan_yinyang}年，{gender}命，{'顺' if is_shun else '逆'}排大运")
+    logger.info(f"月柱为{yue_gan}{yue_zhi}，大运从此起排")
 
     # 精确计算起运年龄（根据节气）
     # 起运年龄计算规则：
@@ -642,6 +680,7 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, baz
         else:
             # 找不到时使用默认值
             delta = timedelta(days=3)
+        logger.info(f"顺排：出生日到下一个节的天数={delta.days}天")
     else:
         # 逆排：计算到上一个"节"的天数
         prev_jie_date = get_prev_jie(target_date, year)
@@ -650,6 +689,7 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, baz
         else:
             # 找不到时使用默认值
             delta = timedelta(days=3)
+        logger.info(f"逆排：出生日到上一个节的天数={delta.days}天")
 
     days_diff = delta.total_seconds() / 86400.0
 
@@ -668,19 +708,21 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, baz
         elif qiyun_age_years > 10.0:
             logger.warning(f"起运年龄过大: {qiyun_age_years}岁, 使用默认值1岁")
             qiyun_age_years = 1.0
+    
+    logger.info(f"起运年龄：{qiyun_age_years:.1f}岁")
 
-    # 计算大运
+    # 计算大运（从月柱开始）
     dayun_list = []
-    current_zhi_index = get_di_zhi_index(nian_zhi)
-    current_gan_index = get_tian_gan_index(nian_gan)
+    current_zhi_index = get_di_zhi_index(yue_zhi)  # 从月支开始
+    current_gan_index = get_tian_gan_index(yue_gan)  # 从月干开始
     
     for i in range(8):  # 8步大运
         if is_shun:
-            # 顺排
+            # 顺排：从月柱向后推
             zhi_index = (current_zhi_index + i + 1) % 12
             gan_index = (current_gan_index + i + 1) % 10
         else:
-            # 逆排
+            # 逆排：从月柱向前推
             zhi_index = (current_zhi_index - i - 1) % 12
             gan_index = (current_gan_index - i - 1) % 10
         
@@ -2102,7 +2144,8 @@ def calculate_liuyue_list(
         current_year = datetime.now().year
         current_age = current_year - birth_year
         
-        dayun_list = calculate_dayun(birth_year, 1, 1, 12, gender, sizhu.get('bazi_year'))
+        # 传入sizhu以获取月柱信息
+        dayun_list = calculate_dayun(birth_year, 1, 1, 12, gender, sizhu.get('bazi_year'), sizhu)
         for dayun in dayun_list:
             if dayun['start_age'] <= current_age <= dayun['end_age']:
                 current_dayun = dayun

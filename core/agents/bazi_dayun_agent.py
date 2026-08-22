@@ -21,7 +21,7 @@ def bazi_dayun_node(
     大运分析节点
     
     Args:
-        sizhu: 四柱数据（包含bazi_year字段）
+        sizhu: 四柱数据（包含bazi_year字段和月柱信息）
         year: 公历年份
         month: 公历月份
         day: 公历日期
@@ -37,8 +37,8 @@ def bazi_dayun_node(
         # 从sizhu获取八字年份（以立春为界的年份）
         bazi_year = sizhu.get('bazi_year', year)
         
-        # 计算大运（传入八字年份）
-        dayun_list = calculate_dayun(year, month, day, hour, gender, bazi_year=bazi_year)
+        # 计算大运（传入八字年份和sizhu，用于获取月柱信息）
+        dayun_list = calculate_dayun(year, month, day, hour, gender, bazi_year=bazi_year, sizhu=sizhu)
         
         result = {
             'dayun_list': dayun_list,
