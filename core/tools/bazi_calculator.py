@@ -707,13 +707,18 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, baz
         start_age = round(qiyun_age_years + i * 10, 1)
         end_age = round(start_age + 9.9, 1)  # 每步大运10年
         
+        # 使用八字年份计算起运年份，而不是公历年份
+        # 对于立春前出生的人，八字年份比公历年份小1岁
+        start_year = int(bazi_year + start_age)
+        end_year = int(bazi_year + end_age)
+        
         dayun_list.append({
             'gan': gan,
             'zhi': zhi,
             'start_age': start_age,
             'end_age': end_age,
-            'start_year': int(year + start_age),
-            'end_year': int(year + end_age),
+            'start_year': start_year,
+            'end_year': end_year,
         })
     
     return dayun_list
