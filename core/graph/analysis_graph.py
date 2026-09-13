@@ -56,47 +56,32 @@ def should_backtest(state: AnalysisState) -> str:
 
 
 def generate_final_report(state: AnalysisState) -> AnalysisState:
-    """生成最终报告节点"""
+    """生成最终报告节点（使用博弈交易法专业报告生成器）"""
     analysis_type = state.get('analysis_type', 'regular')
     report_parts = []
 
     if analysis_type == 'game_theory':
-        # 博弈分析报告
-        summary_result = state.get('summary_result', {})
-        strategy = state.get('strategy_recommendation', {})
+        # 使用博弈交易法专业报告生成器
+        from core.agents.boyi_report_agent import generate_boyi_report
+        report_result = generate_boyi_report(state)
+        state['final_report'] = report_result.get('report', '分析完成')
+        
+        # 添加回测结果（如果有）
         backtest = state.get('backtest_result', {})
-
-        if summary_result:
-            report_parts.append("## 博弈交易法分析报告\n")
-            report_parts.append(summary_result.get('summary', ''))
-
-        if strategy:
-            report_parts.append("\n## 交易策略推荐\n")
-            report_parts.append(f"**操作建议**：{strategy.get('operation', '观望')}")
-            report_parts.append(f"**理由**：{strategy.get('reason', '')}")
-            report_parts.append(f"**仓位建议**：{strategy.get('position_suggestion', '0%')}")
-            if strategy.get('strategy_details'):
-                report_parts.append("\n**操作策略**：")
-                for detail in strategy.get('strategy_details', []):
-                    report_parts.append(f"- {detail}")
-            if strategy.get('stop_loss_advice'):
-                report_parts.append("\n**止损建议**：")
-                for advice in strategy.get('stop_loss_advice', []):
-                    report_parts.append(f"- {advice}")
-
         if backtest and not backtest.get('skipped'):
-            report_parts.append("\n## 回溯测试结果\n")
+            backtest_parts = []
+            backtest_parts.append("\n## 四、回溯测试结果\n")
             if backtest.get('error'):
-                report_parts.append(f"回测失败：{backtest.get('error')}")
+                backtest_parts.append(f"回测失败：{backtest.get('error')}")
             else:
-                report_parts.append(
+                backtest_parts.append(
                     f"**初始资金**：{backtest.get('initial_capital', 0):.2f}，"
                     f"**期末权益**：{backtest.get('final_equity', 0):.2f}"
                 )
-                report_parts.append(f"**总收益率**：{backtest.get('total_return', 0):.2f}%")
-                report_parts.append(f"**最大回撤**：{backtest.get('max_drawdown', 0):.2f}%")
-                report_parts.append(f"**交易次数**：{backtest.get('trades', 0)}")
-                report_parts.append(f"**持股天数**：{backtest.get('holding_days', 0)}")
+                backtest_parts.append(f"**总收益率**：{backtest.get('total_return', 0):.2f}%")
+                backtest_parts.append(f"**最大回撤**：{backtest.get('max_drawdown', 0):.2f}%")
+                backtest_parts.append(f"**交易次数**：{backtest.get('trades', 0)}")
+                backtest_parts.append(f"**持股天数**：{backtest.get('holding_days', 0)}")
 
                 # 只展示实际有交易的记录（trade_shares != 0），避免每天一行太长
                 full_log = backtest.get('trade_log') or []
@@ -105,19 +90,23 @@ def generate_final_report(state: AnalysisState) -> AnalysisState:
                     if row and isinstance(row, dict) and row.get('trade_shares')
                 ]
                 if trade_log:
-                    report_parts.append("\n**回测交易明细（仅实际交易）**：")
-                    report_parts.append("| 序号 | 日期 | 收盘价 | 操作 | 仓位比例 | 持股数量 | 权益 | 当日成交股数 |")
-                    report_parts.append("| --- | ---- | ------ | ---- | -------- | -------- | ---- | ------------ |")
+                    backtest_parts.append("\n**回测交易明细（仅实际交易）**：")
+                    backtest_parts.append("| 序号 | 日期 | 收盘价 | 操作 | 仓位比例 | 持股数量 | 权益 | 当日成交股数 |")
+                    backtest_parts.append("| --- | ---- | ------ | ---- | -------- | -------- | ---- | ------------ |")
                     max_rows = 50
                     for idx, row in enumerate(trade_log[:max_rows], start=1):
-                        report_parts.append(
+                        backtest_parts.append(
                             f"| {idx} | {row.get('date', '')} | "
                             f"{row.get('close', 0):.2f} | {row.get('operation', '')} | "
                             f"{row.get('position_ratio', 0) * 100:.1f}% | {row.get('shares', 0)} | "
                             f"{row.get('equity', 0):.2f} | {row.get('trade_shares', 0)} |"
                         )
                     if len(trade_log) > max_rows:
-                        report_parts.append(f"\n（共 {len(trade_log)} 笔交易，以上仅展示前 {max_rows} 笔）")
+                        backtest_parts.append(f"\n（共 {len(trade_log)} 笔交易，以上仅展示前 {max_rows} 笔）")
+            
+            # 将回测结果追加到报告中
+            if backtest_parts:
+                state['final_report'] += "\n".join(backtest_parts)
     else:
         # 常规分析报告
         regular_result = state.get('regular_analysis_result', {})
@@ -132,7 +121,8 @@ def generate_final_report(state: AnalysisState) -> AnalysisState:
             report_parts.append(f"\n**交易建议**：{regular_result.get('suggestion', '观望')}")
             report_parts.append(f"**信心度**：{regular_result.get('confidence', '低')}")
 
-    state['final_report'] = "\n".join(report_parts) if report_parts else "分析完成"
+        state['final_report'] = "\n".join(report_parts) if report_parts else "分析完成"
+    
     return state
 
 

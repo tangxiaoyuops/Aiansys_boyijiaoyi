@@ -1,0 +1,58 @@
+name: conversation_workflow
+description: 多轮对话流程
+
+steps:
+  # 第一步:意图识别
+  - id: intent_recognition
+    type: intent_node
+    config:
+      model: gpt-4o
+      timeout: 10
+      retry_times: 2
+
+  # 第二步:上下文理解
+  - id: context_understanding
+    type: dialogue_node
+    depends_on:
+      - intent_recognition
+    config:
+      node_subtype: context_understanding
+      prompt_file: prompts/conversation/context_understanding.md
+      model: gpt-4o
+      timeout: 20
+      retry_times: 2
+
+  # 第三步:动态分析(根据上下文选择分析节点)
+  - id: dynamic_analysis
+    type: dialogue_node
+    depends_on:
+      - context_understanding
+    config:
+      node_subtype: dynamic_analysis
+      model: gpt-4o
+      timeout: 30
+      retry_times: 2
+      # 动态选择规则
+      selection_rules:
+        - if: "context.contains('事业')"
+          then: career_analysis
+        - if: "context.contains('财运')"
+          then: wealth_analysis
+        - if: "context.contains('婚姻')"
+          then: marriage_analysis
+        - if: "context.contains('健康')"
+          then: health_analysis
+      default: general_analysis
+
+  # 第四步:响应生成
+  - id: response_generation
+    type: dialogue_node
+    depends_on:
+      - context_understanding
+      - dynamic_analysis
+    config:
+      node_subtype: response_generation
+      prompt_file: prompts/conversation/response_generation.md
+      model: gpt-4o
+      timeout: 20
+      retry_times: 2

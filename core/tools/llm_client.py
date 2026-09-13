@@ -69,7 +69,7 @@ def call_llm(
             ],
             temperature=temperature,
             # 禁用 GLM-5 的深度思考模式，大幅提升响应速度
-            extra_body={"thinking": {"type": "disabled"}}
+            extra_body={"thinking": {"type": "disabled"}, "no-thinking": True}
         )
         
         elapsed_time = time.time() - start_time
@@ -149,7 +149,7 @@ def call_llm_stream(
             temperature=temperature,
             stream=True,
             # 禁用 GLM-5 的深度思考模式，大幅提升响应速度
-            extra_body={"thinking": {"type": "disabled"}}
+            extra_body={"thinking": {"type": "disabled"}, "no-thinking": True}
         )
         
         elapsed_time = time.time() - start_time

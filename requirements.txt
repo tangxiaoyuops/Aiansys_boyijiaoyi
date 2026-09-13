@@ -1,27 +1,7 @@
-akshare>=1.13.0
-pandas>=2.0.0
-numpy>=1.24.0
-openai>=1.104.2,<2.0.0
-pydantic>=2.0.0,<3.0.0
-python-dotenv>=1.0.0
-matplotlib>=3.7.0
-plotly>=5.18.0
-requests>=2.31.0
-fastapi>=0.110.0
-uvicorn>=0.24.0
-langgraph>=1.0.0
-langchain>=0.1.0
-# 回测和优化相关
-scipy>=1.11.0
-scikit-optimize>=0.9.0
-# 定时任务调度
-apscheduler>=3.10.0
-# 异步HTTP客户端
-aiohttp>=3.9.0
-# 邮件验证
-email-validator>=2.1.0
-# vnpy 集成（可选，用于专业回测和实盘交易）
-vnpy>=3.9.0
-# vnpy-ctastrategy>=3.9.0
-# vnpy-ctabacktester>=3.9.0
-# vnpy-datamanager>=3.9.0
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+openai==1.3.0
+pydantic==2.5.0
+requests==2.31.0
+python-multipart==0.0.6
+python-dotenv==1.0.0

@@ -1,0 +1,32 @@
+name: quick_query_workflow
+description: 快速查询流程
+
+steps:
+  # 第一步:意图识别
+  - id: intent_recognition
+    type: intent_node
+    config:
+      model: gpt-4o
+      timeout: 10
+      retry_times: 2
+
+  # 第二步:快速查询(直接查询,无需深度分析)
+  - id: quick_query
+    type: analysis_node
+    depends_on:
+      - intent_recognition
+    config:
+      prompt_file: prompts/quick_query.md
+      model: gpt-4o
+      timeout: 20
+      retry_times: 2
+
+  # 第三步:结果输出
+  - id: result_output
+    type: integration_node
+    depends_on:
+      - quick_query
+    config:
+      model: gpt-4o
+      timeout: 10
+      retry_times: 1

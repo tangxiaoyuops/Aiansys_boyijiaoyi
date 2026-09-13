@@ -91,6 +91,12 @@ const routes = [
     component: () => import('./views/SolarSystemView.vue'),
     meta: { title: '太阳系狂奔' },
   },
+  {
+    path: '/agent-framework',
+    name: 'agent-framework',
+    component: () => import('./views/AgentFrameworkView.vue'),
+    meta: { title: 'Agent框架' },
+  },
 ];
 
 const router = createRouter({

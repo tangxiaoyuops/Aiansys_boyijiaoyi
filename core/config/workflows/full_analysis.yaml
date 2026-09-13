@@ -1,0 +1,69 @@
+name: full_analysis_workflow
+description: 完整八字分析流程
+
+steps:
+  # 第一步:意图识别
+  - id: intent_recognition
+    type: intent_node
+    config:
+      model: gpt-4o
+      timeout: 10
+      retry_times: 2
+
+  # 第二步:五行分析(可与十神分析并行)
+  - id: wuxing_analysis
+    type: wuxing_analysis_node
+    depends_on: []
+    config:
+      prompt_file: prompts/wuxing_analysis.md
+      model: gpt-4o
+      timeout: 30
+      retry_times: 2
+
+  # 第三步:十神分析(可与五行分析并行)
+  - id: shishen_analysis
+    type: shishen_analysis_node
+    depends_on: []
+    config:
+      prompt_file: prompts/shishen_analysis.md
+      model: gpt-4o
+      timeout: 30
+      retry_times: 2
+
+  # 第四步:大运分析(依赖五行和十神分析)
+  - id: dayun_analysis
+    type: dayun_analysis_node
+    depends_on:
+      - wuxing_analysis
+      - shishen_analysis
+    config:
+      prompt_file: prompts/dayun_analysis.md
+      model: gpt-4o
+      timeout: 30
+      retry_times: 2
+
+  # 第五步:流年分析(依赖大运分析)
+  - id: liunian_analysis
+    type: liunian_analysis_node
+    depends_on:
+      - dayun_analysis
+    config:
+      prompt_file: prompts/liunian_analysis.md
+      model: gpt-4o
+      timeout: 30
+      retry_times: 2
+
+  # 第六步:结果整合
+  - id: result_integration
+    type: integration_node
+    depends_on:
+      - intent_recognition
+      - wuxing_analysis
+      - shishen_analysis
+      - dayun_analysis
+      - liunian_analysis
+    config:
+      prompt_file: prompts/result_integration.md
+      model: gpt-4o
+      timeout: 30
+      retry_times: 2

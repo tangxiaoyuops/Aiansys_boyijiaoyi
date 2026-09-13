@@ -1,6 +1,7 @@
 """
 FastAPI服务
 集成LangGraph工作流，提供聊天机器人接口
+集成Agent框架，提供智能分析功能
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
@@ -13,6 +14,11 @@ import asyncio
 import uuid
 import time
 import logging
+import os
+from datetime import datetime, date
+from decimal import Decimal
+import pandas as pd
+import numpy as np
 from core.graph.analysis_graph import compiled_graph
 from core.models.state import AnalysisState
 from core.graph.futures_analysis_graph import compiled_futures_graph
@@ -23,6 +29,49 @@ from server.utils.access_logger import log_access, log_page_view
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class CustomJSONEncoder(json.JSONEncoder):
+    """自定义JSON编码器，处理Pandas、NumPy和datetime类型"""
+    
+    def default(self, obj):
+        # 处理Pandas Timestamp
+        if isinstance(obj, pd.Timestamp):
+            return obj.isoformat()
+        
+        # 处理datetime和date
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        
+        # 处理NumPy类型
+        if isinstance(obj, (np.integer, np.floating)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        
+        # 处理Decimal
+        if isinstance(obj, Decimal):
+            return float(obj)
+        
+        # 处理Pandas DataFrame和Series
+        if isinstance(obj, (pd.DataFrame, pd.Series)):
+            return obj.to_dict('records') if isinstance(obj, pd.DataFrame) else obj.to_dict()
+        
+        # 处理NaN和Infinity
+        if isinstance(obj, float):
+            if np.isnan(obj) or np.isinf(obj):
+                return None
+        
+        # 其他类型尝试转换为字符串
+        try:
+            return str(obj)
+        except:
+            return super().default(obj)
+
+
+def safe_json_dumps(obj, **kwargs):
+    """安全的JSON序列化函数"""
+    return json.dumps(obj, cls=CustomJSONEncoder, ensure_ascii=False, **kwargs)
 
 
 @asynccontextmanager
@@ -407,7 +456,7 @@ async def chat_stream(
                 from core.agents.intent_agent import extract_stock_code
                 extracted_code = extract_stock_code(message)
                 if not extracted_code:
-                    yield f"data: {json.dumps({'error': '请提供股票代码', 'session_id': conv_id}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'error': '请提供股票代码', 'session_id': conv_id})}\n\n"
                     return
                 final_stock_code = extracted_code
             else:
@@ -448,7 +497,7 @@ async def chat_stream(
             }
             
             # 发送开始消息（带上session_id，前端可以保存用于后续多轮）
-            yield f"data: {json.dumps({'type': 'start', 'message': '开始分析...', 'session_id': conv_id}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'start', 'message': '开始分析...', 'session_id': conv_id})}\n\n"
             
             # 运行工作流
             final_state = None
@@ -475,7 +524,7 @@ async def chat_stream(
                     }
                     
                     progress_msg = node_messages.get(current_node, f"执行 {current_node}...")
-                    yield f"data: {json.dumps({'type': 'progress', 'message': progress_msg, 'node': current_node}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'progress', 'message': progress_msg, 'node': current_node})}\n\n"
                 
                 # 保存最终状态
                 final_state = state
@@ -491,7 +540,7 @@ async def chat_stream(
                 # 把本轮回答加入会话历史
                 history.append({"role": "assistant", "content": final_report})
 
-                yield f"data: {json.dumps({'type': 'result', 'report': final_report, 'session_id': conv_id}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'result', 'report': final_report, 'session_id': conv_id})}\n\n"
                 
                 # 发送结构化详细结果（不给前端渲染JSON，只用于图表等组件）
                 if result_state.get('analysis_type') == 'game_theory':
@@ -505,16 +554,16 @@ async def chat_stream(
                         "regular": result_state.get("regular_analysis_result")
                     }
 
-                yield f"data: {json.dumps({'type': 'detail', 'data': detail_payload}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'detail', 'data': detail_payload})}\n\n"
                 
                 # 发送完成消息
-                yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'done'})}\n\n"
             else:
-                yield f"data: {json.dumps({'type': 'error', 'message': '分析失败，未获取到结果'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'error', 'message': '分析失败，未获取到结果'})}\n\n"
                 
         except Exception as e:
             error_msg = str(e)
-            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -695,15 +744,15 @@ async def futures_analyze_stream(
             # 记录本轮用户消息
             history.append({"role": "user", "content": message})
 
-            # 如果没有提供期货代码，尝试从消息中提取
+            # 如果没有提供期货代码,尝试从消息中提取
             if not futures_code:
-                # 简单的代码提取逻辑（可以改进）
+                # 简单的代码提取逻辑(可以改进)
                 import re
                 code_match = re.search(r'[a-zA-Z]+\d{4}', message)
                 if code_match:
                     final_futures_code = code_match.group()
                 else:
-                    yield f"data: {json.dumps({'error': '请提供期货合约代码', 'session_id': conv_id}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'error': '请提供期货合约代码', 'session_id': conv_id})}\n\n"
                     return
             else:
                 final_futures_code = futures_code
@@ -737,7 +786,7 @@ async def futures_analyze_stream(
             }
             
             # 发送开始消息
-            yield f"data: {json.dumps({'type': 'start', 'message': '开始期货分析...', 'session_id': conv_id}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'start', 'message': '开始期货分析...', 'session_id': conv_id})}\n\n"
             
             # 运行工作流
             print(f"[期货分析API] 开始运行工作流: {final_futures_code}, 分析类型: {analysis_type}")
@@ -762,7 +811,7 @@ async def futures_analyze_stream(
                     }
                     
                     progress_msg = node_messages.get(current_node, f"执行 {current_node}...")
-                    yield f"data: {json.dumps({'type': 'progress', 'message': progress_msg, 'node': current_node}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'progress', 'message': progress_msg, 'node': current_node})}\n\n"
                 
                 # 保存最终状态
                 final_state = state
@@ -777,7 +826,7 @@ async def futures_analyze_stream(
                 # 把本轮回答加入会话历史
                 history.append({"role": "assistant", "content": final_report})
 
-                yield f"data: {json.dumps({'type': 'result', 'report': final_report, 'session_id': conv_id}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'result', 'report': final_report, 'session_id': conv_id})}\n\n"
                 
                 # 发送结构化详细结果
                 detail_payload = {
@@ -788,12 +837,12 @@ async def futures_analyze_stream(
                     "strategy": result_state.get("strategy_recommendation"),
                 }
 
-                yield f"data: {json.dumps({'type': 'detail', 'data': detail_payload}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'detail', 'data': detail_payload})}\n\n"
                 
                 # 发送完成消息
-                yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'done'})}\n\n"
             else:
-                yield f"data: {json.dumps({'type': 'error', 'message': '分析失败，未获取到结果'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'error', 'message': '分析失败,未获取到结果'})}\n\n"
                 
         except Exception as e:
             error_msg = str(e)
@@ -801,7 +850,7 @@ async def futures_analyze_stream(
             print(f"[期货分析API] 流式接口异常: {error_msg}")
             print(f"[期货分析API] 完整错误堆栈:")
             traceback.print_exc()
-            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -1040,7 +1089,7 @@ async def ziwei_llm_stream(request: ZiweiLLMStreamRequest):
             
             if use_frontend_data:
                 # 使用前端传来的数据，避免重复排盘
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'})}\n\n"
                 
                 pan_data = request.pan_data
                 si_hua_analysis = request.si_hua_analysis
@@ -1049,37 +1098,37 @@ async def ziwei_llm_stream(request: ZiweiLLMStreamRequest):
                 geju_analysis = request.geju_analysis
             else:
                 # 没有前端数据，重新排盘（向后兼容）
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'pan', 'message': '正在进行紫微排盘...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'pan', 'message': '正在进行紫微排盘...'})}\n\n"
                 
                 from core.agents.ziwei_pan_agent import ziwei_pan_node
                 pan_result = ziwei_pan_node(request.year, request.month, request.day, request.hour, request.gender)
                 
                 if not pan_result.get('success'):
-                    yield f"data: {json.dumps({'type': 'error', 'message': pan_result.get('error', '排盘失败')}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'error', 'message': pan_result.get('error', '排盘失败')}, ensure_ascii=False)}\n\n"
                     return
                 
                 pan_data = pan_result['pan_data']
                 si_hua_analysis = pan_result.get('si_hua_analysis', {})
                 
                 # 大限分析
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'daxian', 'message': '正在分析大限...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'daxian', 'message': '正在分析大限...'})}\n\n"
                 from core.agents.ziwei_daxian_agent import ziwei_daxian_node
                 daxian_result = ziwei_daxian_node(pan_data.copy(), None)
                 daxian_analysis = daxian_result if daxian_result.get('success') else None
                 
                 # 神煞分析
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'shensha', 'message': '正在分析神煞...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'shensha', 'message': '正在分析神煞...'})}\n\n"
                 from core.agents.ziwei_shensha_agent import ziwei_shensha_node
                 shensha_result = ziwei_shensha_node(pan_data.copy())
                 shensha_analysis = shensha_result if shensha_result.get('success') else None
                 
                 # 格局分析
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'geju', 'message': '正在分析格局...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'geju', 'message': '正在分析格局...'})}\n\n"
                 from core.agents.ziwei_geju_agent import ziwei_geju_node
                 geju_result = ziwei_geju_node(pan_data.copy())
                 geju_analysis = geju_result if geju_result.get('success') else None
                 
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'})}\n\n"
             
             # 流式调用LLM
             from core.tools.llm_client import call_llm_stream
@@ -1112,17 +1161,17 @@ async def ziwei_llm_stream(request: ZiweiLLMStreamRequest):
             full_content = ""
             for chunk in call_llm_stream(system_prompt, user_prompt):
                 full_content += chunk
-                yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'content', 'content': chunk})}\n\n"
             
             # 发送完成信号
-            yield f"data: {json.dumps({'type': 'done', 'full_content': full_content}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'done', 'full_content': full_content})}\n\n"
             
         except Exception as e:
             error_msg = str(e)
             print(f"[紫微LLM流式API] 错误: {error_msg}")
             import traceback
             traceback.print_exc()
-            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -1429,7 +1478,7 @@ async def ziwei_chat_stream(request: ZiweiChatRequest):
             conv_id, session = get_or_create_ziwei_conversation(request.conversation_id)
             
             # 发送会话ID
-            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'start', 'conversation_id': conv_id})}\n\n"
             
             # 构建紫薇上下文
             ziwei_context = ZiweiContext(
@@ -1457,14 +1506,14 @@ async def ziwei_chat_stream(request: ZiweiChatRequest):
                 ziwei_context=ziwei_context,
                 chat_history=request.chat_history
             ):
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps(event)}\n\n"
             
         except Exception as e:
             error_msg = str(e)
             import traceback
             print(f"[紫薇对话流式API] 错误: {error_msg}")
             traceback.print_exc()
-            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -1655,7 +1704,7 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
             
             if use_frontend_data:
                 # 使用前端传来的数据，避免重复排盘，保证数据一致性
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'})}\n\n"
                 
                 sizhu = request.sizhu
                 wuxing_analysis = request.wuxing_analysis
@@ -1664,20 +1713,20 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
                 shensha_analysis = request.shensha_analysis
             else:
                 # 没有前端数据，重新排盘（向后兼容）
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'pan', 'message': '正在进行八字排盘...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'pan', 'message': '正在进行八字排盘...'})}\n\n"
                 
                 # 基础排盘
                 from core.agents.bazi_pan_agent import bazi_pan_node
                 pan_result = bazi_pan_node(request.year, request.month, request.day, request.hour, request.gender)
                 
                 if not pan_result.get('success'):
-                    yield f"data: {json.dumps({'type': 'error', 'message': pan_result.get('error', '排盘失败')}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'error', 'message': pan_result.get('error', '排盘失败')}, ensure_ascii=False)}\n\n"
                     return
                 
                 sizhu = pan_result['sizhu']
                 
                 # 发送进度：五行分析
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'wuxing', 'message': '正在分析五行...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'wuxing', 'message': '正在分析五行...'})}\n\n"
                 
                 # 五行分析
                 from core.agents.bazi_wuxing_agent import bazi_wuxing_node
@@ -1685,7 +1734,7 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
                 wuxing_analysis = wuxing_result if wuxing_result.get('success') else None
                 
                 # 发送进度：十神分析
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'shishen', 'message': '正在分析十神...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'shishen', 'message': '正在分析十神...'})}\n\n"
                 
                 # 十神分析
                 from core.agents.bazi_shishen_agent import bazi_shishen_node
@@ -1693,7 +1742,7 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
                 shishen_analysis = shishen_result if shishen_result.get('success') else None
                 
                 # 发送进度：大运分析
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'dayun', 'message': '正在分析大运...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'dayun', 'message': '正在分析大运...'})}\n\n"
                 
                 # 大运分析
                 from core.agents.bazi_dayun_agent import bazi_dayun_node
@@ -1701,7 +1750,7 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
                 dayun_analysis = dayun_result if dayun_result.get('success') else None
                 
                 # 发送进度：神煞分析
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'shensha', 'message': '正在分析神煞...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'shensha', 'message': '正在分析神煞...'})}\n\n"
                 
                 # 神煞分析
                 from core.agents.bazi_shensha_agent import bazi_shensha_node
@@ -1709,10 +1758,10 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
                 shensha_analysis = shensha_result if shensha_result.get('success') else None
                 
                 # 发送进度：开始AI分析
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析...'})}\n\n"
             
             # 发送基础数据（供前端更新显示）
-            yield f"data: {json.dumps({'type': 'data', 'sizhu': sizhu, 'wuxing_analysis': wuxing_analysis, 'shishen_analysis': shishen_analysis, 'dayun_analysis': dayun_analysis, 'shensha_analysis': shensha_analysis}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'data', 'sizhu': sizhu, 'wuxing_analysis': wuxing_analysis, 'shishen_analysis': shishen_analysis, 'dayun_analysis': dayun_analysis, 'shensha_analysis': shensha_analysis})}\n\n"
             
             # 流式调用LLM
             from core.agents.bazi_prompt_styles import get_system_prompt, build_bazi_prompt
@@ -1724,17 +1773,17 @@ async def bazi_llm_stream(request: BaziLLMStreamRequest):
             full_content = ""
             for chunk in call_llm_stream(system_prompt, user_prompt):
                 full_content += chunk
-                yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'content', 'content': chunk})}\n\n"
             
             # 发送完成信号
-            yield f"data: {json.dumps({'type': 'done', 'full_content': full_content}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'done', 'full_content': full_content})}\n\n"
             
         except Exception as e:
             error_msg = str(e)
             print(f"[八字LLM流式API] 错误: {error_msg}")
             import traceback
             traceback.print_exc()
-            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -1873,22 +1922,22 @@ async def bazi_hepan_stream(request: BaziHepanRequest):
             # 参数验证
             valid_a, error_a = validate_birth_date(request.year_a, request.month_a, request.day_a, request.hour_a, "命盘A")
             if not valid_a:
-                yield f"data: {json.dumps({'type': 'error', 'message': error_a}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'error', 'message': error_a})}\n\n"
                 return
             
             valid_b, error_b = validate_birth_date(request.year_b, request.month_b, request.day_b, request.hour_b, "命盘B")
             if not valid_b:
-                yield f"data: {json.dumps({'type': 'error', 'message': error_b}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'error', 'message': error_b})}\n\n"
                 return
             
             # 合盘类型验证
             if request.hepan_type not in ['couple', 'business']:
                 error_msg = f"合盘类型'{request.hepan_type}'无效，仅支持'couple'或'business'"
-                yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
                 return
             
             # 发送进度
-            yield f"data: {json.dumps({'type': 'progress', 'stage': 'hepan', 'message': '正在进行合盘分析...'}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'hepan', 'message': '正在进行合盘分析...'})}\n\n"
             
             from core.agents.hepan_analysis_agent import hepan_complete_analysis, hepan_llm_analysis_stream
             
@@ -1901,15 +1950,15 @@ async def bazi_hepan_stream(request: BaziHepanRequest):
             )
             
             if not result.get('success'):
-                yield f"data: {json.dumps({'type': 'error', 'message': result.get('error', '分析失败')}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'error', 'message': result.get('error', '分析失败')}, ensure_ascii=False)}\n\n"
                 return
             
             # 2. 发送合盘数据
-            yield f"data: {json.dumps({'type': 'data', 'pan_a': result['pan_a'], 'pan_b': result['pan_b'], 'hepan': result['hepan']}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'data', 'pan_a': result['pan_a'], 'pan_b': result['pan_b'], 'hepan': result['hepan']})}\n\n"
             
             # 3. LLM流式分析
             if request.include_llm:
-                yield f"data: {json.dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析合盘...'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'llm', 'message': 'AI正在深度分析合盘...'})}\n\n"
                 
                 full_content = ""
                 for chunk in hepan_llm_analysis_stream(
@@ -1921,19 +1970,19 @@ async def bazi_hepan_stream(request: BaziHepanRequest):
                     name_b=request.name_b
                 ):
                     full_content += chunk
-                    yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'content', 'content': chunk})}\n\n"
                 
                 # 发送完成信号
-                yield f"data: {json.dumps({'type': 'done', 'full_content': full_content}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'done', 'full_content': full_content})}\n\n"
             else:
-                yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                yield f"data: {safe_json_dumps({'type': 'done'})}\n\n"
             
         except Exception as e:
             error_msg = str(e)
             print(f"[八字合盘流式API] 错误: {error_msg}")
             import traceback
             traceback.print_exc()
-            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -2045,7 +2094,7 @@ async def hepan_chat_stream(request: HepanChatRequest):
             conv_id = request.conversation_id or str(uuid.uuid4())
             
             # 发送会话ID
-            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'start', 'conversation_id': conv_id})}\n\n"
             
             # 流式处理消息
             for event in agent.process_message_stream(
@@ -2057,20 +2106,20 @@ async def hepan_chat_stream(request: HepanChatRequest):
                 event_type = event.get('type')
                 
                 if event_type == 'progress':
-                    yield f"data: {json.dumps({'type': 'progress', 'message': event.get('message', '')}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'progress', 'message': event.get('message', '')}, ensure_ascii=False)}\n\n"
                 elif event_type == 'content':
-                    yield f"data: {json.dumps({'type': 'content', 'content': event.get('content', '')}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'content', 'content': event.get('content', '')}, ensure_ascii=False)}\n\n"
                 elif event_type == 'done':
-                    yield f"data: {json.dumps({'type': 'done', 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'done', 'conversation_id': conv_id})}\n\n"
                 elif event_type == 'error':
-                    yield f"data: {json.dumps({'type': 'error', 'message': event.get('message', '')}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'type': 'error', 'message': event.get('message', '')}, ensure_ascii=False)}\n\n"
             
         except Exception as e:
             error_msg = str(e)
             print(f"[合盘对话流式API] 错误: {error_msg}")
             import traceback
             traceback.print_exc()
-            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -2200,10 +2249,11 @@ def get_or_create_bazi_conversation(conversation_id: Optional[str]) -> tuple:
 @app.post("/api/bazi/chat")
 async def bazi_chat(request: BaziChatRequest):
     """
-    八字追问对话接口（非流式）
+    八字追问对话接口（非流式）- 使用工作流系统
     """
     try:
-        from core.agents.bazi_dialogue_agent import get_bazi_dialogue_agent, BaziContext
+        from core.workflow.orchestrator import get_workflow_orchestrator
+        from core.agents.bazi_dialogue_agent import BaziContext
         
         # 获取或创建会话
         conv_id, session = get_or_create_bazi_conversation(request.conversation_id)
@@ -2225,23 +2275,21 @@ async def bazi_chat(request: BaziChatRequest):
         # 更新会话中的八字上下文
         session["bazi_context"] = bazi_context
         
-# 获取对话Agent
-        agent = get_bazi_dialogue_agent()
-
-        # 处理消息
-        result = agent.process_message(
-            conversation_id=conv_id,
-            user_message=request.message,
+        # 获取工作流编排器
+        orchestrator = get_workflow_orchestrator()
+        
+        # 使用工作流系统处理消息
+        result = orchestrator.process_bazi_analysis(
+            user_question=request.message,
             bazi_context=bazi_context,
-            chat_history=request.chat_history
+            conversation_history=request.chat_history
         )
         
         return {
-            "success": True,
+            "success": result.get("success", True),
             "conversation_id": conv_id,
-            "response": result.get("response", ""),
-            "intent_type": result.get("intent_type"),
-            "tool_used": result.get("tool_used")
+            "response": result.get("response", result.get("report", "")),
+            "results": result.get("results", {})
         }
         
     except Exception as e:
@@ -2254,23 +2302,37 @@ async def bazi_chat(request: BaziChatRequest):
 @app.post("/api/bazi/chat/stream")
 async def bazi_chat_stream(request: BaziChatRequest):
     """
-    八字追问对话流式接口
+    八字追问对话流式接口 - 使用工作流系统
     
     流程：
-    1. 意图识别 - 识别用户追问的类型
-    2. 工具选择 - 根据意图选择合适的分析工具
-    3. 结合历史信息 + 工具响应输出结果
+    1. 意图识别 - 智能识别用户意图
+    2. 路由决策 - 选择合适的工作流
+    3. 执行工作流 - 并行或串行执行节点
+    4. 结果整合 - 生成最终报告
     """
     
     async def generate():
         try:
-            from core.agents.bazi_dialogue_agent import get_bazi_dialogue_agent, BaziContext
+            from core.workflow.orchestrator import get_workflow_orchestrator
+            from core.agents.bazi_dialogue_agent import BaziContext
             
             # 获取或创建会话
             conv_id, session = get_or_create_bazi_conversation(request.conversation_id)
             
+            # 🔍 调试：打印接收到的八字数据
+            print(f"[八字对话API] ========== 第二轮对话调试 ==========")
+            print(f"[八字对话API] conversation_id: {request.conversation_id}")
+            print(f"[八字对话API] sizhu是否为空: {not request.sizhu}")
+            print(f"[八字对话API] sizhu内容: {request.sizhu}")
+            print(f"[八字对话API] wuxing_analysis是否为空: {not request.wuxing_analysis}")
+            print(f"[八字对话API] shishen_analysis是否为空: {not request.shishen_analysis}")
+            print(f"[八字对话API] dayun_analysis是否为空: {not request.dayun_analysis}")
+            
             # 发送会话ID
-            yield f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'start', 'conversation_id': conv_id})}\n\n"
+            
+            # 发送进度
+            yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'workflow', 'message': '正在启动工作流...'})}\n\n"
             
             # 构建八字上下文
             bazi_context = BaziContext(
@@ -2286,27 +2348,49 @@ async def bazi_chat_stream(request: BaziChatRequest):
                 birth_info=request.birth_info or {}
             )
             
+            # 检查八字数据是否完整,如果不完整尝试从会话中获取
+            if not bazi_context.sizhu and session.get("bazi_context"):
+                print("[工作流API] 使用会话中保存的八字上下文")
+                bazi_context = session["bazi_context"]
+            else:
+                print(f"[工作流API] 八字数据: sizhu={bool(bazi_context.sizhu)}, wuxing={bool(bazi_context.wuxing_analysis)}")
+            
             # 更新会话中的八字上下文
             session["bazi_context"] = bazi_context
             
-# 获取对话Agent
-            agent = get_bazi_dialogue_agent()
-
-            # 流式处理消息
-            for event in agent.process_message_stream(
-                conversation_id=conv_id,
-                user_message=request.message,
+            # 获取工作流编排器
+            orchestrator = get_workflow_orchestrator()
+            
+            # 发送进度
+            yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'analysis', 'message': '正在分析...'})}\n\n"
+            
+            # 使用工作流系统处理消息
+            result = orchestrator.process_bazi_analysis(
+                user_question=request.message,
                 bazi_context=bazi_context,
-                chat_history=request.chat_history
-            ):
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                conversation_history=request.chat_history
+            )
+            
+            # 发送结果
+            if result.get("success"):
+                response_text = result.get("response", result.get("report", ""))
+                
+                # 流式输出内容
+                yield f"data: {safe_json_dumps({'type': 'content', 'content': response_text})}\n\n"
+                
+                # 发送完成信号
+                yield f"data: {safe_json_dumps({'type': 'done', 'conversation_id': conv_id})}\n\n"
+            else:
+                # 发送错误
+                error_msg = result.get("error", "分析失败")
+                yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
             
         except Exception as e:
             error_msg = str(e)
             import traceback
             print(f"[八字对话流式API] 错误: {error_msg}")
             traceback.print_exc()
-            yield f"data: {json.dumps({'type': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'type': 'error', 'message': error_msg})}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -2449,7 +2533,7 @@ async def bazi_liuyue_stream(request: BaziLiuyueRequest):
             if not sizhu:
                 pan_result = bazi_pan_node(request.year, request.month, request.day, request.hour, request.gender)
                 if not pan_result.get('success'):
-                    yield f"data: {json.dumps({'error': '排盘失败'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {safe_json_dumps({'error': '排盘失败'})}\n\n"
                     return
                 sizhu = pan_result['sizhu']
             
@@ -2470,9 +2554,219 @@ async def bazi_liuyue_stream(request: BaziLiuyueRequest):
                 
         except Exception as e:
             logger.error(f"流月流式分析失败: {e}")
-            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            yield f"data: {safe_json_dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
     
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ==================== Agent框架集成 ====================
+
+# Agent框架全局变量
+agent_instance = None
+agent_registry_instance = None
+agent_llm_client = None
+
+
+class AgentConfigRequest(BaseModel):
+    """Agent配置请求"""
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+class AgentAnalyzeRequest(BaseModel):
+    """Agent分析请求"""
+    task: str
+    stock_code: Optional[str] = None
+    max_iterations: Optional[int] = 10
+    context: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/agent/config")
+async def configure_agent_framework(config: AgentConfigRequest):
+    """
+    配置Agent框架
+    自动使用环境变量中的配置
+    """
+    global agent_instance, agent_registry_instance, agent_llm_client
+    
+    try:
+        # 使用环境变量或传入的配置
+        api_key = config.api_key or os.getenv("OPENAI_API_KEY")
+        base_url = config.base_url or os.getenv("OPENAI_BASE_URL")
+        model = config.model or os.getenv("QWEN_MODEL", "GLM-5")
+        
+        if not api_key:
+            raise HTTPException(
+                status_code=400, 
+                detail="缺少API Key，请配置OPENAI_API_KEY环境变量或传入api_key参数"
+            )
+        
+        logger.info(f"[Agent框架] 开始配置: model={model}, base_url={base_url}")
+        
+        # 导入Agent框架组件
+        from core.agent_framework import ToolRegistry
+        from core.agent_framework.agents import ReActAgent
+        from core.agent_framework.llm_client import LLMClient
+        
+        # 创建LLM客户端
+        agent_llm_client = LLMClient(
+            model=model,
+            api_key=api_key,
+            base_url=base_url
+        )
+        
+        # 创建博弈交易工具注册中心
+        try:
+            from core.agent_framework.examples.boyi_real_tools import create_real_boyi_tool_registry
+            agent_registry_instance = create_real_boyi_tool_registry()
+            logger.info(f"[Agent框架] 工具注册成功: {len(agent_registry_instance)} 个工具")
+        except Exception as e:
+            logger.warning(f"[Agent框架] 创建真实工具失败: {e}，使用示例工具")
+            from core.agent_framework.examples.boyi_tools import create_boyi_tool_registry
+            agent_registry_instance = create_boyi_tool_registry()
+        
+        # 创建Agent
+        agent_instance = ReActAgent(
+            name="boyi_master",
+            tool_registry=agent_registry_instance,
+            llm_client=agent_llm_client,
+            max_iterations=15  # 固定值，不使用config中的字段
+        )
+        
+        tools_list = [tool.metadata.name for tool in agent_registry_instance]
+        logger.info(f"[Agent框架] Agent配置成功，已加载 {len(tools_list)} 个工具")
+        
+        return {
+            "success": True,
+            "message": "Agent配置成功",
+            "tools_count": len(agent_registry_instance),
+            "tools": tools_list
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Agent框架] 配置失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"配置失败: {str(e)}")
+
+
+@app.post("/api/agent/analyze")
+async def agent_framework_analyze(request: AgentAnalyzeRequest):
+    """
+    执行Agent分析任务（非流式）
+    """
+    global agent_instance
+    
+    if not agent_instance:
+        raise HTTPException(
+            status_code=400, 
+            detail="请先配置Agent（调用 /api/agent/config）"
+        )
+    
+    try:
+        logger.info(f"[Agent框架] 开始分析任务: {request.task}")
+        
+        # 运行Agent
+        result = agent_instance.run(
+            user_input={
+                "task": request.task,
+                "stock_code": request.stock_code
+            },
+            context=request.context
+        )
+        
+        logger.info(f"[Agent框架] 分析完成，迭代次数: {result.get('iterations', 0)}")
+        
+        return {
+            "success": True,
+            "response": result.get("response"),
+            "iterations": result.get("iterations"),
+            "execution_trace": result.get("execution_trace"),
+            "collected_info": result.get("collected_info")
+        }
+        
+    except Exception as e:
+        logger.error(f"[Agent框架] 分析失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"分析失败: {str(e)}")
+
+
+@app.post("/api/agent/analyze/stream")
+async def agent_framework_analyze_stream(request: AgentAnalyzeRequest):
+    """
+    执行Agent分析任务（流式）
+    实时推送每一步的执行过程
+    """
+    global agent_instance
+    
+    if not agent_instance:
+        raise HTTPException(
+            status_code=400, 
+            detail="请先配置Agent（调用 /api/agent/config）"
+        )
+    
+    from core.agent_framework.api.app_stream import stream_agent_execution
+    
+    logger.info(f"[Agent框架] 开始流式分析: {request.task}")
+    
+    return StreamingResponse(
+        stream_agent_execution(
+            agent_instance,
+            user_input={
+                "task": request.task,
+                "stock_code": request.stock_code
+            },
+            context=request.context
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@app.get("/api/agent/status")
+async def agent_framework_status():
+    """
+    获取Agent框架状态
+    """
+    global agent_instance, agent_registry_instance
+    
+    return {
+        "configured": agent_instance is not None,
+        "tools_count": len(agent_registry_instance) if agent_registry_instance else 0,
+        "tools": [tool.metadata.name for tool in agent_registry_instance] if agent_registry_instance else []
+    }
+
+
+@app.get("/api/agent/tools")
+async def agent_framework_tools():
+    """
+    获取Agent框架工具列表
+    """
+    global agent_registry_instance
+    
+    if not agent_registry_instance:
+        return {
+            "success": True,
+            "tools": []
+        }
+    
+    tools_list = []
+    for tool in agent_registry_instance:
+        tools_list.append({
+            "name": tool.metadata.name,
+            "description": tool.metadata.description,
+            "type": tool.metadata.tool_type,
+            "capabilities": tool.metadata.capabilities
+        })
+    
+    return {
+        "success": True,
+        "tools": tools_list
+    }
 
 
 if __name__ == "__main__":

@@ -1,0 +1,33 @@
+name: simplified_analysis_workflow
+description: 简化的八字分析流程(快速响应)
+
+steps:
+  # 第一步:意图识别
+  - id: intent_recognition
+    type: intent_node
+    config:
+      model: gpt-4o
+      timeout: 15
+      retry_times: 1
+
+  # 第二步:简化分析(一次性完成五行+十神判断)
+  - id: simplified_analysis
+    type: analysis_node
+    depends_on:
+      - intent_recognition
+    config:
+      prompt_file: prompts/wuxing_analysis.md
+      model: gpt-4o
+      timeout: 60
+      retry_times: 1
+
+  # 第三步:结果整合(包含大运流年信息)
+  - id: result_integration
+    type: integration_node
+    depends_on:
+      - simplified_analysis
+    config:
+      prompt_file: prompts/result_integration.md
+      model: gpt-4o
+      timeout: 60
+      retry_times: 1
