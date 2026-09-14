@@ -2322,11 +2322,13 @@ async def bazi_chat_stream(request: BaziChatRequest):
             # 🔍 调试：打印接收到的八字数据
             print(f"[八字对话API] ========== 第二轮对话调试 ==========")
             print(f"[八字对话API] conversation_id: {request.conversation_id}")
-            print(f"[八字对话API] sizhu是否为空: {not request.sizhu}")
-            print(f"[八字对话API] sizhu内容: {request.sizhu}")
-            print(f"[八字对话API] wuxing_analysis是否为空: {not request.wuxing_analysis}")
-            print(f"[八字对话API] shishen_analysis是否为空: {not request.shishen_analysis}")
-            print(f"[八字对话API] dayun_analysis是否为空: {not request.dayun_analysis}")
+            print(f"[八字对话API] sizhu是否为None: {request.sizhu is None}")
+            print(f"[八字对话API] sizhu内容类型: {type(request.sizhu)}")
+            if request.sizhu:
+                print(f"[八字对话API] sizhu有数据，年柱: {request.sizhu.get('nian_zhu')}")
+            print(f"[八字对话API] wuxing_analysis是否为None: {request.wuxing_analysis is None}")
+            print(f"[八字对话API] shishen_analysis是否为None: {request.shishen_analysis is None}")
+            print(f"[八字对话API] dayun_analysis是否为None: {request.dayun_analysis is None}")
             
             # 发送会话ID
             yield f"data: {safe_json_dumps({'type': 'start', 'conversation_id': conv_id})}\n\n"
@@ -2334,26 +2336,44 @@ async def bazi_chat_stream(request: BaziChatRequest):
             # 发送进度
             yield f"data: {safe_json_dumps({'type': 'progress', 'stage': 'workflow', 'message': '正在启动工作流...'})}\n\n"
             
-            # 构建八字上下文
-            bazi_context = BaziContext(
-                sizhu=request.sizhu or {},
-                wuxing_analysis=request.wuxing_analysis,
-                shishen_analysis=request.shishen_analysis,
-                dayun_analysis=request.dayun_analysis,
-                liunian_analysis=request.liunian_analysis,
-                shensha_analysis=request.shensha_analysis,
-                llm_analysis=request.llm_analysis,
-                analysis_style=request.analysis_style,
-                gender=request.gender,
-                birth_info=request.birth_info or {}
-            )
+            # 🔧 修复：优先使用前端传来的数据，前端没传时才使用会话缓存
+            # 判断前端是否传来了有效的八字数据
+            has_valid_sizhu = request.sizhu is not None and isinstance(request.sizhu, dict) and len(request.sizhu) > 0
             
-            # 检查八字数据是否完整,如果不完整尝试从会话中获取
-            if not bazi_context.sizhu and session.get("bazi_context"):
+            if has_valid_sizhu:
+                # 前端传来了有效数据，直接使用
+                print("[工作流API] 使用前端传来的八字数据")
+                bazi_context = BaziContext(
+                    sizhu=request.sizhu,
+                    wuxing_analysis=request.wuxing_analysis,
+                    shishen_analysis=request.shishen_analysis,
+                    dayun_analysis=request.dayun_analysis,
+                    liunian_analysis=request.liunian_analysis,
+                    shensha_analysis=request.shensha_analysis,
+                    llm_analysis=request.llm_analysis,
+                    analysis_style=request.analysis_style,
+                    gender=request.gender,
+                    birth_info=request.birth_info or {}
+                )
+            elif session.get("bazi_context"):
+                # 前端没传数据，使用会话缓存
                 print("[工作流API] 使用会话中保存的八字上下文")
                 bazi_context = session["bazi_context"]
             else:
-                print(f"[工作流API] 八字数据: sizhu={bool(bazi_context.sizhu)}, wuxing={bool(bazi_context.wuxing_analysis)}")
+                # 都没有数据，创建空上下文（会报错）
+                print("[工作流API] ⚠️ 警告：没有找到八字数据！")
+                bazi_context = BaziContext(
+                    sizhu={},
+                    wuxing_analysis=request.wuxing_analysis,
+                    shishen_analysis=request.shishen_analysis,
+                    dayun_analysis=request.dayun_analysis,
+                    liunian_analysis=request.liunian_analysis,
+                    shensha_analysis=request.shensha_analysis,
+                    llm_analysis=request.llm_analysis,
+                    analysis_style=request.analysis_style,
+                    gender=request.gender,
+                    birth_info=request.birth_info or {}
+                )
             
             # 更新会话中的八字上下文
             session["bazi_context"] = bazi_context

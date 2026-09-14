@@ -262,13 +262,17 @@ class BaziDialogueAgent:
             content = msg.get("content", "")
             msg_type = msg.get("type", "content")
             
-            # 第一条助手消息通常是深度分析，不截断
+            # 第一条助手消息通常是深度分析，需要特殊处理
             if i == 0 and msg.get("role") == "assistant" and msg_type == "analysis":
+                # 🔧 修复：深度分析也需要截断，避免历史记录过大
+                # 保留前1000字的核心内容
+                if len(content) > 1000:
+                    content = content[:1000] + "...\n（完整分析已在上下文中，可追问详情）"
                 lines.append(f"【AI深度分析报告】\n{content}")
             else:
                 # 后续对话，截断过长的内容
-                if len(content) > 800:
-                    content = content[:800] + "..."
+                if len(content) > 500:
+                    content = content[:500] + "..."
                 lines.append(f"{role}：{content}")
         
         return "\n".join(lines)
