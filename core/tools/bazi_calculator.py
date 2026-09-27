@@ -318,10 +318,10 @@ def calculate_sizhu(year: int, month: int, day: int, hour: int) -> Dict[str, Any
     nian_gan = get_tian_gan(bazi_year)
     nian_zhi = get_di_zhi(bazi_year)
     
-    # 月柱：使用节气确定（专业方法）
+    # 月柱：使用节气确定（专业方法，按出生时刻精确判断）
     from core.tools.solar_terms import get_month_zhi_by_solar_term, get_month_index_by_solar_term
-    yue_zhi = get_month_zhi_by_solar_term(year, month, day)
-    month_index = get_month_index_by_solar_term(year, month, day)
+    yue_zhi = get_month_zhi_by_solar_term(year, month, day, hour)
+    month_index = get_month_index_by_solar_term(year, month, day, hour)
     yue_gan = YUE_GAN_TABLE.get(nian_gan, {}).get(month_index, '丙')
     
     # 日柱
@@ -606,10 +606,10 @@ def calculate_dayun(year: int, month: int, day: int, hour: int, gender: str, baz
         yue_gan = sizhu['yue_zhu'].get('tian_gan', '')
         yue_zhi = sizhu['yue_zhu'].get('di_zhi', '')
     else:
-        # 否则需要计算月柱
+        # 否则需要计算月柱（按出生时刻精确判断）
         from core.tools.solar_terms import get_month_zhi_by_solar_term, get_month_index_by_solar_term
-        yue_zhi = get_month_zhi_by_solar_term(year, month, day)
-        month_index = get_month_index_by_solar_term(year, month, day)
+        yue_zhi = get_month_zhi_by_solar_term(year, month, day, hour)
+        month_index = get_month_index_by_solar_term(year, month, day, hour)
         yue_gan = YUE_GAN_TABLE.get(nian_gan, {}).get(month_index, '丙')
     
     if not yue_gan or not yue_zhi:

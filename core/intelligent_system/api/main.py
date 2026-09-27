@@ -359,12 +359,12 @@ async def startup_event():
     # 初始化数据库连接
     try:
         db = await get_db_manager()
-        logger.info("✓ 数据库连接成功")
+        logger.info("[OK] 数据库连接成功")
     except Exception as e:
-        logger.error(f"✗ 数据库连接失败: {e}")
+        logger.error(f"[ERROR] 数据库连接失败: {e}")
     
     logger.info("=" * 60)
-    logger.info("🚀 系统启动完成！")
+    logger.info("[START] 系统启动完成！")
     logger.info("=" * 60)
 
 
@@ -377,9 +377,9 @@ async def shutdown_event():
     try:
         db = await get_db_manager()
         await db.disconnect()
-        logger.info("✓ 数据库连接已关闭")
+        logger.info("[OK] 数据库连接已关闭")
     except Exception as e:
-        logger.error(f"✗ 数据库关闭失败: {e}")
+        logger.error(f"[ERROR] 数据库关闭失败: {e}")
 
 
 # 需要导入timedelta

@@ -111,7 +111,7 @@ def jd_from_datetime(dt: datetime) -> float:
 
 
 def datetime_from_jd(jd: float) -> datetime:
-    """从Julian日计算datetime"""
+    """从Julian日计算datetime（返回UTC时刻）"""
     jd = jd + 0.5
     z = int(jd)
     f = jd - z
@@ -147,35 +147,45 @@ def datetime_from_jd(jd: float) -> datetime:
 
 def sun_longitude(jd: float) -> float:
     """
-    计算太阳黄经（简化VSOP87算法）
+    计算太阳黄经（Meeus《Astronomical Algorithms》标准公式）
+    精度约 0.01°（对应误差 < 15 分钟，足够节气定界）。
+
+    注意：t 一律使用"儒略世纪数"（36525 天），避免千年/世纪系数混用。
     """
-    t = (jd - 2451545.0) / 365250.0  # J2000.0起算的儒略世纪数
-    
-    # 太阳平黄经
-    l0 = 280.4664567 + 360007.6982779 * t + 0.03032028 * t * t
-    l0 = l0 + t * t * t / 49931 - t * t * t * t / 15300
-    
-    # 太阳平近点角
-    m = 357.5291092 + 35999.0502909 * t - 0.0001536 * t * t
+    t = (jd - 2451545.0) / 36525.0  # J2000.0起算的儒略世纪数
+
+    # 太阳平黄经（Meeus 公式，度）
+    l0 = (280.46646
+          + 36000.76983 * t
+          + 0.0003032 * t * t
+          + (t ** 3) / 49931.0
+          - (t ** 4) / 15300.0)
+    l0 = l0 % 360
+
+    # 太阳平近点角（Meeus 公式，度）
+    m = (357.52911
+         + 35999.05029 * t
+         - 0.0001536 * t * t
+         + (t ** 3) / 24490000.0)
     m = m % 360
-    
-    # 中心方程
-    c = ((1.914602 - 0.004817 * t) * math.sin(to_rad(m))
-         + 0.019993 * math.sin(to_rad(2 * m))
+
+    # 中心方程（Meeus 公式，度）
+    c = ((1.914602 - 0.004817 * t - 0.000014 * t * t) * math.sin(to_rad(m))
+         + (0.019993 - 0.000101 * t) * math.sin(to_rad(2 * m))
          + 0.000289 * math.sin(to_rad(3 * m)))
-    
+
     # 太阳真黄经
     sun_long = l0 + c
-    
-    # 章动修正
+
+    # 章动修正（Meeus 公式）
     omega = 125.04 - 1934.136 * t
     sun_long = sun_long - 0.00569 - 0.00478 * math.sin(to_rad(omega))
-    
+
     # 归一化到0-360度
     sun_long = sun_long % 360
     if sun_long < 0:
         sun_long += 360
-    
+
     return sun_long
 
 
@@ -214,15 +224,15 @@ def find_solar_term_datetime(target_longitude: float, base_jd: float) -> float:
 
 def get_solar_term_date(year: int, term_index: int) -> datetime:
     """
-    获取指定年份的某个节气日期时间
-    
+    获取指定年份的某个节气日期时间（返回北京时间 UTC+8）
+
     Args:
         year: 年份
         term_index: 节气索引（0-23，立春=0，雨水=1...大寒=23）
-    
+
     Returns:
-        节气的日期时间
-    
+        节气的日期时间（北京时间）
+
     Note:
         对于小寒(22)和大寒(23)，返回的是year+1年1月的节气
         例如：get_solar_term_date(2024, 22) 返回2025年1月的小寒
@@ -233,19 +243,23 @@ def get_solar_term_date(year: int, term_index: int) -> datetime:
     # 根据节气估算初始日期
     est_month, est_day = TERM_ESTIMATES[term_index]
     
-    # 对于小寒和大寒（索引22-23），实际日期在下一年
+    # 小寒和大寒（索引22-23）属于下一年1月
+    # TERM_ESTIMATES[22]=(1,6), [23]=(1,20) 本来就是1月，
+    # 因此直接用 year+1 作为实际年份
     if term_index >= 22:
-        actual_year = year
+        actual_year = year + 1
     else:
         actual_year = year
     
     base_date = datetime(actual_year, est_month, est_day, 12, 0, 0)
     base_jd = jd_from_datetime(base_date)
     
-    # 迭代求解精确时间
+    # 迭代求解精确时间（返回 UTC 时刻）
     result_jd = find_solar_term_datetime(target_longitude, base_jd)
     
-    return datetime_from_jd(result_jd)
+    # 转换 UTC -> 北京时间（UTC+8）
+    beijing = datetime_from_jd(result_jd) + timedelta(hours=8)
+    return beijing
 
 
 def get_all_solar_terms_for_year(year: int) -> List[Tuple[str, int, datetime]]:
@@ -271,19 +285,20 @@ def get_all_solar_terms_for_year(year: int) -> List[Tuple[str, int, datetime]]:
     return terms
 
 
-def get_solar_term(year: int, month: int, day: int) -> Tuple[str, int]:
+def get_solar_term(year: int, month: int, day: int, hour: int = 12) -> Tuple[str, int]:
     """
-    根据公历日期确定所在的节气区间
-    
+    根据公历日期确定所在的节气区间（按交节时刻精确判断）
+
     Args:
         year: 公历年份
         month: 公历月份
         day: 公历日期
-    
+        hour: 出生时刻（0-23），默认12点（只有日期时用中午近似）
+
     Returns:
         (节气名称, 节气索引)
     """
-    target_date = datetime(year, month, day, 12, 0, 0)
+    target_date = datetime(year, month, day, hour, 0, 0)
     
     # 确定可能涉及的年份
     # 当前日期可能在：上一年小寒大寒 → 当年立春...冬至 → 下一年小寒大寒
@@ -311,36 +326,38 @@ def get_solar_term(year: int, month: int, day: int) -> Tuple[str, int]:
     return '大寒', 23
 
 
-def get_month_zhi_by_solar_term(year: int, month: int, day: int) -> str:
+def get_month_zhi_by_solar_term(year: int, month: int, day: int, hour: int = 12) -> str:
     """
-    根据节气确定月支
-    
+    根据节气确定月支（按交节时刻精确判断）
+
     Args:
         year: 公历年份
         month: 公历月份
         day: 公历日期
-    
+        hour: 出生时刻（0-23），默认12点
+
     Returns:
         月支（地支）
     """
-    term_name, _ = get_solar_term(year, month, day)
+    term_name, _ = get_solar_term(year, month, day, hour)
     month_zhi, _ = SOLAR_TERM_TO_MONTH_ZHI.get(term_name, ('寅', 1))
     return month_zhi
 
 
-def get_month_index_by_solar_term(year: int, month: int, day: int) -> int:
+def get_month_index_by_solar_term(year: int, month: int, day: int, hour: int = 12) -> int:
     """
-    根据节气确定月份索引（1-12，对应寅月到丑月）
-    
+    根据节气确定月份索引（1-12，对应寅月到丑月）（按交节时刻精确判断）
+
     Args:
         year: 公历年份
         month: 公历月份
         day: 公历日期
-    
+        hour: 出生时刻（0-23），默认12点
+
     Returns:
         月份索引（1-12）
     """
-    term_name, _ = get_solar_term(year, month, day)
+    term_name, _ = get_solar_term(year, month, day, hour)
     _, month_index = SOLAR_TERM_TO_MONTH_ZHI.get(term_name, ('寅', 1))
     return month_index
 

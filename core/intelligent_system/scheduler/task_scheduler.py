@@ -121,10 +121,10 @@ class TaskScheduler:
             from core.intelligent_system.database.db_manager import get_db_manager
             db = await get_db_manager()
             
-            logger.info("✓ 盘前系统检查通过")
+            logger.info("[OK] 盘前系统检查通过")
             
         except Exception as e:
-            logger.error(f"✗ 盘前系统检查失败: {e}")
+            logger.error(f"[ERROR] 盘前系统检查失败: {e}")
     
     # ========== 盘后任务实现 ==========
     
@@ -195,10 +195,10 @@ class TaskScheduler:
                 # 避免请求过快
                 await asyncio.sleep(0.5)
             
-            logger.info(f"✓ 日线数据采集完成: 成功 {success_count}, 失败 {failed_count}")
+            logger.info(f"[OK] 日线数据采集完成: 成功 {success_count}, 失败 {failed_count}")
             
         except Exception as e:
-            logger.error(f"✗ 日线数据采集失败: {e}")
+            logger.error(f"[ERROR] 日线数据采集失败: {e}")
     
     async def agent_daily_analysis(self):
         """
@@ -246,15 +246,15 @@ class TaskScheduler:
                         kline_data=kline_data
                     )
                     
-                    logger.info(f"✓ {stock_code}: {result.get('phase', '未知')} (置信度: {result.get('confidence', 0)}%)")
+                    logger.info(f"[OK] {stock_code}: {result.get('phase', '未知')} (置信度: {result.get('confidence', 0)}%)")
                     
                 except Exception as e:
-                    logger.error(f"✗ 分析失败 {stock_code}: {e}")
+                    logger.error(f"[ERROR] 分析失败 {stock_code}: {e}")
             
-            logger.info("✓ Agent全量分析完成")
+            logger.info("[OK] Agent全量分析完成")
             
         except Exception as e:
-            logger.error(f"✗ Agent全量分析失败: {e}")
+            logger.error(f"[ERROR] Agent全量分析失败: {e}")
     
     async def generate_daily_report(self):
         """生成日度报告"""
@@ -265,10 +265,10 @@ class TaskScheduler:
         try:
             # TODO: 实现报告生成逻辑
             
-            logger.info("✓ 日度报告生成完成")
+            logger.info("[OK] 日度报告生成完成")
             
         except Exception as e:
-            logger.error(f"✗ 日度报告生成失败: {e}")
+            logger.error(f"[ERROR] 日度报告生成失败: {e}")
     
     # ========== 夜间任务实现 ==========
     
@@ -281,10 +281,10 @@ class TaskScheduler:
         try:
             # TODO: 实现全市场数据同步
             
-            logger.info("✓ 全市场数据同步完成")
+            logger.info("[OK] 全市场数据同步完成")
             
         except Exception as e:
-            logger.error(f"✗ 全市场数据同步失败: {e}")
+            logger.error(f"[ERROR] 全市场数据同步失败: {e}")
     
     async def update_knowledge_base(self):
         """Agent知识库更新"""
@@ -295,10 +295,10 @@ class TaskScheduler:
         try:
             # TODO: 实现知识库更新逻辑
             
-            logger.info("✓ Agent知识库更新完成")
+            logger.info("[OK] Agent知识库更新完成")
             
         except Exception as e:
-            logger.error(f"✗ Agent知识库更新失败: {e}")
+            logger.error(f"[ERROR] Agent知识库更新失败: {e}")
     
     async def generate_morning_report(self):
         """生成早报"""
@@ -309,10 +309,10 @@ class TaskScheduler:
         try:
             # TODO: 实现早报生成逻辑
             
-            logger.info("✓ 早报生成完成")
+            logger.info("[OK] 早报生成完成")
             
         except Exception as e:
-            logger.error(f"✗ 早报生成失败: {e}")
+            logger.error(f"[ERROR] 早报生成失败: {e}")
     
     # ========== 调度器控制 ==========
     
@@ -320,12 +320,12 @@ class TaskScheduler:
         """启动调度器"""
         self.setup_tasks()
         self.scheduler.start()
-        logger.info("🚀 任务调度器已启动")
+        logger.info("[START] 任务调度器已启动")
     
     def stop(self):
         """停止调度器"""
         self.scheduler.shutdown()
-        logger.info("⏹️ 任务调度器已停止")
+        logger.info("[STOP] 任务调度器已停止")
     
     def get_jobs(self):
         """获取所有任务"""

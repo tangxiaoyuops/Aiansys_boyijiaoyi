@@ -15,9 +15,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     
-    # 数据库配置
-    DATABASE_URL: str = "postgresql://boyi:password@localhost:5432/boyi"
-    TIMESCALEDB_URL: str = "postgresql://boyi:password@localhost:5433/boyi_ts"
+    # 数据库配置（匹配现有 Docker postgres_db 容器）
+    DATABASE_URL: str = "postgresql://kevin:123456@localhost:5432/boyi"
+    TIMESCALEDB_URL: str = "postgresql://kevin:123456@localhost:5432/boyi"
     REDIS_URL: str = "redis://localhost:6379/0"
     
     # 数据源配置
@@ -25,22 +25,27 @@ class Settings(BaseSettings):
     
     # AI配置
     OPENAI_API_KEY: Optional[str] = None
+    OPENAI_BASE_URL: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
     OPENAI_TEMPERATURE: float = 0.7
-    
+
+    # 大模型配置（兼容自定义模型）
+    QWEN_MODEL: Optional[str] = None
+
     # 向量数据库配置
     CHROMA_PERSIST_DIR: str = "./data/chroma"
-    
+
     # 任务调度配置
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
-    
+
     # 监控配置
     PROMETHEUS_PORT: int = 9090
-    
+
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # 允许.env中有未定义的字段，忽略它们
 
 
 @lru_cache()

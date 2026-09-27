@@ -249,7 +249,42 @@ class BaziDialogueAgent:
             parts.append("\n【AI深度解析】")
             parts.append(context.llm_analysis)
         
+        # 定盘反推：若已知出生年月日（时辰可待定），生成 12 候选时辰对比表
+        calibration_text = self._build_time_calibration_text(context)
+        if calibration_text:
+            parts.append("\n【十二时辰定盘对比】")
+            parts.append(calibration_text)
+        
         return "\n".join(parts)
+    
+    def _build_time_calibration_text(self, context: BaziContext) -> str:
+        """
+        根据出生年月日，构建用于"反推/校验出生时辰"的 12 候选时辰对比表。
+        只有当用户问定时辰相关问题时，该信息才有意义；但建表成本低，统一生成，
+        由 LLM 自行判断是否需要调用。
+        """
+        try:
+            birth_info = context.birth_info or {}
+            year = birth_info.get('year')
+            month = birth_info.get('month')
+            day = birth_info.get('day')
+
+            # 若 birth_info 缺失，尝试从 sizhu 的农历/八字信息反推
+            if not year and context.sizhu:
+                year = context.sizhu.get('bazi_year')
+            if not month and context.sizhu:
+                month = context.sizhu.get('lunar_month') or context.sizhu.get('month_index')
+            if not day and context.sizhu:
+                day = context.sizhu.get('lunar_day')
+
+            if not (year and month and day):
+                return "（缺少出生年月日，无法生成 12 候选时辰对比表）"
+
+            from core.tools.bazi_time_calibrator import generate_time_calibration_context
+            return generate_time_calibration_context(int(year), int(month), int(day))
+        except Exception as e:
+            logger.warning(f"生成时辰定盘对比表失败: {e}", exc_info=True)
+            return ""
     
     def build_history_text(self, messages: List[Dict[str, str]], is_first_assistant: bool = False) -> str:
         """构建历史对话文本"""
@@ -257,6 +292,7 @@ class BaziDialogueAgent:
             return "（无历史对话）"
         
         lines = []
+        turn_num = 0
         for i, msg in enumerate(messages):
             role = "用户" if msg.get("role") == "user" else "助手"
             content = msg.get("content", "")
@@ -265,54 +301,68 @@ class BaziDialogueAgent:
             # 第一条助手消息通常是深度分析，需要特殊处理
             if i == 0 and msg.get("role") == "assistant" and msg_type == "analysis":
                 # 🔧 修复：深度分析也需要截断，避免历史记录过大
-                # 保留前1000字的核心内容
-                if len(content) > 1000:
-                    content = content[:1000] + "...\n（完整分析已在上下文中，可追问详情）"
-                lines.append(f"【AI深度分析报告】\n{content}")
+                # 保留前1200字的核心内容
+                if len(content) > 1200:
+                    content = content[:1200] + "...\n（完整分析已在八字上下文中，此处仅保留摘要）"
+                lines.append(f"--- 第1轮：AI深度分析报告 ---\n{content}")
             else:
+                # 计算轮次
+                if msg.get("role") == "user":
+                    turn_num += 1
+                
                 # 后续对话，截断过长的内容
-                if len(content) > 500:
-                    content = content[:500] + "..."
-                lines.append(f"{role}：{content}")
+                if len(content) > 600:
+                    content = content[:600] + "..."
+                
+                if msg.get("role") == "user":
+                    lines.append(f"--- 第{turn_num + 1}轮：用户追问 ---\n{role}：{content}")
+                else:
+                    lines.append(f"{role}：{content}")
         
-        return "\n".join(lines)
+        return "\n\n".join(lines)
     
     def get_system_prompt(self, style: str = 'classic') -> str:
         """根据风格获取系统提示词"""
-        # 气机流转核心分析框架（所有风格通用，每次对话都必须遵循）
+        # 气机流转核心分析框架（第一轮深度分析用，追问时作为参考但不强制格式）
         core_requirement = """
 
-【⚠️ 核心分析要求 —— 气机流转分析法（每次回答必须遵循）】
+【核心分析方法 —— 气机流转分析法】
 
-你是精通"子平真诠"与"滴天髓"的实战派命理师。分析严禁使用模棱两可的形容词，必须遵循"气机流转"的物理法则。无论用户问什么，都必须先过以下三步推演，再回答具体问题：
+你是精通"子平真诠"与"滴天髓"的实战派命理师。分析严禁使用模棱两可的形容词，必须遵循"气机流转"的物理法则。
 
-## 第一步：定格局底色（气机分析）
-- 先看地支六合、三合、三会局，判断命局的"稳定性"与"能量流向"
-- 如果有合局，优先按"合化"论断，不要上来就论"冲克"
-- 逐一说明：哪些五行因合而化（能量转化了）、哪些五行因无合而独立（能量直冲）
-- 明确当前命局的气机是"流通"（生扶连贯）还是"阻塞"（克战阻断）
+分析三步推演（作为分析逻辑，不强制输出格式）：
+1. 定格局底色：先看地支六合、三合、三会局，判断命局"稳定性"与"能量流向"。有合局优先按"合化"论断。明确气机是"流通"还是"阻塞"。
+2. 大运定调：天干为表象，地支为实质。大运地支是否与原局形成新的合局或冲局？是"引动"沉睡能量还是"覆盖"原有格局？
+3. 流年断事：先看"合"（贪合忘冲），再看"冲"。通过十神定位事件类型，结合五行旺衰定吉凶程度。
 
-## 第二步：大运定调（天干表象 vs 地支实质）
-- 明确大运天干地支对原局的"覆盖"与"引动"作用
-- 天干为表象（外在环境、表面事件），地支为实质（内在根因、实际力量）
-- 大运地支是否与原局地支形成新的合局或冲局？这决定气机走向
-- 大运是"引动"了原局沉睡的能量，还是"覆盖"了原局本来的格局
+【⚠️ 多轮对话规则——极其重要】
+1. 这是多轮对话，用户可能在进行追问、质疑或讨论。你必须仔细阅读【历史对话】，理解之前已经分析过什么内容。
+2. 如果用户追问的是之前分析过的内容，不要重复之前的完整分析框架，而是直接针对用户的疑问进行回答和补充。
+3. 如果用户质疑你的分析逻辑，要正面回应质疑，解释清楚命理推导的来龙去脉，而不是套用模板重复结论。
+4. 如果用户纠正了你（比如"26年我只有工资没别的收入"），必须承认偏差，重新审视命理推导，给出修正后的分析，解释为什么实际情况与理论推导有出入。
+5. 回答要有连贯性和逻辑性，像一个真实的命理师在跟客户对话，而不是每次都从头开始套模板分析。
+6. 简单问题简洁回答，复杂问题详细回答。不要每次都用"气机分析/现象推导/断语结论"的固定三段式格式。
+7. 如果用户连续追问同一话题，要层层深入，而不是每次都重复同样的话。
 
-## 第三步：流年断事逻辑链
-1. 流年干支进入原局，先看"合"（贪合忘冲），再看"冲"
-2. 通过十神定位"事件类型"：印星动=学习/换工作/文书，财星动=赚钱/父亲/妻子，官杀动=升迁/是非/健康，食伤动=投资/子女/表达，比劫动=竞争/破财/合作
-3. 结合五行旺衰，判断事件的"吉凶程度"：是暴富还是小赚，是破产还是小亏
+【⚠️ 出生时辰定盘反推专项法则——堪称本系统最硬核场景】
+当用户想"反推/校验出生时辰"时（提到"推时辰、定时辰、换时辰、几点的、哪个时辰、什么时候出生"等），你必须使用上下文中的【十二时辰定盘对比】表做**数据驱动对比**，严禁凭印象编造。
 
-## 输出格式（必须按此结构）
-**气机分析**：[能量如何流转——合化了什么、冲克了什么、流通还是阻塞]
-**现象推导**：[基于气机推导的具体事件——十神定位+五行旺衰定程度]
-**断语结论**：[一句话定性，不含糊]"""
+执行步骤（按序必做）：
+1. 提取事实锚点：让用户提供尽量多的"已知生平事实"——学历层次、家庭环境、体格外貌、疾病史、2019以来各流年的真实应事（哪年进财/破财/升学/感情/换工作/健康）。
+2. 逐时辰比对：把每个候选时辰的【时干十神、旺衰喜忌、时支神煞、时支与年月日支的合冲】与上述事实对照，找出**能显著区分**的候选，淘汰明显不符的。
+   - 用神方向不同 → 学历/气质/用技巧与本命相配
+   - 时支冲（如子午冲、丑未冲）→ 六亲分离、健康特定病位
+   - 时支神煞（桃花/将星/羊刃/驿马/天乙）→ 外貌特征、际遇类型
+3. 流年应期反推（最有效）：不同时辰的喜忌不同，同一流年（如何年干支进了原局）的应事方向就不同。选"与该年真实发生事件最吻合"的时辰。
+4. 给结论：直接指出最可能时辰，并说明"依据哪几点事实 + 哪个候选盘特征"吻合；对仍有歧义的，列出仍存疑的候选让用户再补充 1-2 个关键事实（如某个特殊年份的具体事件或家人健康细节）来最终敲定。
+
+**严禁**：预设一个时辰"背答案"；严禁在拿不到出生年月日时编造 12 候选盘；严禁用"旺衰/喜忌"套话应付而不给具体的候选与事实对照。"""
 
         style_prompts = {
             'classic': """你是一位精通传统命理学的专业分析师，精通"子平真诠"与"滴天髓"的实战派命理师。
 回答时：
 1. 结合八字具体情况进行专业解读，使用传统命理术语并解释含义
-2. 严格遵循气机流转分析法，先定格局底色再推大运流年
+2. 遵循气机流转分析法，但根据对话情境灵活运用
 3. 给出实用的趋吉避凶建议
 4. 回答条理清晰，逻辑严谨，断语明确不含糊""" + core_requirement,
 
@@ -405,7 +455,28 @@ class BaziDialogueAgent:
         # 构建提示词
         system_prompt = self.get_system_prompt(bazi_context.analysis_style)
         
-        user_prompt = f"""【用户八字信息】
+        # 🔧 修复：根据对话轮次智能调整user_prompt指令
+        # 判断是第一轮对话还是后续追问
+        is_first_turn = len(state.messages) <= 1  # 只有当前用户消息，没有历史
+        
+        if is_first_turn:
+            # 第一轮对话：引导深度分析
+            user_prompt = f"""【用户八字信息】
+{context_text}
+
+【性别】
+{bazi_context.gender}
+
+【历史对话】
+（这是第一次对话，无历史记录）
+
+【用户当前问题】
+{user_message}
+
+请根据用户的八字信息进行深度分析，全面解读用户的命盘。"""
+        else:
+            # 后续追问：引导自然对话
+            user_prompt = f"""【用户八字信息】
 {context_text}
 
 【性别】
@@ -417,7 +488,14 @@ class BaziDialogueAgent:
 【用户当前问题】
 {user_message}
 
-请根据用户的八字信息，回答用户的问题。如果问题涉及之前讨论的内容，请结合历史对话进行回答。"""
+⚠️ 这是多轮对话的后续追问。请仔细阅读上面的【历史对话】，理解之前已经分析过什么内容、用户关注什么、是否有过质疑或纠正。
+
+回答要求：
+1. 直接回应用户当前的问题，不要重复之前已经说过的分析框架
+2. 如果用户质疑或纠正了你之前的分析，要正面回应，承认偏差并解释原因
+3. 像一个真实的命理师跟客户面对面聊天一样，有问有答，层层深入
+4. 简单问题简洁回答，不需要每次都套用完整的三步分析格式
+5. 保持与之前分析的逻辑一致性，如果当前回答与之前有变化，要说明为什么"""
 
         # 发送进度
         yield {
@@ -429,7 +507,7 @@ class BaziDialogueAgent:
         # 流式调用LLM
         full_response = ""
         try:
-            for chunk in call_llm_stream(system_prompt, user_prompt, temperature=0.5):
+            for chunk in call_llm_stream(system_prompt, user_prompt, temperature=0.7):
                 full_response += chunk
                 yield {
                     'type': 'content',
@@ -439,7 +517,7 @@ class BaziDialogueAgent:
             logger.error(f"LLM调用失败: {e}")
             # 降级为非流式
             try:
-                full_response = call_llm(system_prompt, user_prompt, temperature=0.5)
+                full_response = call_llm(system_prompt, user_prompt, temperature=0.7)
                 yield {
                     'type': 'content',
                     'content': full_response
@@ -482,7 +560,25 @@ class BaziDialogueAgent:
         
         system_prompt = self.get_system_prompt(bazi_context.analysis_style)
         
-        user_prompt = f"""【用户八字信息】
+        # 🔧 修复：根据对话轮次智能调整user_prompt指令
+        is_first_turn = len(state.messages) <= 1
+        
+        if is_first_turn:
+            user_prompt = f"""【用户八字信息】
+{context_text}
+
+【性别】
+{bazi_context.gender}
+
+【历史对话】
+（这是第一次对话，无历史记录）
+
+【用户当前问题】
+{user_message}
+
+请根据用户的八字信息进行深度分析，全面解读用户的命盘。"""
+        else:
+            user_prompt = f"""【用户八字信息】
 {context_text}
 
 【性别】
@@ -494,10 +590,17 @@ class BaziDialogueAgent:
 【用户当前问题】
 {user_message}
 
-请根据用户的八字信息，回答用户的问题。"""
+⚠️ 这是多轮对话的后续追问。请仔细阅读上面的【历史对话】，理解之前已经分析过什么内容、用户关注什么、是否有过质疑或纠正。
+
+回答要求：
+1. 直接回应用户当前的问题，不要重复之前已经说过的分析框架
+2. 如果用户质疑或纠正了你之前的分析，要正面回应，承认偏差并解释原因
+3. 像一个真实的命理师跟客户面对面聊天一样，有问有答，层层深入
+4. 简单问题简洁回答，不需要每次都套用完整的三步分析格式
+5. 保持与之前分析的逻辑一致性，如果当前回答与之前有变化，要说明为什么"""
         
         try:
-            response = call_llm(system_prompt, user_prompt, temperature=0.5)
+            response = call_llm(system_prompt, user_prompt, temperature=0.7)
             state.messages.append({"role": "assistant", "content": response})
             
             return {

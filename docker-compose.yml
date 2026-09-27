@@ -1,0 +1,56 @@
+# 博弈交易法智能分析系统 - Docker Compose
+# 完整环境：PostgreSQL + TimescaleDB + Redis
+#
+# 使用方式：
+#   docker compose up -d          # 启动所有服务
+#   docker compose down           # 停止所有服务
+#   docker compose logs -f db     # 查看数据库日志
+#
+# 注意：如果你已有 postgres_db 容器在运行（端口5432），
+# 可以只用当前容器，不需要启动此 compose 中的 db 服务。
+# 当前项目已配置为使用现有 postgres_db 容器。
+
+services:
+  # ========== 数据库服务 ==========
+  # 完整版：带 TimescaleDB + pgvector 扩展的 PostgreSQL
+  # 仅在需要时序数据库和向量搜索功能时启动
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: boyi-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kevin
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: boyi
+      TZ: Asia/Shanghai
+    ports:
+      - "5433:5432"  # 使用5433避免与现有 postgres_db(5432) 冲突
+    volumes:
+      - boyi_pg_data:/var/lib/postgresql/data
+      - ./scripts/init_database.sql:/docker-entrypoint-initdb.d/init_database.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kevin -d boyi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== Redis 缓存 ==========
+  # 用于任务队列(Celery)和缓存
+  redis:
+    image: redis:7-alpine
+    container_name: boyi-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"  # 使用6380避免与现有 redis(6379) 冲突
+    volumes:
+      - boyi_redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  boyi_pg_data:
+  boyi_redis_data:
