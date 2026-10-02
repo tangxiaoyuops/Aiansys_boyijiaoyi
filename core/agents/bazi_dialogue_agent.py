@@ -286,40 +286,93 @@ class BaziDialogueAgent:
             logger.warning(f"生成时辰定盘对比表失败: {e}", exc_info=True)
             return ""
     
-    def build_history_text(self, messages: List[Dict[str, str]], is_first_assistant: bool = False) -> str:
-        """构建历史对话文本"""
+    def build_history_text(self, messages: List[Dict[str, str]]) -> str:
+        """构建历史对话文本（结构化，突出轮次与追问关系）
+
+        修复：原实现将历史压缩为平铺大段文字并粗暴截断到600字，
+        >3 轮后模型失去上下文，无法连贯追问。现改为：
+          - 明确的轮次编号与追问/回复关系
+          - 每轮保留用户意图与助手要点，而非整段砍掉
+          - 最近轮次完整保留且高亮，作为模型推理的依据
+          - 第一轮助手分析取要点摘要，避免历史无限膨胀
+        """
         if not messages:
             return "（无历史对话）"
-        
-        lines = []
-        turn_num = 0
-        for i, msg in enumerate(messages):
-            role = "用户" if msg.get("role") == "user" else "助手"
+
+        # 1. 将平铺消息流按"用户->助手"配对，组织成轮次
+        turns = []
+        pending_user = None
+        for msg in messages:
+            role = msg.get("role")
             content = msg.get("content", "")
             msg_type = msg.get("type", "content")
-            
-            # 第一条助手消息通常是深度分析，需要特殊处理
-            if i == 0 and msg.get("role") == "assistant" and msg_type == "analysis":
-                # 🔧 修复：深度分析也需要截断，避免历史记录过大
-                # 保留前1200字的核心内容
-                if len(content) > 1200:
-                    content = content[:1200] + "...\n（完整分析已在八字上下文中，此处仅保留摘要）"
-                lines.append(f"--- 第1轮：AI深度分析报告 ---\n{content}")
+            if role == "user":
+                pending_user = {"content": content, "type": msg_type}
             else:
-                # 计算轮次
-                if msg.get("role") == "user":
-                    turn_num += 1
-                
-                # 后续对话，截断过长的内容
-                if len(content) > 600:
-                    content = content[:600] + "..."
-                
-                if msg.get("role") == "user":
-                    lines.append(f"--- 第{turn_num + 1}轮：用户追问 ---\n{role}：{content}")
+                if pending_user is not None:
+                    turns.append({"user": pending_user,
+                                  "assistant": {"content": content, "type": msg_type}})
+                    pending_user = None
                 else:
-                    lines.append(f"{role}：{content}")
-        
+                    # 无前置用户的助手消息（罕见），记为独立轮次的"背景说明"
+                    turns.append({"user": None, "assistant": {"content": content, "type": msg_type}})
+
+        lines = []
+        total = len(turns)
+        for idx, pair in enumerate(turns):
+            turn = idx + 1
+            is_recent = (turn == total)
+            header = f"【第{turn}轮{(' · 最近对话｜模型须重点承接') if is_recent else ''}】"
+
+            user = pair["user"]
+            assistant = pair["assistant"]
+            a_content = assistant.get("content", "")
+
+            # 第一轮助手消息较长，取要点摘要；其余轮次要提取核心
+            if turn == 1 and len(a_content) > 1200:
+                a_disp = self._first_round_gist(a_content)
+            else:
+                a_disp = self._extract_core(a_content, 400)
+
+            if user:
+                u_disp = self._extract_core(user.get("content", ""), 300)
+                lines.append(f"{header} 用户问：{u_disp}")
+            else:
+                lines.append(f"{header}（首轮）")
+            lines.append(f"  命理师答：{a_disp}")
+
         return "\n\n".join(lines)
+
+    @staticmethod
+    def _first_round_gist(content: str, keep: int = 1200) -> str:
+        """取第一轮深度分析：优先保留头尾，中间省略"""
+        if len(content) <= keep:
+            return content
+        head = content[:keep]
+        # 尝试截在句号/换行边界，找不到就退化为字符截断
+        cut = head.rfind('。')
+        if cut == -1:
+            cut = head.rfind('\n')
+        if cut > keep - 200:
+            head = head[:cut + 1].rstrip()
+        else:
+            head = head.rstrip()
+        return head + "…（后续为常规分析，此处已省略）"
+
+    @staticmethod
+    def _extract_core(content: str, limit: int = 400) -> str:
+        """压缩一段文字到 limit 字，优先保留句子边界"""
+        if len(content) <= limit:
+            return content
+        # 按句切分（。！？;；换行）
+        import re
+        sentences = re.split(r'(?<=[。！？；\n])', content)
+        kept = ""
+        for s in sentences:
+            if len(kept) + len(s) > limit:
+                break
+            kept += s
+        return kept + ("……" if len(kept) < len(content) else "")
     
     def get_system_prompt(self, style: str = 'classic') -> str:
         """根据风格获取系统提示词"""
@@ -488,14 +541,20 @@ class BaziDialogueAgent:
 【用户当前问题】
 {user_message}
 
-⚠️ 这是多轮对话的后续追问。请仔细阅读上面的【历史对话】，理解之前已经分析过什么内容、用户关注什么、是否有过质疑或纠正。
+⚠️ 这是多轮对话的后续追问。请先仔细阅读【历史对话】中标注【最近对话】的那一轮——用户当前问题通常是对它的继续。
+
+务必按以下顺序组织你的作答：
+0. （在内心）先确认：用户这次追问，是要修正自己、补充信息、还是质疑你的推论→由此决定回答语气。
+1. 用一句话承接上一轮结论，表明你知道聊到哪了（例如"如我们前面所述……"），再进入本题。
+2. 只围绕用户当前这个问题展开，不要重复之前整套分析流程，不要新起炉灶。
+3. 如果用户实际是在纠正你（例如"其实我27岁才第一次恋爱"），必须承认偏差、重新校准推导，给出修正后的答案。
+4. 如果用户的问题是开放式的（如"接下来会怎样""那你觉得呢"），顺着上一轮自然延伸，给出递进、深入的下一步分析，而不是原地复述。
 
 回答要求：
-1. 直接回应用户当前的问题，不要重复之前已经说过的分析框架
-2. 如果用户质疑或纠正了你之前的分析，要正面回应，承认偏差并解释原因
-3. 像一个真实的命理师跟客户面对面聊天一样，有问有答，层层深入
-4. 简单问题简洁回答，不需要每次都套用完整的三步分析格式
-5. 保持与之前分析的逻辑一致性，如果当前回答与之前有变化，要说明为什么"""
+1. 直接回应用户当前的问题
+2. 有问有答，层层深入，像真实命理师对老朋友
+3. 简单问题简洁回答，复杂部分再详细
+4. 保持与前文逻辑一致；若有修正务必说明原因"""
 
         # 发送进度
         yield {
@@ -590,14 +649,20 @@ class BaziDialogueAgent:
 【用户当前问题】
 {user_message}
 
-⚠️ 这是多轮对话的后续追问。请仔细阅读上面的【历史对话】，理解之前已经分析过什么内容、用户关注什么、是否有过质疑或纠正。
+⚠️ 这是多轮对话的后续追问。请先仔细阅读【历史对话】中标注【最近对话】的那一轮——用户当前问题通常是对它的继续。
+
+务必按以下顺序组织你的作答：
+0. （在内心）先确认：用户这次追问，是要修正自己、补充信息、还是质疑你的推论→由此决定回答语气。
+1. 用一句话承接上一轮结论，表明你知道聊到哪了（例如"如我们前面所述……"），再进入本题。
+2. 只围绕用户当前这个问题展开，不要重复之前整套分析流程，不要新起炉灶。
+3. 如果用户实际是在纠正你（例如"其实我27岁才第一次恋爱"），必须承认偏差、重新校准推导，给出修正后的答案。
+4. 如果用户的问题是开放式的（如"接下来会怎样""那你觉得呢"），顺着上一轮自然延伸，给出递进、深入的下一步分析，而不是原地复述。
 
 回答要求：
-1. 直接回应用户当前的问题，不要重复之前已经说过的分析框架
-2. 如果用户质疑或纠正了你之前的分析，要正面回应，承认偏差并解释原因
-3. 像一个真实的命理师跟客户面对面聊天一样，有问有答，层层深入
-4. 简单问题简洁回答，不需要每次都套用完整的三步分析格式
-5. 保持与之前分析的逻辑一致性，如果当前回答与之前有变化，要说明为什么"""
+1. 直接回应用户当前的问题
+2. 有问有答，层层深入，像真实命理师对老朋友
+3. 简单问题简洁回答，复杂部分再详细
+4. 保持与前文逻辑一致；若有修正务必说明原因"""
         
         try:
             response = call_llm(system_prompt, user_prompt, temperature=0.7)
